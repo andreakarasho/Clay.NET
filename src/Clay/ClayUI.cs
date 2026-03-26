@@ -456,8 +456,8 @@ public static class ClayUI
 
         // Get the scrollbar track element to calculate relative position
         var trackId = _context.IsVerticalScrollbar
-            ? Clay.Id($"Scrollbar_V_{_context.ActiveScrollContainerId.Id}")
-            : Clay.Id($"Scrollbar_H_{_context.ActiveScrollContainerId.Id}");
+            ? ElementId.HashNumber(4, _context.ActiveScrollContainerId.Id)
+            : ElementId.HashNumber(5, _context.ActiveScrollContainerId.Id);
         var trackData = Clay.GetElementData(trackId);
         if (!trackData.Found) return;
 
@@ -594,16 +594,23 @@ public static class ClayUI
     // ============ ID Generation ============
 
     /// <summary>
-    /// Generates a unique ID for a widget based on its label.
+    /// Generates a unique ID for a widget. The label is hashed together with
+    /// a per-frame counter to guarantee uniqueness even for identical labels.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ElementId Id(string label) => Clay.Id($"ClayUI_{label}_{_context.IdCounter++}");
+    public static ElementId Id(string label)
+        => ElementId.Hash(label, _context.IdCounter++, IdSeed);
 
     /// <summary>
     /// Generates a stable ID for a widget (doesn't auto-increment).
+    /// Use for widgets that need the same ID across frames (windows, panels, etc.).
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static ElementId StableId(string label) => Clay.Id($"ClayUI_{label}");
+    public static ElementId StableId(string label)
+        => ElementId.Hash(label, seed: IdSeed);
+
+    // Seed to distinguish ClayUI IDs from user IDs
+    private const uint IdSeed = 0x436C6179; // "Clay"
 
     // ============ Basic Widgets ============
 
@@ -825,7 +832,7 @@ public static class ClayUI
     {
         var s = style ?? Style.Slider;
         var id = Id(label);
-        var trackId = Clay.Id($"ClayUI_{label}_Track_{_context.IdCounter}");
+        var trackId = ElementId.HashNumber(_context.IdCounter, id.Id);
         bool isHovered = Clay.PointerOver(trackId);
         bool changed = false;
 
@@ -1520,9 +1527,9 @@ public static class ClayUI
         _context.WindowStack.Push(id.Id);
         _context.WindowDepth++;
 
-        var titleBarId = Clay.Id($"WindowTitleBar_{id.Id}");
-        var collapseButtonId = Clay.Id($"WindowCollapse_{id.Id}");
-        var closeButtonId = Clay.Id($"WindowClose_{id.Id}");
+        var titleBarId = ElementId.HashNumber(1, id.Id);
+        var collapseButtonId = ElementId.HashNumber(2, id.Id);
+        var closeButtonId = ElementId.HashNumber(3, id.Id);
 
         // Calculate window bounds
         float windowHeight = state.Collapsed ? s.TitleBarHeight : state.Size.Y;
@@ -1650,7 +1657,7 @@ public static class ClayUI
         // Handle mouse wheel scrolling for this window (if topmost and not collapsed)
         if (isTopmostAtMouse && !state.Collapsed && (_context.ScrollDelta.X != 0 || _context.ScrollDelta.Y != 0))
         {
-            var scrollId = Clay.Id($"WindowScroll_{id.Id}");
+            var scrollId = ElementId.HashNumber(4, id.Id);
             var scrollData = Clay.GetScrollContainerData(scrollId);
             if (scrollData.Found)
             {
@@ -1783,7 +1790,7 @@ public static class ClayUI
             bool showScrollbar = !flags.HasFlag(WindowFlags.NoScroll);
             bool showResize = !flags.HasFlag(WindowFlags.NoResize);
             bool hasRightColumn = showScrollbar || showResize;
-            var scrollId = Clay.Id($"WindowScroll_{id.Id}");
+            var scrollId = ElementId.HashNumber(4, id.Id);
 
             // Track window frame info for EndWindow
             _context.WindowScrollInfo.Push(new ClayUIContext.WindowFrameInfo(scrollId, showScrollbar, showResize, hasRightColumn));
@@ -2405,8 +2412,8 @@ public static class ClayUI
         float thumbTravel = trackHeight - thumbHeight;
         float thumbY = maxScrollY > 0 ? (scrollY / maxScrollY) * thumbTravel : 0;
 
-        var trackId = Clay.Id($"Scrollbar_V_{scrollContainerId.Id}");
-        var thumbId = Clay.Id($"ScrollbarThumb_V_{scrollContainerId.Id}");
+        var trackId = ElementId.HashNumber(4, scrollContainerId.Id);
+        var thumbId = ElementId.HashNumber(5, scrollContainerId.Id);
 
         bool isThumbHovered = Clay.PointerOver(thumbId);
         bool isActiveScrollbar = _context.ActiveScrollbarId == thumbId.Id;
@@ -2512,8 +2519,8 @@ public static class ClayUI
         float thumbTravel = trackWidth - thumbWidth;
         float thumbX = maxScrollX > 0 ? (scrollX / maxScrollX) * thumbTravel : 0;
 
-        var trackId = Clay.Id($"Scrollbar_H_{scrollContainerId.Id}");
-        var thumbId = Clay.Id($"ScrollbarThumb_H_{scrollContainerId.Id}");
+        var trackId = ElementId.HashNumber(6, scrollContainerId.Id);
+        var thumbId = ElementId.HashNumber(7, scrollContainerId.Id);
 
         bool isThumbHovered = Clay.PointerOver(thumbId);
         bool isActiveScrollbar = _context.ActiveScrollbarId == thumbId.Id;
