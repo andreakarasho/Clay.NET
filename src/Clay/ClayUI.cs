@@ -2803,6 +2803,7 @@ public static class ClayUI
             }
 
             // Hovered element
+            if (BeginTreeNode("Hovered Element"))
             {
                 var pointer = Clay.GetPointerState();
                 var ctx = Clay.Context;
@@ -2835,14 +2836,16 @@ public static class ClayUI
 
                 if (hoveredId != 0)
                 {
-                    Label($"Hovered ID: {hoveredId}");
-                    Label($"  Position: ({hoveredBox.X:F0}, {hoveredBox.Y:F0})");
-                    Label($"  Size: ({hoveredBox.Width:F0} x {hoveredBox.Height:F0})");
+                    Label($"ID: {hoveredId}");
+                    Label($"Position: ({hoveredBox.X:F0}, {hoveredBox.Y:F0})");
+                    Label($"Size: ({hoveredBox.Width:F0} x {hoveredBox.Height:F0})");
                 }
                 else
                 {
-                    Label("Hovered: (none)");
+                    Label("(none)");
                 }
+
+                EndTreeNode();
             }
 
             Separator();
