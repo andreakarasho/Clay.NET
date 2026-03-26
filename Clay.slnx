@@ -4,4 +4,8 @@
     <Project Path="src/Clay.Test/Clay.Test.csproj" />
   </Folder>
   <Project Path="src/Clay.Example/Clay.Example.csproj" />
+  <Project Path="src/StbTextEdit/StbTextEdit.csproj" />
+  <Folder Name="/src/">
+    <Project Path="src/StbTextEdit.Test/StbTextEdit.Test.csproj" />
+  </Folder>
 </Solution>

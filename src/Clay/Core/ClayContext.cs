@@ -63,6 +63,9 @@ public class ClayContext : IDisposable
     // Text measurement
     public ITextMeasurer? TextMeasurer;
 
+    // Text input widget management
+    public Widgets.TextInput? TextInput;
+
     // Default configs
     private LayoutConfig _defaultLayout;
 
@@ -129,6 +132,7 @@ public class ClayContext : IDisposable
     /// </summary>
     public void BeginLayout()
     {
+        TextInput?.BeginFrame();
         Warnings = default;
         Generation++;
 

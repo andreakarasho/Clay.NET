@@ -6,7 +6,7 @@ namespace Clay;
 /// <summary>
 /// Main static API for the Clay UI layout library.
 /// </summary>
-public static class Clay
+public static partial class Clay
 {
     private static ClayContext? _context;
 
@@ -27,10 +27,12 @@ public static class Clay
         int maxElementCount = 8192)
     {
         _context?.Dispose();
+        var measurer = textMeasurer ?? new SimpleTextMeasurer();
         _context = new ClayContext(maxElementCount)
         {
             LayoutDimensions = layoutDimensions,
-            TextMeasurer = textMeasurer ?? new SimpleTextMeasurer()
+            TextMeasurer = measurer,
+            TextInput = new Widgets.TextInput(measurer)
         };
     }
 

@@ -43,6 +43,9 @@ Clay.Clay.Initialize(
     maxElementCount: 8192
 );
 
+// Set up clipboard for text edit Ctrl+C/X/V
+Clay.Clay.TextEditSetClipboard(new RaylibClipboard());
+
 // Application state
 var documents = new[]
 {
@@ -86,6 +89,11 @@ float windowSlider = 0.5f;
 // Debug window state
 bool debugWindowOpen = true;
 
+// TextEdit demo state
+string textEditSingleLine = "Hello, Clay!";
+string textEditMultiLine = "Line 1\nLine 2\nLine 3";
+string textEditEmpty = "";
+
 // Main loop
 while (!Raylib.WindowShouldClose())
 {
@@ -116,6 +124,9 @@ while (!Raylib.WindowShouldClose())
     {
         debugWindowOpen = !debugWindowOpen;
     }
+
+    // Forward keyboard input to text edit widgets
+    ForwardKeyboardInput();
 
     // Begin layout
     Clay.Clay.BeginLayout();
@@ -603,6 +614,83 @@ void RenderWidgetDemo()
 
     ClayUI.Space(16);
 
+    // ========== TEXT EDIT ==========
+    ClayUI.BeginPanel("Text Edit");
+    ClayUI.Label("Text edit fields powered by StbTextEdit - full cursor, selection, undo/redo, clipboard:");
+    ClayUI.Space(8);
+
+    ClayUI.Label("Single-line input:");
+    ClayUI.Space(4);
+    if (Clay.Clay.TextEdit(Clay.Clay.Id("SingleLineInput"), ref textEditSingleLine, new Clay.Widgets.TextInputStyle
+    {
+        BackgroundColor = Color.Rgba(50, 50, 55),
+        FocusedBackgroundColor = Color.Rgba(60, 60, 70),
+        TextColor = Color.Rgba(220, 220, 220),
+        CursorColor = Color.Rgba(100, 180, 255),
+        SelectionColor = Color.Rgba(80, 130, 200, 120),
+        CornerRadius = CornerRadius.All(4),
+        Border = new BorderConfig { Width = BorderWidth.All(1), Color = Color.Rgba(80, 80, 90) },
+        Padding = Padding.Symmetric(8, 6),
+        FontId = 0,
+        FontSize = 16,
+        Sizing = new Sizing(SizingAxis.Grow(), SizingAxis.Default),
+    }))
+    {
+        // Text changed
+    }
+
+    ClayUI.Space(12);
+    ClayUI.Label("Multi-line input:");
+    ClayUI.Space(4);
+    if (Clay.Clay.TextEdit(Clay.Clay.Id("MultiLineInput"), ref textEditMultiLine, new Clay.Widgets.TextInputStyle
+    {
+        BackgroundColor = Color.Rgba(50, 50, 55),
+        FocusedBackgroundColor = Color.Rgba(60, 60, 70),
+        TextColor = Color.Rgba(220, 220, 220),
+        CursorColor = Color.Rgba(100, 180, 255),
+        SelectionColor = Color.Rgba(80, 130, 200, 120),
+        CornerRadius = CornerRadius.All(4),
+        Border = new BorderConfig { Width = BorderWidth.All(1), Color = Color.Rgba(80, 80, 90) },
+        Padding = Padding.All(8),
+        FontId = 0,
+        FontSize = 16,
+        Sizing = new Sizing(SizingAxis.Grow(), SizingAxis.Fixed(120)),
+    }, singleLine: false))
+    {
+        // Text changed
+    }
+
+    ClayUI.Space(12);
+    ClayUI.Label("Empty (placeholder-style):");
+    ClayUI.Space(4);
+    Clay.Clay.TextEdit(Clay.Clay.Id("EmptyInput"), ref textEditEmpty, new Clay.Widgets.TextInputStyle
+    {
+        BackgroundColor = Color.Rgba(50, 50, 55),
+        FocusedBackgroundColor = Color.Rgba(60, 60, 70),
+        TextColor = Color.Rgba(220, 220, 220),
+        CursorColor = Color.Rgba(100, 180, 255),
+        SelectionColor = Color.Rgba(80, 130, 200, 120),
+        CornerRadius = CornerRadius.All(4),
+        Border = new BorderConfig { Width = BorderWidth.All(1), Color = Color.Rgba(80, 80, 90) },
+        Padding = Padding.Symmetric(8, 6),
+        FontId = 0,
+        FontSize = 16,
+        Sizing = new Sizing(SizingAxis.Grow(), SizingAxis.Default),
+    });
+
+    ClayUI.Space(12);
+    ClayUI.Label($"Single-line value: \"{textEditSingleLine}\"");
+    ClayUI.Label($"Multi-line lines: {textEditMultiLine.Split('\n').Length}");
+    ClayUI.Label($"Empty value: \"{textEditEmpty}\"");
+    ClayUI.Space(8);
+    ClayUI.Label("Supports: Arrow keys, Home/End, Ctrl+A/C/X/V/Z, Shift+select, mouse click/drag, undo/redo");
+
+    ClayUI.Space(12);
+    ClayUI.Label("Usage: if (Clay.TextEdit(id, ref text, style)) {{ /* changed */ }}");
+    ClayUI.EndPanel();
+
+    ClayUI.Space(16);
+
     // ========== CHECKBOX ==========
     ClayUI.BeginPanel("Checkbox");
     ClayUI.Label("Checkboxes toggle a boolean value:");
@@ -973,6 +1061,51 @@ void RenderDemoWindows()
         ClayUI.Toggle("Sound", ref checkboxValue);
     }
     ClayUI.EndWindow();
+}
+
+// ============ Keyboard Input for TextEdit ============
+
+void ForwardKeyboardInput()
+{
+    if (!Clay.Clay.TextEditHasFocus) return;
+
+    bool shift = Raylib.IsKeyDown(KeyboardKey.KEY_LEFT_SHIFT) || Raylib.IsKeyDown(KeyboardKey.KEY_RIGHT_SHIFT);
+    bool ctrl = Raylib.IsKeyDown(KeyboardKey.KEY_LEFT_CONTROL) || Raylib.IsKeyDown(KeyboardKey.KEY_RIGHT_CONTROL);
+    var mods = (shift ? Clay.Widgets.ClayKeyModifiers.Shift : 0)
+             | (ctrl ? Clay.Widgets.ClayKeyModifiers.Ctrl : 0);
+    float dt = Raylib.GetFrameTime();
+
+    ReadOnlySpan<(KeyboardKey rayKey, Clay.Widgets.ClayKey clayKey)> keyMap =
+    [
+        (KeyboardKey.KEY_LEFT, Clay.Widgets.ClayKey.Left),
+        (KeyboardKey.KEY_RIGHT, Clay.Widgets.ClayKey.Right),
+        (KeyboardKey.KEY_UP, Clay.Widgets.ClayKey.Up),
+        (KeyboardKey.KEY_DOWN, Clay.Widgets.ClayKey.Down),
+        (KeyboardKey.KEY_HOME, Clay.Widgets.ClayKey.Home),
+        (KeyboardKey.KEY_END, Clay.Widgets.ClayKey.End),
+        (KeyboardKey.KEY_PAGE_UP, Clay.Widgets.ClayKey.PageUp),
+        (KeyboardKey.KEY_PAGE_DOWN, Clay.Widgets.ClayKey.PageDown),
+        (KeyboardKey.KEY_DELETE, Clay.Widgets.ClayKey.Delete),
+        (KeyboardKey.KEY_BACKSPACE, Clay.Widgets.ClayKey.Backspace),
+        (KeyboardKey.KEY_ENTER, Clay.Widgets.ClayKey.Enter),
+        (KeyboardKey.KEY_KP_ENTER, Clay.Widgets.ClayKey.Enter),
+        (KeyboardKey.KEY_TAB, Clay.Widgets.ClayKey.Tab),
+        (KeyboardKey.KEY_INSERT, Clay.Widgets.ClayKey.Insert),
+        (KeyboardKey.KEY_A, Clay.Widgets.ClayKey.A),
+        (KeyboardKey.KEY_C, Clay.Widgets.ClayKey.C),
+        (KeyboardKey.KEY_V, Clay.Widgets.ClayKey.V),
+        (KeyboardKey.KEY_X, Clay.Widgets.ClayKey.X),
+        (KeyboardKey.KEY_Z, Clay.Widgets.ClayKey.Z),
+    ];
+
+    foreach (var (rayKey, clayKey) in keyMap)
+        if (Raylib.IsKeyDown(rayKey))
+            Clay.Clay.TextEditKeyDown(clayKey, mods, dt);
+
+    int ch;
+    while ((ch = Raylib.GetCharPressed()) != 0)
+        if (ch >= 32)
+            Clay.Clay.TextEditProcessChar((char)ch);
 }
 
 // ============ Data Types ============

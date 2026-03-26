@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>StbTextEdit</RootNamespace>
+
+    <PackageId>StbTextEdit</PackageId>
+    <Version>0.1.0</Version>
+    <Description>Pure .NET port of stb_textedit.h - lightweight text editing widget with undo, selection, and cursor management</Description>
+  </PropertyGroup>
+
+</Project>

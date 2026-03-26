@@ -20,4 +20,8 @@
     <PackageTags>ui;layout;immediate-mode;game-dev</PackageTags>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\StbTextEdit\StbTextEdit.csproj" />
+  </ItemGroup>
+
 </Project>
