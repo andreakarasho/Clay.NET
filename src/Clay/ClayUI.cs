@@ -2802,6 +2802,55 @@ public static class ClayUI
                 Separator();
             }
 
+            // Hovered element
+            if (BeginTreeNode("Hovered Element"))
+            {
+                var pointer = Clay.GetPointerState();
+                var ctx = Clay.Context;
+
+                if (ctx != null)
+                {
+                    uint hoveredId = 0;
+                    BoundingBox hoveredBox = default;
+                    float smallestArea = float.MaxValue;
+
+                    // Find the smallest element under the pointer (topmost/most specific)
+                    for (int i = 0; i < ctx.LayoutElementsHashMapInternal.Length; i++)
+                    {
+                        ref var item = ref ctx.LayoutElementsHashMapInternal[i];
+                        if (item.Generation > 0 && item.BoundingBox.Contains(pointer.Position))
+                        {
+                            float area = item.BoundingBox.Width * item.BoundingBox.Height;
+                            if (area < smallestArea)
+                            {
+                                smallestArea = area;
+                                hoveredId = item.ElementId.Id;
+                                hoveredBox = item.BoundingBox;
+                            }
+                        }
+                    }
+
+                    if (hoveredId != 0)
+                    {
+                        Label($"ID: {hoveredId}");
+                        Label($"Position: ({hoveredBox.X:F0}, {hoveredBox.Y:F0})");
+                        Label($"Size: ({hoveredBox.Width:F0} x {hoveredBox.Height:F0})");
+                    }
+                    else
+                    {
+                        Label("(none)");
+                    }
+                }
+                else
+                {
+                    Label("(context unavailable)");
+                }
+
+                EndTreeNode();
+            }
+
+            Separator();
+
             // Input state
             if (BeginTreeNode("Input State"))
             {
