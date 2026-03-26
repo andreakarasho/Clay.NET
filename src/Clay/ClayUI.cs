@@ -2956,8 +2956,177 @@ public static class ClayUI
 
                 EndTreeNode();
             }
+            Separator();
+
+            // Styles editor
+            if (BeginTreeNode("Styles"))
+            {
+                if (BeginTreeNode("Theme Presets"))
+                {
+                    BeginHorizontal(gap: 8);
+                    if (Button("Default")) Style = ClayUIStyle.Default;
+                    if (Button("Dark")) Style = ClayUIStyle.Dark;
+                    if (Button("Light")) Style = ClayUIStyle.Light;
+                    EndHorizontal();
+                    EndTreeNode();
+                }
+
+                if (BeginTreeNode("Button"))
+                {
+                    Style.Button.BackgroundColor = StyleColorEditor("Background##btn_bg", Style.Button.BackgroundColor);
+                    Style.Button.HoverColor = StyleColorEditor("Hover##btn_hv", Style.Button.HoverColor);
+                    Style.Button.PressedColor = StyleColorEditor("Pressed##btn_pr", Style.Button.PressedColor);
+                    Style.Button.TextColor = StyleColorEditor("Text##btn_tx", Style.Button.TextColor);
+                    Style.Button.FontSize = StyleUshortEditor("Font Size##btn_fs", Style.Button.FontSize, 8, 32);
+                    Style.Button.CornerRadius = StyleCornerRadiusEditor("Corner Radius##btn_cr", Style.Button.CornerRadius);
+                    EndTreeNode();
+                }
+
+                if (BeginTreeNode("Label"))
+                {
+                    Style.Label.TextColor = StyleColorEditor("Text##lbl_tx", Style.Label.TextColor);
+                    Style.Label.FontSize = StyleUshortEditor("Font Size##lbl_fs", Style.Label.FontSize, 8, 32);
+                    Style.Label.LineHeight = StyleUshortEditor("Line Height##lbl_lh", Style.Label.LineHeight, 10, 40);
+                    EndTreeNode();
+                }
+
+                if (BeginTreeNode("Heading"))
+                {
+                    Style.Heading.TextColor = StyleColorEditor("Text##hd_tx", Style.Heading.TextColor);
+                    Style.Heading.FontSize = StyleUshortEditor("Font Size##hd_fs", Style.Heading.FontSize, 10, 48);
+                    EndTreeNode();
+                }
+
+                if (BeginTreeNode("Checkbox"))
+                {
+                    Style.Checkbox.BoxColor = StyleColorEditor("Box##cb_box", Style.Checkbox.BoxColor);
+                    Style.Checkbox.CheckedColor = StyleColorEditor("Checked##cb_chk", Style.Checkbox.CheckedColor);
+                    Style.Checkbox.CheckmarkColor = StyleColorEditor("Checkmark##cb_cm", Style.Checkbox.CheckmarkColor);
+                    Style.Checkbox.BoxBorderColor = StyleColorEditor("Border##cb_brd", Style.Checkbox.BoxBorderColor);
+                    Style.Checkbox.TextColor = StyleColorEditor("Text##cb_tx", Style.Checkbox.TextColor);
+                    Style.Checkbox.HoverColor = StyleColorEditor("Hover##cb_hv", Style.Checkbox.HoverColor);
+                    Style.Checkbox.BoxSize = StyleFloatEditor("Box Size##cb_bs", Style.Checkbox.BoxSize, 10, 30);
+                    Style.Checkbox.FontSize = StyleUshortEditor("Font Size##cb_fs", Style.Checkbox.FontSize, 8, 32);
+                    EndTreeNode();
+                }
+
+                if (BeginTreeNode("Slider"))
+                {
+                    Style.Slider.TrackColor = StyleColorEditor("Track##sl_tr", Style.Slider.TrackColor);
+                    Style.Slider.FillColor = StyleColorEditor("Fill##sl_fl", Style.Slider.FillColor);
+                    Style.Slider.TextColor = StyleColorEditor("Text##sl_tx", Style.Slider.TextColor);
+                    Style.Slider.TrackHeight = StyleFloatEditor("Track Height##sl_th", Style.Slider.TrackHeight, 4, 20);
+                    Style.Slider.FontSize = StyleUshortEditor("Font Size##sl_fs", Style.Slider.FontSize, 8, 32);
+                    EndTreeNode();
+                }
+
+                if (BeginTreeNode("Toggle"))
+                {
+                    Style.Toggle.OnColor = StyleColorEditor("On##tg_on", Style.Toggle.OnColor);
+                    Style.Toggle.OffColor = StyleColorEditor("Off##tg_off", Style.Toggle.OffColor);
+                    Style.Toggle.KnobColor = StyleColorEditor("Knob##tg_kn", Style.Toggle.KnobColor);
+                    Style.Toggle.TextColor = StyleColorEditor("Text##tg_tx", Style.Toggle.TextColor);
+                    Style.Toggle.TrackWidth = StyleFloatEditor("Track Width##tg_tw", Style.Toggle.TrackWidth, 30, 60);
+                    Style.Toggle.TrackHeight = StyleFloatEditor("Track Height##tg_th", Style.Toggle.TrackHeight, 16, 36);
+                    Style.Toggle.KnobSize = StyleFloatEditor("Knob Size##tg_ks", Style.Toggle.KnobSize, 12, 32);
+                    EndTreeNode();
+                }
+
+                if (BeginTreeNode("Progress Bar"))
+                {
+                    Style.ProgressBar.BackgroundColor = StyleColorEditor("Background##pb_bg", Style.ProgressBar.BackgroundColor);
+                    Style.ProgressBar.FillColor = StyleColorEditor("Fill##pb_fl", Style.ProgressBar.FillColor);
+                    Style.ProgressBar.Height = StyleFloatEditor("Height##pb_h", Style.ProgressBar.Height, 4, 20);
+                    Style.ProgressBar.CornerRadius = StyleFloatEditor("Corner Radius##pb_cr", Style.ProgressBar.CornerRadius, 0, 10);
+                    EndTreeNode();
+                }
+
+                if (BeginTreeNode("Panel"))
+                {
+                    Style.Panel.BackgroundColor = StyleColorEditor("Background##pn_bg", Style.Panel.BackgroundColor);
+                    Style.Panel.TitleColor = StyleColorEditor("Title##pn_tt", Style.Panel.TitleColor);
+                    Style.Panel.SeparatorColor = StyleColorEditor("Separator##pn_sp", Style.Panel.SeparatorColor);
+                    Style.Panel.ChildGap = StyleUshortEditor("Child Gap##pn_cg", Style.Panel.ChildGap, 0, 24);
+                    Style.Panel.TitleFontSize = StyleUshortEditor("Title Font##pn_tf", Style.Panel.TitleFontSize, 10, 24);
+                    EndTreeNode();
+                }
+
+                if (BeginTreeNode("Window"))
+                {
+                    Style.Window.BackgroundColor = StyleColorEditor("Background##wn_bg", Style.Window.BackgroundColor);
+                    Style.Window.TitleBarColor = StyleColorEditor("Title Bar##wn_tb", Style.Window.TitleBarColor);
+                    Style.Window.TitleColor = StyleColorEditor("Title Text##wn_tt", Style.Window.TitleColor);
+                    Style.Window.ButtonHoverColor = StyleColorEditor("Btn Hover##wn_bh", Style.Window.ButtonHoverColor);
+                    Style.Window.CloseButtonHoverColor = StyleColorEditor("Close Hover##wn_ch", Style.Window.CloseButtonHoverColor);
+                    Style.Window.TitleBarHeight = StyleFloatEditor("Title Bar Height##wn_tbh", Style.Window.TitleBarHeight, 20, 50);
+                    Style.Window.ButtonSize = StyleFloatEditor("Button Size##wn_bs", Style.Window.ButtonSize, 14, 30);
+                    Style.Window.FontSize = StyleUshortEditor("Font Size##wn_fs", Style.Window.FontSize, 10, 24);
+                    EndTreeNode();
+                }
+
+                if (BeginTreeNode("Separator"))
+                {
+                    Style.SeparatorColor = StyleColorEditor("Color##sep_cl", Style.SeparatorColor);
+                    EndTreeNode();
+                }
+
+                EndTreeNode();
+            }
         }
         EndWindow();
+    }
+
+    // ============ Style Editor Helpers ============
+
+    private static Color StyleColorEditor(string label, Color color)
+    {
+        BeginHorizontal(gap: 4, alignment: ChildAlignment.CenterLeft);
+
+        // Color preview swatch
+        using (Clay.Element(new ElementDeclaration
+        {
+            Id = Id($"swatch_{label}"),
+            Layout = new LayoutConfig { Sizing = Sizing.FixedSize(16, 16) },
+            BackgroundColor = color,
+            CornerRadius = CornerRadius.All(3),
+            Border = BorderConfig.Uniform(1, Color.Rgba(80, 80, 80))
+        })) { }
+
+        Label(ElementId.GetDisplayLabel(label).ToString(), new LabelStyle { FontSize = 12 });
+        EndHorizontal();
+
+        float r = color.R, g = color.G, b = color.B, a = color.A;
+        BeginHorizontal(gap: 4);
+        bool changed = false;
+        changed |= Slider($"R##{label}_r", ref r, 0, 255);
+        changed |= Slider($"G##{label}_g", ref g, 0, 255);
+        changed |= Slider($"B##{label}_b", ref b, 0, 255);
+        changed |= Slider($"A##{label}_a", ref a, 0, 255);
+        EndHorizontal();
+
+        return changed ? new Color(r, g, b, a) : color;
+    }
+
+    private static float StyleFloatEditor(string label, float value, float min = 0, float max = 20)
+    {
+        Slider(label, ref value, min, max);
+        return value;
+    }
+
+    private static ushort StyleUshortEditor(string label, ushort value, ushort min = 0, ushort max = 48)
+    {
+        float v = value;
+        if (Slider(label, ref v, min, max))
+            value = (ushort)v;
+        return value;
+    }
+
+    private static CornerRadius StyleCornerRadiusEditor(string label, CornerRadius value)
+    {
+        float r = value.TopLeft;
+        if (Slider(label, ref r, 0, 20))
+            value = CornerRadius.All(r);
+        return value;
     }
 
     /// <summary>
