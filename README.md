@@ -112,6 +112,25 @@ if (ClayUI.Button("Cancel"))
 }
 ```
 
+### Image and ImageButton
+
+```csharp
+// Display an image (pass your texture/image object through to the renderer)
+ClayUI.Image(myTexture, width: 128, height: 128);
+
+// Rounded image
+ClayUI.Image(avatar, 64, 64, style: new ImageStyle
+{
+    CornerRadius = CornerRadius.All(32) // circular
+});
+
+// Clickable image button (like ImGui::ImageButton)
+if (ClayUI.ImageButton(icon, 32, 32))
+{
+    DoAction();
+}
+```
+
 ### Checkbox and Toggle
 
 ```csharp

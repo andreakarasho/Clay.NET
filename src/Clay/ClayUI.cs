@@ -678,6 +678,71 @@ public static class ClayUI
     }
 
     /// <summary>
+    /// Renders an image. Similar to ImGui::Image().
+    /// </summary>
+    /// <param name="imageData">Image data object passed through to the renderer.</param>
+    /// <param name="width">Display width in pixels.</param>
+    /// <param name="height">Display height in pixels.</param>
+    /// <param name="style">Optional image style.</param>
+    public static void Image(object imageData, float width, float height, ImageStyle? style = null)
+    {
+        var s = style ?? Style.Image;
+        var id = Id("Image");
+
+        using (Clay.Element(new ElementDeclaration
+        {
+            Id = id,
+            Layout = new LayoutConfig
+            {
+                Sizing = Sizing.FixedSize(width, height)
+            },
+            Image = ImageConfig.Create(imageData, width, height),
+            CornerRadius = s.CornerRadius,
+            Border = s.Border
+        })) { }
+    }
+
+    /// <summary>
+    /// Renders a clickable image button. Similar to ImGui::ImageButton().
+    /// Returns true when clicked.
+    /// </summary>
+    /// <param name="imageData">Image data object passed through to the renderer.</param>
+    /// <param name="width">Display width in pixels.</param>
+    /// <param name="height">Display height in pixels.</param>
+    /// <param name="style">Optional image style.</param>
+    public static bool ImageButton(object imageData, float width, float height, ImageStyle? style = null)
+    {
+        var s = style ?? Style.Image;
+        var id = Id("ImageButton");
+        bool isHovered = Clay.PointerOver(id);
+        bool isPressed = isHovered && _context.MousePressed;
+        bool clicked = isHovered && ShouldProcessClick;
+
+        if (isHovered) _context.HoveredThisFrame.Add(id.Id);
+        if (clicked) _context.PressedThisFrame.Add(id.Id);
+
+        var bgColor = isPressed ? s.PressedTint
+            : isHovered ? s.HoverTint
+            : Color.Transparent;
+
+        using (Clay.Element(new ElementDeclaration
+        {
+            Id = id,
+            Layout = new LayoutConfig
+            {
+                Sizing = Sizing.FixedSize(width, height),
+                Padding = s.Padding
+            },
+            Image = ImageConfig.Create(imageData, width, height),
+            BackgroundColor = bgColor,
+            CornerRadius = s.CornerRadius,
+            Border = isHovered ? s.HoverBorder : s.Border
+        })) { }
+
+        return clicked;
+    }
+
+    /// <summary>
     /// Renders a checkbox. Returns true when the state changes.
     /// </summary>
     public static bool Checkbox(string label, ref bool value, CheckboxStyle? style = null)
@@ -2867,6 +2932,7 @@ public static class ClayUI
 public class ClayUIStyle
 {
     public ButtonStyle Button { get; set; } = new();
+    public ImageStyle Image { get; set; } = new();
     public LabelStyle Label { get; set; } = new();
     public HeadingStyle Heading { get; set; } = new();
     public CheckboxStyle Checkbox { get; set; } = new();
@@ -2932,6 +2998,16 @@ public class ButtonStyle
     public CornerRadius CornerRadius { get; set; } = CornerRadius.All(6);
     public ushort FontId { get; set; } = 0;
     public ushort FontSize { get; set; } = 14;
+}
+
+public class ImageStyle
+{
+    public CornerRadius CornerRadius { get; set; } = CornerRadius.Zero;
+    public BorderConfig Border { get; set; } = default;
+    public BorderConfig HoverBorder { get; set; } = BorderConfig.Uniform(1, Color.Rgba(100, 150, 255));
+    public Color HoverTint { get; set; } = Color.Rgba(255, 255, 255, 30);
+    public Color PressedTint { get; set; } = Color.Rgba(0, 0, 0, 40);
+    public Padding Padding { get; set; } = Padding.Zero;
 }
 
 public class LabelStyle
