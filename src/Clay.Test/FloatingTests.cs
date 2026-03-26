@@ -102,4 +102,38 @@ public class FloatingTests : IDisposable
             Assert.True(highIndex > lowIndex, "Higher z-index should render later");
         }
     }
+
+    [Fact]
+    public void FloatingElement_WithOffset_IsPositioned()
+    {
+        var floatId = ClayApi.Id("offset-float");
+
+        ClayApi.BeginLayout();
+
+        using (ClayApi.Element(new ElementDeclaration
+        {
+            Id = ClayApi.Id("offset-root"),
+            Layout = new LayoutConfig { Sizing = Sizing.Fill() }
+        }))
+        {
+            using (ClayApi.Element(new ElementDeclaration
+            {
+                Id = floatId,
+                Layout = new LayoutConfig { Sizing = Sizing.FixedSize(50, 50) },
+                BackgroundColor = Color.Blue,
+                Floating = new FloatingConfig
+                {
+                    Offset = new Vector2(10, 20),
+                    AttachTo = FloatingAttachTo.Parent,
+                    ZIndex = 1
+                }
+            })) { }
+        }
+
+        var commands = ClayApi.EndLayout();
+        var data = ClayApi.GetElementData(floatId);
+        Assert.True(data.Found);
+        Assert.Equal(50f, data.BoundingBox.Width);
+        Assert.Equal(50f, data.BoundingBox.Height);
+    }
 }

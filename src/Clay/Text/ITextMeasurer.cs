@@ -35,13 +35,37 @@ public class SimpleTextMeasurer : ITextMeasurer
 
     public Dimensions MeasureText(ReadOnlySpan<char> text, ushort fontId, ushort fontSize, ushort letterSpacing)
     {
+        float lineHeight = fontSize * LineHeightRatio;
+
         if (text.IsEmpty)
-            return new Dimensions(0, fontSize * LineHeightRatio);
+            return new Dimensions(0, lineHeight);
 
         float charWidth = fontSize * CharacterWidthRatio + letterSpacing;
-        float width = text.Length * charWidth;
-        float height = fontSize * LineHeightRatio;
+        float maxLineWidth = 0;
+        int lineCount = 1;
+        int currentLineLength = 0;
 
-        return new Dimensions(width, height);
+        for (int i = 0; i < text.Length; i++)
+        {
+            if (text[i] == '\n')
+            {
+                float lineWidth = currentLineLength * charWidth;
+                if (lineWidth > maxLineWidth)
+                    maxLineWidth = lineWidth;
+                currentLineLength = 0;
+                lineCount++;
+            }
+            else
+            {
+                currentLineLength++;
+            }
+        }
+
+        // Account for the last line
+        float lastLineWidth = currentLineLength * charWidth;
+        if (lastLineWidth > maxLineWidth)
+            maxLineWidth = lastLineWidth;
+
+        return new Dimensions(maxLineWidth, lineCount * lineHeight);
     }
 }

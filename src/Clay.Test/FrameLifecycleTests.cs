@@ -179,9 +179,9 @@ public class FrameLifecycleTests : IDisposable
     }
 
     [Fact]
-    public void ModerateElementCount_Works()
+    public void ManyElements_AllRenderCorrectly()
     {
-        // Use a moderate number of elements to avoid potential internal bugs
+        ClayApi.SetCullingEnabled(false);
         ClayApi.BeginLayout();
 
         using (ClayApi.Element(new ElementDeclaration
@@ -194,7 +194,7 @@ public class FrameLifecycleTests : IDisposable
             }
         }))
         {
-            for (int i = 0; i < 20; i++)
+            for (int i = 0; i < 100; i++)
             {
                 using (ClayApi.Element(new ElementDeclaration
                 {
@@ -206,7 +206,10 @@ public class FrameLifecycleTests : IDisposable
         }
 
         var commands = ClayApi.EndLayout();
-        // 20 children with BackgroundColor = at least 20 rectangle commands
-        Assert.True(commands.Length >= 20, $"Expected at least 20 commands, got {commands.Length}");
+        int rectCount = 0;
+        foreach (var cmd in commands)
+            if (cmd.CommandType == RenderCommandType.Rectangle)
+                rectCount++;
+        Assert.Equal(100, rectCount);
     }
 }
