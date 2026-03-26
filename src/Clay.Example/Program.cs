@@ -166,7 +166,8 @@ while (!Raylib.WindowShouldClose())
         }
 
         // Debug window (always available, toggle with F12)
-        ClayUI.DebugWindow(ref debugWindowOpen);
+        if (debugWindowOpen)
+            ClayUI.ShowDebugWindow();
     }
 
     // End layout and get render commands
@@ -863,7 +864,7 @@ void RenderWidgetDemo()
             Console.WriteLine("Popup: Option 2");
         ClayUI.MenuSeparator();
         if (ClayUI.MenuItem("Close"))
-            { } // MenuItem auto-closes
+        { } // MenuItem auto-closes
         ClayUI.EndPopup();
     }
 
