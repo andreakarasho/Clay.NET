@@ -637,7 +637,7 @@ public static class ClayUI
             CornerRadius = s.CornerRadius
         }))
         {
-            Clay.Text(label, new TextConfig
+            Clay.Text(ElementId.GetDisplayLabel(label), new TextConfig
             {
                 FontId = s.FontId,
                 FontSize = s.FontSize,
@@ -807,7 +807,7 @@ public static class ClayUI
             }
 
             // Label
-            Clay.Text(label, new TextConfig
+            Clay.Text(ElementId.GetDisplayLabel(label), new TextConfig
             {
                 FontId = s.FontId,
                 FontSize = s.FontSize,
@@ -873,7 +873,7 @@ public static class ClayUI
             // Label
             if (!string.IsNullOrEmpty(label))
             {
-                Clay.Text(label, new TextConfig
+                Clay.Text(ElementId.GetDisplayLabel(label), new TextConfig
                 {
                     FontId = s.FontId,
                     FontSize = s.FontSize,
@@ -989,7 +989,7 @@ public static class ClayUI
             // Label
             if (!string.IsNullOrEmpty(label))
             {
-                Clay.Text(label, new TextConfig
+                Clay.Text(ElementId.GetDisplayLabel(label), new TextConfig
                 {
                     FontId = s.FontId,
                     FontSize = s.FontSize,
@@ -2215,7 +2215,7 @@ public static class ClayUI
             CornerRadius = CornerRadius.All(2)
         }))
         {
-            Clay.Text(label, new TextConfig
+            Clay.Text(ElementId.GetDisplayLabel(label), new TextConfig
             {
                 FontId = s.FontId,
                 FontSize = s.FontSize,
@@ -2323,7 +2323,7 @@ public static class ClayUI
             });
 
             // Label
-            Clay.Text(label, new TextConfig
+            Clay.Text(ElementId.GetDisplayLabel(label), new TextConfig
             {
                 FontId = s.FontId,
                 FontSize = s.FontSize,
@@ -2634,7 +2634,7 @@ public static class ClayUI
         {
             if (!string.IsNullOrEmpty(label))
             {
-                Clay.Text(label, new TextConfig
+                Clay.Text(ElementId.GetDisplayLabel(label), new TextConfig
                 {
                     FontId = s.FontId,
                     FontSize = s.FontSize,

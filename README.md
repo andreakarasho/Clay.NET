@@ -470,6 +470,27 @@ using (Clay.Clay.Element(new ElementDeclaration
 }
 ```
 
+### Unique IDs with ##
+
+Like ImGui, Clay.NET supports `##` in label strings to create unique IDs while sharing the same display text. The **entire string** (including the `##` part) is hashed to produce the element ID, but only the portion **before** `##` is displayed.
+
+This is useful when you have multiple widgets with the same visible label but need them to be distinct elements:
+
+```csharp
+// Two buttons both display "Delete" but have different IDs
+if (ClayUI.Button("Delete##item_1")) RemoveItem(1);
+if (ClayUI.Button("Delete##item_2")) RemoveItem(2);
+
+// Works with any widget that takes a label
+ClayUI.Checkbox("Enable##audio", ref audioEnabled);
+ClayUI.Checkbox("Enable##video", ref videoEnabled);
+
+// Low-level ID creation
+var id = Clay.Clay.Id("Save##primary");   // Hashes "Save##primary", displays "Save"
+```
+
+Use `ElementId.GetDisplayLabel("Save##id")` to extract the visible portion (`"Save"`) without allocations.
+
 ## Sizing Types
 
 | Type | Behavior |

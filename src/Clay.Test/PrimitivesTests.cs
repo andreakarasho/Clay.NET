@@ -255,4 +255,83 @@ public class ElementIdTests
         var b = ElementId.Hash("item", offset: 1);
         Assert.NotEqual(a.Id, b.Id);
     }
+
+    // ## separator tests: full string is hashed, display shows only before ##
+
+    [Fact]
+    public void DoubleHash_FullStringIsHashed()
+    {
+        // "Save##btn1" hashes the entire string, not just "btn1"
+        var a = ElementId.Hash("Save##btn1");
+        var b = ElementId.Hash("btn1");
+        Assert.NotEqual(a.Id, b.Id);
+    }
+
+    [Fact]
+    public void DoubleHash_SameFullString_SameId()
+    {
+        var a = ElementId.Hash("Save##btn1");
+        var b = ElementId.Hash("Save##btn1");
+        Assert.Equal(a.Id, b.Id);
+    }
+
+    [Fact]
+    public void DoubleHash_SameLabel_DifferentIdPart_DifferentId()
+    {
+        // Same display "Save" but different ## suffix → different IDs
+        var a = ElementId.Hash("Save##1");
+        var b = ElementId.Hash("Save##2");
+        Assert.NotEqual(a.Id, b.Id);
+    }
+
+    [Fact]
+    public void DoubleHash_DifferentLabel_SameIdPart_DifferentId()
+    {
+        // Different display but same ## suffix → different IDs (full string hashed)
+        var a = ElementId.Hash("Save##action");
+        var b = ElementId.Hash("Load##action");
+        Assert.NotEqual(a.Id, b.Id);
+    }
+
+    [Fact]
+    public void GetDisplayLabel_StripsAfterDoubleHash()
+    {
+        var display = ElementId.GetDisplayLabel("Save##btn1");
+        Assert.Equal("Save", display.ToString());
+    }
+
+    [Fact]
+    public void GetDisplayLabel_NoSeparator_ReturnsFullString()
+    {
+        var display = ElementId.GetDisplayLabel("NoHash");
+        Assert.Equal("NoHash", display.ToString());
+    }
+
+    [Fact]
+    public void GetDisplayLabel_EmptyBeforeSeparator_ReturnsEmpty()
+    {
+        var display = ElementId.GetDisplayLabel("##hidden");
+        Assert.Equal("", display.ToString());
+    }
+
+    [Fact]
+    public void GetDisplayLabel_EmptyAfterSeparator()
+    {
+        var display = ElementId.GetDisplayLabel("Visible##");
+        Assert.Equal("Visible", display.ToString());
+    }
+
+    [Fact]
+    public void GetDisplayLabel_SingleHash_NotASeparator()
+    {
+        var display = ElementId.GetDisplayLabel("color#red");
+        Assert.Equal("color#red", display.ToString());
+    }
+
+    [Fact]
+    public void GetDisplayLabel_MultipleSeparators_SplitsAtFirst()
+    {
+        var display = ElementId.GetDisplayLabel("A##B##C");
+        Assert.Equal("A", display.ToString());
+    }
 }

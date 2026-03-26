@@ -28,6 +28,9 @@ public struct ElementId
 
     /// <summary>
     /// Creates an ElementId by hashing the given string.
+    /// The entire string is hashed. Use "##" in labels to separate display text from
+    /// the unique ID portion — the display layer will only show text before "##".
+    /// For example, "Save##1" and "Save##2" produce different IDs but both display "Save".
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ElementId Hash(ReadOnlySpan<char> key, uint offset = 0, uint seed = 0)
@@ -90,6 +93,22 @@ public struct ElementId
             Offset = number,
             BaseId = seed
         };
+    }
+
+    /// <summary>
+    /// Returns the display portion of a label that may contain "##".
+    /// Everything after the first "##" is hidden.
+    /// For example, "Save##1" returns "Save", "NoHash" returns "NoHash".
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ReadOnlySpan<char> GetDisplayLabel(ReadOnlySpan<char> label)
+    {
+        for (int i = 0; i < label.Length - 1; i++)
+        {
+            if (label[i] == '#' && label[i + 1] == '#')
+                return label[..i];
+        }
+        return label;
     }
 
     public readonly bool IsValid => Id != 0;
