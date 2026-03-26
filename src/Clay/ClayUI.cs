@@ -3015,6 +3015,7 @@ public static class ClayUI
                     Style.Slider.TrackColor = StyleColorEditor("Track##sl_tr", Style.Slider.TrackColor);
                     Style.Slider.FillColor = StyleColorEditor("Fill##sl_fl", Style.Slider.FillColor);
                     Style.Slider.TextColor = StyleColorEditor("Text##sl_tx", Style.Slider.TextColor);
+                    Style.Slider.ValueTextColor = StyleColorEditor("Value Text##sl_vt", Style.Slider.ValueTextColor);
                     Style.Slider.TrackHeight = StyleFloatEditor("Track Height##sl_th", Style.Slider.TrackHeight, 4, 20);
                     Style.Slider.FontSize = StyleUshortEditor("Font Size##sl_fs", Style.Slider.FontSize, 8, 32);
                     EndTreeNode();
@@ -3076,35 +3077,48 @@ public static class ClayUI
         EndWindow();
     }
 
+    // ============ Color Picker ============
+
+    /// <summary>
+    /// Renders an ARGB color picker with individual channel sliders and a preview swatch.
+    /// Returns the updated color.
+    /// </summary>
+    public static Color ColorPicker(string label, Color color)
+    {
+        float a = color.A, r = color.R, g = color.G, b = color.B;
+        bool changed = false;
+
+        BeginVertical(gap: 2);
+
+        // Label + preview swatch
+        BeginHorizontal(gap: 8, alignment: ChildAlignment.CenterLeft);
+        using (Clay.Element(new ElementDeclaration
+        {
+            Id = Id($"cpSwatch_{label}"),
+            Layout = new LayoutConfig { Sizing = Sizing.FixedSize(24, 24) },
+            BackgroundColor = color,
+            CornerRadius = CornerRadius.All(4),
+            Border = BorderConfig.Uniform(1, Color.Rgba(80, 80, 80))
+        })) { }
+        Label(ElementId.GetDisplayLabel(label).ToString(), new LabelStyle { FontSize = 12 });
+        EndHorizontal();
+
+        // Channel sliders
+        changed |= Slider($"A##{label}_a", ref a, 0, 255);
+        changed |= Slider($"R##{label}_r", ref r, 0, 255);
+        changed |= Slider($"G##{label}_g", ref g, 0, 255);
+        changed |= Slider($"B##{label}_b", ref b, 0, 255);
+
+        EndVertical();
+
+        return changed ? new Color(r, g, b, a) : color;
+    }
+
     // ============ Style Editor Helpers ============
 
     private static Color StyleColorEditor(string label, Color color)
     {
-        BeginHorizontal(gap: 4, alignment: ChildAlignment.CenterLeft);
-
-        // Color preview swatch
-        using (Clay.Element(new ElementDeclaration
-        {
-            Id = Id($"swatch_{label}"),
-            Layout = new LayoutConfig { Sizing = Sizing.FixedSize(16, 16) },
-            BackgroundColor = color,
-            CornerRadius = CornerRadius.All(3),
-            Border = BorderConfig.Uniform(1, Color.Rgba(80, 80, 80))
-        })) { }
-
-        Label(ElementId.GetDisplayLabel(label).ToString(), new LabelStyle { FontSize = 12 });
-        EndHorizontal();
-
-        float r = color.R, g = color.G, b = color.B, a = color.A;
-        BeginHorizontal(gap: 4);
-        bool changed = false;
-        changed |= Slider($"R##{label}_r", ref r, 0, 255);
-        changed |= Slider($"G##{label}_g", ref g, 0, 255);
-        changed |= Slider($"B##{label}_b", ref b, 0, 255);
-        changed |= Slider($"A##{label}_a", ref a, 0, 255);
-        EndHorizontal();
-
-        return changed ? new Color(r, g, b, a) : color;
+        return ColorPicker(label, color);
     }
 
     private static float StyleFloatEditor(string label, float value, float min = 0, float max = 20)
