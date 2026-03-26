@@ -154,9 +154,11 @@ ClayUI.Slider("Brightness", ref brightness, 0f, 2f);
 ### Radio Group
 
 ```csharp
-string quality = "Medium";
+int quality = 1; // 0=Low, 1=Medium, 2=High
 ClayUI.RadioGroup("Quality", ref quality, new[] { "Low", "Medium", "High" });
 ```
+
+The generic overload `RadioGroup<T>` is also available for enum or object-based selection.
 
 ### Progress Bar
 

@@ -2611,6 +2611,106 @@ public static class ClayUI
     // ============ Selection Widgets ============
 
     /// <summary>
+    /// Renders a radio button group with an int index. Returns true when selection changes.
+    /// </summary>
+    /// <param name="label">Group label.</param>
+    /// <param name="selectedIndex">Index of the currently selected option.</param>
+    /// <param name="options">Display labels for each option.</param>
+    /// <param name="style">Optional style.</param>
+    public static bool RadioGroup(string label, ref int selectedIndex, string[] options, RadioGroupStyle? style = null)
+    {
+        var s = style ?? Style.RadioGroup;
+        bool changed = false;
+
+        using (Clay.Element(new ElementDeclaration
+        {
+            Layout = new LayoutConfig
+            {
+                Direction = LayoutDirection.TopToBottom,
+                ChildGap = 4,
+                Sizing = new Sizing { Width = SizingAxis.Grow() }
+            }
+        }))
+        {
+            if (!string.IsNullOrEmpty(label))
+            {
+                Clay.Text(label, new TextConfig
+                {
+                    FontId = s.FontId,
+                    FontSize = s.FontSize,
+                    TextColor = s.LabelColor
+                });
+                Space(4);
+            }
+
+            for (int i = 0; i < options.Length; i++)
+            {
+                var optionId = Id($"Radio_{label}_{i}");
+                bool isSelected = i == selectedIndex;
+                bool isHovered = Clay.PointerOver(optionId);
+                bool clicked = isHovered && ShouldProcessClick;
+
+                if (clicked && !isSelected)
+                {
+                    selectedIndex = i;
+                    changed = true;
+                }
+
+                using (Clay.Element(new ElementDeclaration
+                {
+                    Id = optionId,
+                    Layout = new LayoutConfig
+                    {
+                        Direction = LayoutDirection.LeftToRight,
+                        ChildGap = 8,
+                        ChildAlignment = ChildAlignment.CenterLeft,
+                        Padding = s.OptionPadding
+                    },
+                    BackgroundColor = isHovered ? s.HoverColor : Color.Transparent
+                }))
+                {
+                    // Radio circle
+                    using (Clay.Element(new ElementDeclaration
+                    {
+                        Layout = new LayoutConfig
+                        {
+                            Sizing = Sizing.FixedSize(s.CircleSize, s.CircleSize),
+                            ChildAlignment = ChildAlignment.Center
+                        },
+                        BackgroundColor = s.CircleColor,
+                        CornerRadius = CornerRadius.All(s.CircleSize / 2),
+                        Border = BorderConfig.Uniform(1, s.CircleBorderColor)
+                    }))
+                    {
+                        if (isSelected)
+                        {
+                            using (Clay.Element(new ElementDeclaration
+                            {
+                                Layout = new LayoutConfig
+                                {
+                                    Sizing = Sizing.FixedSize(s.DotSize, s.DotSize)
+                                },
+                                BackgroundColor = s.DotColor,
+                                CornerRadius = CornerRadius.All(s.DotSize / 2)
+                            })) { }
+                        }
+                    }
+
+                    // Option label
+                    Clay.Text(options[i], new TextConfig
+                    {
+                        FontId = s.FontId,
+                        FontSize = s.FontSize,
+                        TextColor = s.TextColor
+                    });
+                }
+            }
+        }
+
+        return changed;
+    }
+
+    /// <summary>
     /// Renders a radio button group. Returns true when selection changes.
     /// </summary>
     public static bool RadioGroup<T>(string label, ref T selected, T[] options, Func<T, string>? labelFunc = null, RadioGroupStyle? style = null) where T : notnull
