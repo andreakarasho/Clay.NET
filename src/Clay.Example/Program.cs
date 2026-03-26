@@ -74,7 +74,7 @@ bool toggleValue = false;
 float sliderValue = 0.5f;
 int clickCount = 0;
 float progressValue = 0.3f;
-string selectedOption = "Option A";
+int selectedOption = 0;
 string[] radioOptions = ["Option A", "Option B", "Option C"];
 
 // Window demo state
@@ -678,7 +678,7 @@ void RenderWidgetDemo()
     ClayUI.RadioGroup("Choose your theme:", ref selectedOption, radioOptions);
 
     ClayUI.Space(8);
-    ClayUI.Label($"Selected: {selectedOption}");
+    ClayUI.Label($"Selected: {radioOptions[selectedOption]}");
 
     ClayUI.Space(12);
     ClayUI.Label("Usage: ClayUI.RadioGroup(\"Label\", ref selected, options)");
