@@ -78,7 +78,191 @@ ReadOnlySpan<RenderCommand> commands = Clay.Clay.EndLayout();
 // Pass commands to your renderer
 ```
 
-## Examples
+## ClayUI - Immediate Mode Widgets
+
+Clay.NET includes `ClayUI`, a higher-level immediate-mode widget layer built on top of the core layout engine. It provides ready-to-use UI controls with built-in state management, hover/click handling, and theming.
+
+### Setup
+
+Call `ClayUI.BeginFrame()` each frame before using widgets, between `Clay.BeginLayout()` and `Clay.EndLayout()`:
+
+```csharp
+Clay.Clay.BeginLayout();
+ClayUI.BeginFrame(mouseDown, new Vector2(mouseX, mouseY), scrollDelta);
+
+// ... use ClayUI widgets here ...
+
+var commands = Clay.Clay.EndLayout();
+```
+
+### Buttons and Labels
+
+```csharp
+ClayUI.Heading("Settings");
+ClayUI.Label("Configure your preferences below.");
+
+if (ClayUI.Button("Save"))
+{
+    SaveSettings();
+}
+
+if (ClayUI.Button("Cancel"))
+{
+    RevertChanges();
+}
+```
+
+### Checkbox and Toggle
+
+```csharp
+bool darkMode = true;
+bool notifications = false;
+
+ClayUI.Checkbox("Enable dark mode", ref darkMode);
+ClayUI.Toggle("Notifications", ref notifications);
+```
+
+### Slider
+
+```csharp
+float volume = 0.75f;
+float brightness = 1.0f;
+
+ClayUI.Slider("Volume", ref volume, 0f, 1f);
+ClayUI.Slider("Brightness", ref brightness, 0f, 2f);
+```
+
+### Radio Group
+
+```csharp
+string quality = "Medium";
+ClayUI.RadioGroup("Quality", ref quality, new[] { "Low", "Medium", "High" });
+```
+
+### Progress Bar
+
+```csharp
+ClayUI.ProgressBar(downloadProgress, 0f, 100f);
+```
+
+### Panels
+
+Panels are titled, styled containers for grouping related widgets:
+
+```csharp
+ClayUI.BeginPanel("Player Info", scroll: true, maxHeight: 300);
+    ClayUI.Label($"Name: {player.Name}");
+    ClayUI.Label($"Health: {player.Health}");
+    ClayUI.Label($"Score: {player.Score}");
+    ClayUI.Separator();
+    ClayUI.Slider("Speed", ref player.Speed, 0f, 10f);
+ClayUI.EndPanel();
+```
+
+### Horizontal and Vertical Layouts
+
+```csharp
+ClayUI.BeginHorizontal(gap: 8);
+    ClayUI.Button("Left");
+    ClayUI.Button("Center");
+    ClayUI.Button("Right");
+ClayUI.EndHorizontal();
+
+ClayUI.BeginVertical(gap: 4);
+    ClayUI.Label("Line 1");
+    ClayUI.Label("Line 2");
+    ClayUI.Label("Line 3");
+ClayUI.EndVertical();
+```
+
+### Windows
+
+Draggable, resizable, collapsible windows with automatic focus management:
+
+```csharp
+bool showInventory = true;
+
+if (ClayUI.BeginWindow("Inventory", ref showInventory,
+    defaultPosition: new Vector2(400, 150),
+    defaultSize: new Vector2(300, 200)))
+{
+    for (int i = 0; i < items.Count; i++)
+    {
+        ClayUI.BeginHorizontal();
+            ClayUI.Label(items[i].Name);
+            if (ClayUI.Button("Use"))
+                UseItem(items[i]);
+        ClayUI.EndHorizontal();
+    }
+}
+ClayUI.EndWindow();
+```
+
+### Popups and Context Menus
+
+```csharp
+var triggerId = Clay.Clay.Id("RightClickArea");
+
+if (ClayUI.BeginContextMenu("MyMenu", triggerId))
+{
+    if (ClayUI.MenuItem("Cut"))   DoCut();
+    if (ClayUI.MenuItem("Copy"))  DoCopy();
+    if (ClayUI.MenuItem("Paste")) DoPaste();
+    ClayUI.MenuSeparator();
+    if (ClayUI.MenuItem("Delete")) DoDelete();
+    ClayUI.EndContextMenu();
+}
+```
+
+### Tree Nodes
+
+```csharp
+if (ClayUI.BeginTreeNode("Root"))
+{
+    if (ClayUI.BeginTreeNode("Child A"))
+    {
+        ClayUI.Label("Leaf 1");
+        ClayUI.Label("Leaf 2");
+        ClayUI.EndTreeNode();
+    }
+    if (ClayUI.BeginTreeNode("Child B"))
+    {
+        ClayUI.Label("Leaf 3");
+        ClayUI.EndTreeNode();
+    }
+    ClayUI.EndTreeNode();
+}
+```
+
+### Theming
+
+```csharp
+// Built-in themes
+ClayUI.Style = ClayUIStyle.Dark;
+ClayUI.Style = ClayUIStyle.Light;
+
+// Or customize individual widget styles
+ClayUI.Button("Danger", style: new ButtonStyle
+{
+    BackgroundColor = Color.Rgba(180, 40, 40),
+    HoverColor = Color.Rgba(200, 60, 60),
+    PressedColor = Color.Rgba(140, 30, 30),
+    CornerRadius = CornerRadius.All(8)
+});
+```
+
+### Debug Window
+
+```csharp
+// Toggle with a key press
+if (keyPressed == Key.F12)
+    ClayUI.ToggleDebugWindow();
+
+// Or show directly
+ClayUI.ShowDebugWindow();
+```
+
+## Low-Level Layout Examples
 
 ### Row Layout with Gap
 
