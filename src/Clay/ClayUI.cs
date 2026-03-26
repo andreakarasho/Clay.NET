@@ -3079,39 +3079,171 @@ public static class ClayUI
 
     // ============ Color Picker ============
 
+    private const int SvGridSize = 12;
+    private const float SvPanelSize = 150;
+    private const float HueBarWidth = 20;
+    private const float HueBarHeight = 150;
+
     /// <summary>
-    /// Renders an ARGB color picker with individual channel sliders and a preview swatch.
-    /// Returns the updated color.
+    /// Renders an HSV color picker with a 2D saturation/value panel, a hue bar,
+    /// a preview swatch, and RGB/A sliders. Returns the updated color.
     /// </summary>
     public static Color ColorPicker(string label, Color color)
     {
-        float a = color.A, r = color.R, g = color.G, b = color.B;
+        var (h, s, v) = color.ToHsv();
+        float alpha = color.A;
         bool changed = false;
 
-        BeginVertical(gap: 2);
+        BeginVertical(gap: 4);
 
-        // Label + preview swatch
-        BeginHorizontal(gap: 8, alignment: ChildAlignment.CenterLeft);
+        // Label
+        Label(ElementId.GetDisplayLabel(label).ToString(), new LabelStyle { FontSize = 12 });
+
+        BeginHorizontal(gap: 8);
+
+        // === SV Panel (saturation horizontal, value vertical) ===
+        {
+            var panelId = Id($"cpSV_{label}");
+            var panelData = Clay.GetElementData(panelId);
+
+            using (Clay.Element(new ElementDeclaration
+            {
+                Id = panelId,
+                Layout = new LayoutConfig
+                {
+                    Sizing = Sizing.FixedSize(SvPanelSize, SvPanelSize),
+                    Direction = LayoutDirection.TopToBottom
+                },
+                BackgroundColor = Color.Black,
+                Border = BorderConfig.Uniform(1, Color.Rgba(60, 60, 60))
+            }))
+            {
+                float cellW = SvPanelSize / SvGridSize;
+                float cellH = SvPanelSize / SvGridSize;
+
+                for (int row = 0; row < SvGridSize; row++)
+                {
+                    using (Clay.Element(new ElementDeclaration
+                    {
+                        Layout = new LayoutConfig
+                        {
+                            Direction = LayoutDirection.LeftToRight,
+                            Sizing = new Sizing(SizingAxis.Grow(), SizingAxis.Fixed(cellH))
+                        }
+                    }))
+                    {
+                        for (int col = 0; col < SvGridSize; col++)
+                        {
+                            float cs = (col + 0.5f) / SvGridSize;
+                            float cv = 1f - (row + 0.5f) / SvGridSize;
+                            var cellColor = Color.FromHsv(h, cs, cv);
+
+                            using (Clay.Element(new ElementDeclaration
+                            {
+                                Layout = new LayoutConfig
+                                {
+                                    Sizing = new Sizing(SizingAxis.Fixed(cellW), SizingAxis.Grow())
+                                },
+                                BackgroundColor = cellColor
+                            })) { }
+                        }
+                    }
+                }
+            }
+
+            // Handle SV panel click
+            if (panelData.Found && _context.MousePressed)
+            {
+                var mouse = _context.MousePosition;
+                var box = panelData.BoundingBox;
+                if (box.Contains(mouse))
+                {
+                    s = Math.Clamp((mouse.X - box.X) / box.Width, 0f, 1f);
+                    v = Math.Clamp(1f - (mouse.Y - box.Y) / box.Height, 0f, 1f);
+                    changed = true;
+                }
+            }
+        }
+
+        // === Hue Bar ===
+        {
+            var hueId = Id($"cpHue_{label}");
+            var hueData = Clay.GetElementData(hueId);
+
+            using (Clay.Element(new ElementDeclaration
+            {
+                Id = hueId,
+                Layout = new LayoutConfig
+                {
+                    Sizing = Sizing.FixedSize(HueBarWidth, HueBarHeight),
+                    Direction = LayoutDirection.TopToBottom
+                },
+                Border = BorderConfig.Uniform(1, Color.Rgba(60, 60, 60))
+            }))
+            {
+                int hueSteps = 12;
+                float stepH = HueBarHeight / hueSteps;
+                for (int i = 0; i < hueSteps; i++)
+                {
+                    float hueVal = (i + 0.5f) / hueSteps * 360f;
+                    using (Clay.Element(new ElementDeclaration
+                    {
+                        Layout = new LayoutConfig
+                        {
+                            Sizing = new Sizing(SizingAxis.Grow(), SizingAxis.Fixed(stepH))
+                        },
+                        BackgroundColor = Color.FromHsv(hueVal, 1f, 1f)
+                    })) { }
+                }
+            }
+
+            // Handle hue bar click
+            if (hueData.Found && _context.MousePressed)
+            {
+                var mouse = _context.MousePosition;
+                var box = hueData.BoundingBox;
+                if (box.Contains(mouse))
+                {
+                    h = Math.Clamp((mouse.Y - box.Y) / box.Height, 0f, 1f) * 360f;
+                    changed = true;
+                }
+            }
+        }
+
+        // === Preview swatches ===
+        BeginVertical(gap: 4);
+        Label("Current", new LabelStyle { FontSize = 10 });
         using (Clay.Element(new ElementDeclaration
         {
-            Id = Id($"cpSwatch_{label}"),
-            Layout = new LayoutConfig { Sizing = Sizing.FixedSize(24, 24) },
-            BackgroundColor = color,
-            CornerRadius = CornerRadius.All(4),
+            Id = Id($"cpCur_{label}"),
+            Layout = new LayoutConfig { Sizing = Sizing.FixedSize(40, 24) },
+            BackgroundColor = changed ? Color.FromHsv(h, s, v, alpha) : color,
+            CornerRadius = CornerRadius.All(3),
             Border = BorderConfig.Uniform(1, Color.Rgba(80, 80, 80))
         })) { }
-        Label(ElementId.GetDisplayLabel(label).ToString(), new LabelStyle { FontSize = 12 });
+        EndVertical();
+
         EndHorizontal();
 
-        // Channel sliders
-        changed |= Slider($"A##{label}_a", ref a, 0, 255);
+        // === RGB + Alpha sliders ===
+        var result = changed ? Color.FromHsv(h, s, v, alpha) : color;
+        float r = result.R, g = result.G, b = result.B, a = result.A;
+
         changed |= Slider($"R##{label}_r", ref r, 0, 255);
         changed |= Slider($"G##{label}_g", ref g, 0, 255);
         changed |= Slider($"B##{label}_b", ref b, 0, 255);
+        changed |= Slider($"A##{label}_a", ref a, 0, 255);
 
         EndVertical();
 
-        return changed ? new Color(r, g, b, a) : color;
+        if (changed)
+        {
+            // If RGB sliders changed, use RGB directly; if SV/Hue changed, use HSV
+            if (r != result.R || g != result.G || b != result.B || a != result.A)
+                return new Color(r, g, b, a);
+            return Color.FromHsv(h, s, v, alpha);
+        }
+        return color;
     }
 
     // ============ Style Editor Helpers ============
