@@ -2803,22 +2803,24 @@ public static class ClayUI
             }
 
             // Hovered element
-            if (BeginTreeNode("Hovered Element"))
             {
                 var pointer = Clay.GetPointerState();
                 var ctx = Clay.Context;
+                uint hoveredId = 0;
+                BoundingBox hoveredBox = default;
 
                 if (ctx != null)
                 {
-                    uint hoveredId = 0;
-                    BoundingBox hoveredBox = default;
                     float smallestArea = float.MaxValue;
+                    var hashMap = ctx.LayoutElementsHashMapInternal;
 
-                    // Find the smallest element under the pointer (topmost/most specific)
-                    for (int i = 0; i < ctx.LayoutElementsHashMapInternal.Length; i++)
+                    for (int i = 0; i < hashMap.Length; i++)
                     {
-                        ref var item = ref ctx.LayoutElementsHashMapInternal[i];
-                        if (item.Generation > 0 && item.BoundingBox.Contains(pointer.Position))
+                        ref var item = ref hashMap[i];
+                        if (item.ElementId.Id != 0 &&
+                            item.BoundingBox.Width > 0 &&
+                            item.BoundingBox.Height > 0 &&
+                            item.BoundingBox.Contains(pointer.Position))
                         {
                             float area = item.BoundingBox.Width * item.BoundingBox.Height;
                             if (area < smallestArea)
@@ -2829,24 +2831,18 @@ public static class ClayUI
                             }
                         }
                     }
+                }
 
-                    if (hoveredId != 0)
-                    {
-                        Label($"ID: {hoveredId}");
-                        Label($"Position: ({hoveredBox.X:F0}, {hoveredBox.Y:F0})");
-                        Label($"Size: ({hoveredBox.Width:F0} x {hoveredBox.Height:F0})");
-                    }
-                    else
-                    {
-                        Label("(none)");
-                    }
+                if (hoveredId != 0)
+                {
+                    Label($"Hovered ID: {hoveredId}");
+                    Label($"  Position: ({hoveredBox.X:F0}, {hoveredBox.Y:F0})");
+                    Label($"  Size: ({hoveredBox.Width:F0} x {hoveredBox.Height:F0})");
                 }
                 else
                 {
-                    Label("(context unavailable)");
+                    Label("Hovered: (none)");
                 }
-
-                EndTreeNode();
             }
 
             Separator();
