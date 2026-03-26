@@ -25,7 +25,7 @@ namespace Clay.Widgets;
 /// </code>
 /// </para>
 /// </summary>
-public sealed class TextInput
+internal sealed class TextInput
 {
     private readonly Dictionary<uint, TextInputWidget> _widgets = new();
     private readonly HashSet<uint> _activeIds = new();
@@ -41,6 +41,7 @@ public sealed class TextInput
     private float _repeatTimer;
     private bool _initialRepeatDone;
     private bool _repeatKeyActiveThisFrame;
+    private float _scrollDeltaY;
 
     private const float RepeatDelay = 0.4f;
     private const float RepeatRate = 0.035f;
@@ -60,6 +61,12 @@ public sealed class TextInput
 
     /// <summary>Returns true if any text input currently has focus.</summary>
     public bool HasFocus => _focused != null;
+
+    /// <summary>
+    /// Sets the mouse wheel scroll delta for the current frame.
+    /// Positive = scroll up. Applied to hovered multiline text inputs.
+    /// </summary>
+    public void SetScrollDelta(float scrollDeltaY) => _scrollDeltaY = scrollDeltaY;
 
     /// <summary>
     /// Call once per frame before processing input or layout.
@@ -87,6 +94,7 @@ public sealed class TextInput
         if (!_repeatKeyActiveThisFrame)
             _repeatKey = null;
         _repeatKeyActiveThisFrame = false;
+        _scrollDeltaY = 0;
     }
 
     /// <summary>
@@ -127,8 +135,8 @@ public sealed class TextInput
             widget.Text = text;
         }
 
-        // Create the Clay element (handles mouse click/drag/focus)
-        widget.Element(id, style);
+        // Create the Clay element (handles mouse click/drag/focus/scroll)
+        widget.Element(id, style, _scrollDeltaY);
 
         // Sync focus tracking with widget's own focus state
         if (widget.IsFocused)

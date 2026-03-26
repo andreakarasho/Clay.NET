@@ -64,7 +64,7 @@ public class ClayContext : IDisposable
     public ITextMeasurer? TextMeasurer;
 
     // Text input widget management
-    public Widgets.TextInput? TextInput;
+    internal Widgets.TextInput? TextInput;
 
     // Default configs
     private LayoutConfig _defaultLayout;
@@ -1309,6 +1309,9 @@ public class ClayContext : IDisposable
 
     public void UpdateScrollContainers(bool enableDragScrolling, Vector2 scrollDelta, float deltaTime)
     {
+        // Forward scroll delta to text input widgets
+        TextInput?.SetScrollDelta(scrollDelta.Y);
+
         // Find scroll container under pointer
         for (int i = 0; i < ScrollContainerDatas.Length; i++)
         {

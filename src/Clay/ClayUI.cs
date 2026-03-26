@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Runtime.CompilerServices;
+using Clay.Widgets;
 
 namespace Clay;
 
@@ -1045,6 +1046,37 @@ public static class ClayUI
             })) { }
         }
     }
+
+    /// <summary>
+    /// Renders a text input field. Returns true when the text was modified by user input.
+    /// Use <see cref="Clay.TextEditKeyDown"/> and <see cref="Clay.TextEditProcessChar"/>
+    /// to forward keyboard input.
+    /// </summary>
+    /// <param name="label">Label used to generate a stable element ID.</param>
+    /// <param name="text">Reference to the text string. Updated when the user edits it.</param>
+    /// <param name="style">Visual style. Use <see cref="TextInputStyle.Default"/> or customize.</param>
+    /// <param name="singleLine">Block newlines and make up/down act as left/right.</param>
+    public static bool TextInput(string label, ref string text, TextInputStyle? style = null, bool singleLine = true)
+    {
+        var s = style ?? DefaultTextInputStyle;
+        var id = StableId(label);
+        return Clay.TextEdit(id, ref text, s, singleLine);
+    }
+
+    private static readonly TextInputStyle DefaultTextInputStyle = new()
+    {
+        BackgroundColor = Color.Rgba(50, 50, 55),
+        FocusedBackgroundColor = Color.Rgba(60, 60, 70),
+        TextColor = Color.Rgba(220, 220, 220),
+        CursorColor = Color.Rgba(100, 180, 255),
+        SelectionColor = Color.Rgba(80, 130, 200, 120),
+        CornerRadius = CornerRadius.All(4),
+        Border = new BorderConfig { Width = BorderWidth.All(1), Color = Color.Rgba(80, 80, 90) },
+        Padding = Padding.Symmetric(8, 6),
+        FontId = 0,
+        FontSize = 16,
+        Sizing = new Sizing(SizingAxis.Grow(), SizingAxis.Default),
+    };
 
     // ============ Layout Helpers ============
 

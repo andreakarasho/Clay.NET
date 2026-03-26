@@ -92,6 +92,7 @@ bool debugWindowOpen = true;
 // TextEdit demo state
 string textEditSingleLine = "Hello, Clay!";
 string textEditMultiLine = "Line 1\nLine 2\nLine 3";
+string textEditNumber = "42";
 string textEditEmpty = "";
 
 // Main loop
@@ -614,79 +615,69 @@ void RenderWidgetDemo()
 
     ClayUI.Space(16);
 
-    // ========== TEXT EDIT ==========
-    ClayUI.BeginPanel("Text Edit");
-    ClayUI.Label("Text edit fields powered by StbTextEdit - full cursor, selection, undo/redo, clipboard:");
+    // ========== TEXT INPUT ==========
+    ClayUI.BeginPanel("Text Input");
+    ClayUI.Label("Text input fields powered by StbTextEdit - full cursor, selection, undo/redo, clipboard:");
     ClayUI.Space(8);
 
     ClayUI.Label("Single-line input:");
     ClayUI.Space(4);
-    if (Clay.Clay.TextEdit(Clay.Clay.Id("SingleLineInput"), ref textEditSingleLine, new Clay.Widgets.TextInputStyle
-    {
-        BackgroundColor = Color.Rgba(50, 50, 55),
-        FocusedBackgroundColor = Color.Rgba(60, 60, 70),
-        TextColor = Color.Rgba(220, 220, 220),
-        CursorColor = Color.Rgba(100, 180, 255),
-        SelectionColor = Color.Rgba(80, 130, 200, 120),
-        CornerRadius = CornerRadius.All(4),
-        Border = new BorderConfig { Width = BorderWidth.All(1), Color = Color.Rgba(80, 80, 90) },
-        Padding = Padding.Symmetric(8, 6),
-        FontId = 0,
-        FontSize = 16,
-        Sizing = new Sizing(SizingAxis.Grow(), SizingAxis.Default),
-    }))
-    {
-        // Text changed
-    }
+    ClayUI.TextInput("SingleLine", ref textEditSingleLine);
 
     ClayUI.Space(12);
     ClayUI.Label("Multi-line input:");
     ClayUI.Space(4);
-    if (Clay.Clay.TextEdit(Clay.Clay.Id("MultiLineInput"), ref textEditMultiLine, new Clay.Widgets.TextInputStyle
-    {
-        BackgroundColor = Color.Rgba(50, 50, 55),
-        FocusedBackgroundColor = Color.Rgba(60, 60, 70),
-        TextColor = Color.Rgba(220, 220, 220),
-        CursorColor = Color.Rgba(100, 180, 255),
-        SelectionColor = Color.Rgba(80, 130, 200, 120),
-        CornerRadius = CornerRadius.All(4),
-        Border = new BorderConfig { Width = BorderWidth.All(1), Color = Color.Rgba(80, 80, 90) },
-        Padding = Padding.All(8),
-        FontId = 0,
-        FontSize = 16,
-        Sizing = new Sizing(SizingAxis.Grow(), SizingAxis.Fixed(120)),
-    }, singleLine: false))
-    {
-        // Text changed
-    }
+    ClayUI.TextInput("MultiLine", ref textEditMultiLine, singleLine: false,
+        style: new Clay.Widgets.TextInputStyle
+        {
+            BackgroundColor = Color.Rgba(50, 50, 55),
+            FocusedBackgroundColor = Color.Rgba(60, 60, 70),
+            TextColor = Color.Rgba(220, 220, 220),
+            CursorColor = Color.Rgba(100, 180, 255),
+            SelectionColor = Color.Rgba(80, 130, 200, 120),
+            CornerRadius = CornerRadius.All(4),
+            Border = new BorderConfig { Width = BorderWidth.All(1), Color = Color.Rgba(80, 80, 90) },
+            Padding = Padding.All(8),
+            FontId = 0,
+            FontSize = 16,
+            Sizing = new Sizing(SizingAxis.Grow(), SizingAxis.Fixed(120)),
+        });
 
     ClayUI.Space(12);
-    ClayUI.Label("Empty (placeholder-style):");
+    ClayUI.Label("Numbers only (with CharFilter):");
     ClayUI.Space(4);
-    Clay.Clay.TextEdit(Clay.Clay.Id("EmptyInput"), ref textEditEmpty, new Clay.Widgets.TextInputStyle
-    {
-        BackgroundColor = Color.Rgba(50, 50, 55),
-        FocusedBackgroundColor = Color.Rgba(60, 60, 70),
-        TextColor = Color.Rgba(220, 220, 220),
-        CursorColor = Color.Rgba(100, 180, 255),
-        SelectionColor = Color.Rgba(80, 130, 200, 120),
-        CornerRadius = CornerRadius.All(4),
-        Border = new BorderConfig { Width = BorderWidth.All(1), Color = Color.Rgba(80, 80, 90) },
-        Padding = Padding.Symmetric(8, 6),
-        FontId = 0,
-        FontSize = 16,
-        Sizing = new Sizing(SizingAxis.Grow(), SizingAxis.Default),
-    });
+    ClayUI.TextInput("NumberOnly", ref textEditNumber,
+        style: new Clay.Widgets.TextInputStyle
+        {
+            BackgroundColor = Color.Rgba(50, 50, 55),
+            FocusedBackgroundColor = Color.Rgba(60, 60, 70),
+            TextColor = Color.Rgba(220, 220, 220),
+            CursorColor = Color.Rgba(100, 180, 255),
+            SelectionColor = Color.Rgba(80, 130, 200, 120),
+            CornerRadius = CornerRadius.All(4),
+            Border = new BorderConfig { Width = BorderWidth.All(1), Color = Color.Rgba(80, 80, 90) },
+            Padding = Padding.Symmetric(8, 6),
+            FontId = 0,
+            FontSize = 16,
+            Sizing = new Sizing(SizingAxis.Fixed(200), SizingAxis.Default),
+            CharFilter = Clay.Widgets.TextInputFilters.NumbersOnly,
+        });
+
+    ClayUI.Space(12);
+    ClayUI.Label("Empty input:");
+    ClayUI.Space(4);
+    ClayUI.TextInput("Empty", ref textEditEmpty);
 
     ClayUI.Space(12);
     ClayUI.Label($"Single-line value: \"{textEditSingleLine}\"");
     ClayUI.Label($"Multi-line lines: {textEditMultiLine.Split('\n').Length}");
+    ClayUI.Label($"Number value: \"{textEditNumber}\"");
     ClayUI.Label($"Empty value: \"{textEditEmpty}\"");
     ClayUI.Space(8);
     ClayUI.Label("Supports: Arrow keys, Home/End, Ctrl+A/C/X/V/Z, Shift+select, mouse click/drag, undo/redo");
 
     ClayUI.Space(12);
-    ClayUI.Label("Usage: if (Clay.TextEdit(id, ref text, style)) {{ /* changed */ }}");
+    ClayUI.Label("Usage: ClayUI.TextInput(\"Label\", ref text)");
     ClayUI.EndPanel();
 
     ClayUI.Space(16);

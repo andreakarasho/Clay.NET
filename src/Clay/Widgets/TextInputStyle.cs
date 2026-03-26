@@ -47,6 +47,13 @@ public struct TextInputStyle
     /// </summary>
     public Sizing Sizing;
 
+    /// <summary>
+    /// Optional character filter. Return true to allow the character, false to reject.
+    /// Use <see cref="TextInputFilters"/> for common presets (NumbersOnly, AlphaOnly, etc.).
+    /// Applied to typed characters and pasted text.
+    /// </summary>
+    public Func<char, bool>? CharFilter;
+
     public static readonly TextInputStyle Default = new()
     {
         BackgroundColor = Color.Rgba(255, 255, 255),

@@ -291,10 +291,9 @@ public class RaylibRenderer : IClayRenderer
         // Clip content to element bounds
         PushScissor(box);
 
-        // Content area
+        // Content area (offset by scroll)
         float textX = box.X + padding.Left;
-        float textY = box.Y + padding.Top;
-        float textAreaWidth = box.Width - padding.Left - padding.Right;
+        float textY = box.Y + padding.Top - widget.ScrollY;
         float lineHeight = widget.ComputedLineHeight;
 
         // Draw selection highlight
@@ -321,9 +320,16 @@ public class RaylibRenderer : IClayRenderer
                     int hlEnd = Math.Min(lineEnd, selEnd);
                     float x1 = textX + widget.MeasureSubstring(lineStart, hlStart);
                     float x2 = textX + widget.MeasureSubstring(lineStart, hlEnd);
+                    float w = x2 - x1;
+
+                    // Selection spans past the end of this line (into the \n):
+                    // show a minimal marker so the user sees the line is selected
+                    if (selEnd > lineEnd && w < 1f)
+                        w = 1f;
+
                     float y = textY + row * lineHeight;
                     Raylib.DrawRectangleRec(
-                        new Rectangle(x1, y, x2 - x1, lineHeight),
+                        new Rectangle(x1, y, w, lineHeight),
                         selColor);
                 }
 

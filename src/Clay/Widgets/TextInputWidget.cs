@@ -34,6 +34,7 @@ public sealed class TextInputWidget : ITextEditHandler
     private string? _textCache;
     private ushort _fontId, _fontSize, _letterSpacing;
     private float _cachedLineHeight;
+    private float _scrollY;
 
     // ── Construction ──────────────────────────────────────────────────
 
@@ -80,6 +81,9 @@ public sealed class TextInputWidget : ITextEditHandler
     /// <summary>The style applied during the last <see cref="Element"/> call.</summary>
     public TextInputStyle CurrentStyle { get; private set; }
 
+    /// <summary>Current vertical scroll offset in pixels (for multiline inputs).</summary>
+    public float ScrollY => _scrollY;
+
     // ── Keyboard input (call from your framework) ─────────────────────
 
     /// <summary>Processes a control key. Set <paramref name="shift"/> to extend selection.</summary>
@@ -89,9 +93,11 @@ public sealed class TextInputWidget : ITextEditHandler
         TextEdit.Key(this, _editState, key, shift);
     }
 
-    /// <summary>Inserts a character at the cursor position.</summary>
+    /// <summary>Inserts a character at the cursor position. Respects the style's CharFilter.</summary>
     public void HandleChar(char ch)
     {
+        if (CurrentStyle.CharFilter != null && !CurrentStyle.CharFilter(ch))
+            return;
         InvalidateTextCache();
         TextEdit.InputChar(this, _editState, ch);
     }
@@ -109,9 +115,21 @@ public sealed class TextInputWidget : ITextEditHandler
         return text;
     }
 
-    /// <summary>Pastes text at the cursor, replacing any selection.</summary>
+    /// <summary>Pastes text at the cursor, replacing any selection. Respects the style's CharFilter.</summary>
     public bool Paste(ReadOnlySpan<char> text)
     {
+        var filter = CurrentStyle.CharFilter;
+        if (filter != null)
+        {
+            Span<char> buf = text.Length <= 256 ? stackalloc char[text.Length] : new char[text.Length];
+            int count = 0;
+            for (int i = 0; i < text.Length; i++)
+                if (filter(text[i]))
+                    buf[count++] = text[i];
+            if (count == 0) return false;
+            InvalidateTextCache();
+            return TextEdit.Paste(this, _editState, buf[..count]);
+        }
         InvalidateTextCache();
         return TextEdit.Paste(this, _editState, text);
     }
@@ -209,7 +227,7 @@ public sealed class TextInputWidget : ITextEditHandler
     /// selection highlights, text, and cursor.
     /// </para>
     /// </summary>
-    public void Element(ElementId id, TextInputStyle style)
+    public void Element(ElementId id, TextInputStyle style, float scrollDeltaY = 0)
     {
         // Cache font parameters for ITextEditHandler methods
         _fontId = style.FontId;
@@ -229,7 +247,6 @@ public sealed class TextInputWidget : ITextEditHandler
             float h = _cachedLineHeight + style.Padding.Top + style.Padding.Bottom;
             if (!_editState.SingleLine)
             {
-                // For multi-line, count lines
                 int lineCount = 1;
                 var span = CollectionsMarshal.AsSpan(_chars);
                 for (int i = 0; i < span.Length; i++)
@@ -237,6 +254,34 @@ public sealed class TextInputWidget : ITextEditHandler
                 h = lineCount * _cachedLineHeight + style.Padding.Top + style.Padding.Bottom;
             }
             sizing.Height = SizingAxis.Fixed(h);
+        }
+
+        // Scroll handling for multiline with fixed height
+        if (!_editState.SingleLine && sizing.Height.Type == SizingType.Fixed)
+        {
+            float visibleHeight = sizing.Height.MinMax.Min - style.Padding.Top - style.Padding.Bottom;
+
+            // Mouse wheel scroll (when hovered)
+            if (scrollDeltaY != 0 && Clay.PointerOver(id))
+            {
+                _scrollY -= scrollDeltaY * _cachedLineHeight * 3;
+            }
+
+            // Keep cursor in view
+            EnsureCursorVisible(visibleHeight);
+
+            // Clamp scroll
+            int lineCount = 1;
+            var charSpan = CollectionsMarshal.AsSpan(_chars);
+            for (int i = 0; i < charSpan.Length; i++)
+                if (charSpan[i] == '\n') lineCount++;
+            float totalContentHeight = lineCount * _cachedLineHeight;
+            float maxScroll = Math.Max(0, totalContentHeight - visibleHeight);
+            _scrollY = Math.Clamp(_scrollY, 0, maxScroll);
+        }
+        else
+        {
+            _scrollY = 0;
         }
 
         // Create Clay element with Custom config
@@ -322,6 +367,18 @@ public sealed class TextInputWidget : ITextEditHandler
     {
         if (style.LineHeight > 0) return style.LineHeight;
         return _measurer.MeasureText("Ay", style.FontId, style.FontSize, style.LetterSpacing).Height;
+    }
+
+    private void EnsureCursorVisible(float visibleHeight)
+    {
+        var (row, _) = GetRowCol(_editState.Cursor);
+        float cursorTop = row * _cachedLineHeight;
+        float cursorBottom = cursorTop + _cachedLineHeight;
+
+        if (cursorTop < _scrollY)
+            _scrollY = cursorTop;
+        else if (cursorBottom > _scrollY + visibleHeight)
+            _scrollY = cursorBottom - visibleHeight;
     }
 
     private void HandlePointerInput(ElementId id, TextInputStyle style)
