@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="src/Clay/Clay.csproj" />
+  <Folder Name="/src/">
+    <Project Path="src/Clay.Test/Clay.Test.csproj" />
+  </Folder>
+  <Project Path="src/Clay.Example/Clay.Example.csproj" />
+</Solution>

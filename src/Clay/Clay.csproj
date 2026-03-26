@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>Clay</RootNamespace>
+
+    <!-- Performance optimizations -->
+    <Optimize>true</Optimize>
+    <TieredCompilation>true</TieredCompilation>
+
+    <!-- Package info -->
+    <PackageId>Clay</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>Clay Contributors</Authors>
+    <Description>Pure .NET implementation of Clay UI layout library - high performance, zero allocation per frame</Description>
+    <PackageTags>ui;layout;immediate-mode;game-dev</PackageTags>
+  </PropertyGroup>
+
+</Project>
