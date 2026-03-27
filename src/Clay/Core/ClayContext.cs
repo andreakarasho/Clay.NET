@@ -1042,7 +1042,7 @@ public class ClayContext : IDisposable
                 childOffset.Y += child.Dimensions.Height + layoutConfig.ChildGap;
         }
 
-        // Update scroll container content size
+        // Update scroll container content size and clamp scroll position
         if (scrollContainerIndex >= 0)
         {
             float contentSizeW = totalChildrenSize + layoutConfig.Padding.Left + layoutConfig.Padding.Right;
@@ -1055,6 +1055,13 @@ public class ClayContext : IDisposable
             {
                 ScrollContainerDatas[scrollContainerIndex].ContentSize = new Dimensions(element.Dimensions.Width, contentSizeH);
             }
+
+            // Clamp scroll position to valid range (handles window resize making content fit)
+            ref var sd = ref ScrollContainerDatas[scrollContainerIndex];
+            float maxScrollX = Math.Max(0, sd.ContentSize.Width - sd.BoundingBox.Width);
+            float maxScrollY = Math.Max(0, sd.ContentSize.Height - sd.BoundingBox.Height);
+            sd.ScrollPosition.X = Math.Clamp(sd.ScrollPosition.X, 0, maxScrollX);
+            sd.ScrollPosition.Y = Math.Clamp(sd.ScrollPosition.Y, 0, maxScrollY);
         }
     }
 

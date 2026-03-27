@@ -457,8 +457,8 @@ public static class ClayUI
 
         // Get the scrollbar track element to calculate relative position
         var trackId = _context.IsVerticalScrollbar
-            ? ElementId.Hash($"SbV_{_context.ActiveScrollContainerId.Id}")
-            : ElementId.Hash($"SbH_{_context.ActiveScrollContainerId.Id}");
+            ? ElementId.Hash($"SbTrackV_{_context.ActiveScrollContainerId.Id}")
+            : ElementId.Hash($"SbTrackH_{_context.ActiveScrollContainerId.Id}");
         var trackData = Clay.GetElementData(trackId);
         if (!trackData.Found) return;
 
@@ -3257,22 +3257,57 @@ public static class ClayUI
 
         EndHorizontal();
 
-        // === RGB + Alpha sliders ===
+        // === RGBA number inputs ===
         var result = changed ? Color.FromHsv(h, s, v, alpha) : color;
-        float r = result.R, g = result.G, b = result.B, a = result.A;
 
-        changed |= Slider($"R##{label}_r", ref r, 0, 255);
-        changed |= Slider($"G##{label}_g", ref g, 0, 255);
-        changed |= Slider($"B##{label}_b", ref b, 0, 255);
-        changed |= Slider($"A##{label}_a", ref a, 0, 255);
+        var numStyle = new TextInputStyle
+        {
+            BackgroundColor = Color.Rgba(40, 40, 45),
+            FocusedBackgroundColor = Color.Rgba(55, 55, 65),
+            TextColor = Color.Rgba(220, 220, 220),
+            CursorColor = Color.Rgba(100, 180, 255),
+            SelectionColor = Color.Rgba(80, 130, 200, 120),
+            CornerRadius = CornerRadius.All(3),
+            Border = new BorderConfig { Width = BorderWidth.All(1), Color = Color.Rgba(70, 70, 80) },
+            Padding = Padding.Symmetric(4, 3),
+            FontId = 0,
+            FontSize = 12,
+            Sizing = new Sizing(SizingAxis.Fixed(42), SizingAxis.Default),
+            CharFilter = TextInputFilters.DigitsOnly,
+        };
+
+        // Store RGBA as strings for the text inputs
+        string rStr = ((int)result.R).ToString();
+        string gStr = ((int)result.G).ToString();
+        string bStr = ((int)result.B).ToString();
+        string aStr = ((int)result.A).ToString();
+
+        BeginHorizontal(gap: 4);
+        Label("R", new LabelStyle { FontSize = 10 });
+        bool rChanged = TextInput($"R##{label}_r", ref rStr, style: numStyle);
+        Label("G", new LabelStyle { FontSize = 10 });
+        bool gChanged = TextInput($"G##{label}_g", ref gStr, style: numStyle);
+        Label("B", new LabelStyle { FontSize = 10 });
+        bool bChanged = TextInput($"B##{label}_b", ref bStr, style: numStyle);
+        Label("A", new LabelStyle { FontSize = 10 });
+        bool aChanged = TextInput($"A##{label}_a", ref aStr, style: numStyle);
+        EndHorizontal();
+
+        bool rgbaChanged = rChanged || gChanged || bChanged || aChanged;
+        changed |= rgbaChanged;
 
         EndVertical();
 
         if (changed)
         {
-            // If RGB sliders changed, use RGB directly; if SV/Hue changed, use HSV
-            if (r != result.R || g != result.G || b != result.B || a != result.A)
-                return new Color(r, g, b, a);
+            if (rgbaChanged)
+            {
+                float r = int.TryParse(rStr, out var ri) ? Math.Clamp(ri, 0, 255) : result.R;
+                float g = int.TryParse(gStr, out var gi) ? Math.Clamp(gi, 0, 255) : result.G;
+                float b = int.TryParse(bStr, out var bi) ? Math.Clamp(bi, 0, 255) : result.B;
+                float a2 = int.TryParse(aStr, out var ai) ? Math.Clamp(ai, 0, 255) : result.A;
+                return new Color(r, g, b, a2);
+            }
             return Color.FromHsv(h, s, v, alpha);
         }
         return color;
