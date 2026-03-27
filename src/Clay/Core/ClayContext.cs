@@ -1085,18 +1085,22 @@ public class ClayContext : IDisposable
         for (int rootIndex = 0; rootIndex < LayoutElementTreeRoots.Length; rootIndex++)
         {
             ref var root = ref LayoutElementTreeRoots[rootIndex];
-            GenerateRenderCommandsRecursive(root.LayoutElementIndex, root.ZIndex);
+            GenerateRenderCommandsRecursive(root.LayoutElementIndex, root.ZIndex, default, false);
         }
     }
 
-    private void GenerateRenderCommandsRecursive(int elementIndex, short zIndex)
+    private void GenerateRenderCommandsRecursive(int elementIndex, short zIndex, BoundingBox clipBounds, bool hasClip)
     {
         ref var element = ref LayoutElements[elementIndex];
         int hashIndex = GetHashMapItemIndex(element.Id);
         if (hashIndex < 0)
             return;
 
-        var boundingBox = LayoutElementsHashMapInternal[hashIndex].BoundingBox;
+        ref var hashItem = ref LayoutElementsHashMapInternal[hashIndex];
+        hashItem.HasClipBounds = hasClip;
+        hashItem.ClipBounds = clipBounds;
+
+        var boundingBox = hashItem.BoundingBox;
 
         // Culling
         if (!CullingDisabled)
@@ -1149,6 +1153,15 @@ public class ClayContext : IDisposable
             });
         }
 
+        // If this element is a scroll container, its bounding box clips children
+        var childClip = clipBounds;
+        bool childHasClip = hasClip;
+        if (scrollIndex >= 0)
+        {
+            childClip = boundingBox;
+            childHasClip = true;
+        }
+
         // Process children
         for (int i = 0; i < element.Children.Length; i++)
         {
@@ -1159,6 +1172,11 @@ public class ClayContext : IDisposable
             {
                 int childHashIndex = GetHashMapItemIndex(child.Id);
                 if (childHashIndex < 0) continue;
+
+                // Store clip bounds on text elements too
+                ref var childHashItem = ref LayoutElementsHashMapInternal[childHashIndex];
+                childHashItem.HasClipBounds = childHasClip;
+                childHashItem.ClipBounds = childClip;
 
                 int textConfigIndex = FindConfigIndex(ref child, ElementConfigType.Text);
                 if (textConfigIndex < 0) continue;
@@ -1185,7 +1203,7 @@ public class ClayContext : IDisposable
             }
             else
             {
-                GenerateRenderCommandsRecursive(childIndex, zIndex);
+                GenerateRenderCommandsRecursive(childIndex, zIndex, childClip, childHasClip);
             }
         }
 
@@ -1298,7 +1316,16 @@ public class ClayContext : IDisposable
         if (hashIndex < 0)
             return false;
 
-        return LayoutElementsHashMapInternal[hashIndex].BoundingBox.Contains(PointerInfo.Position);
+        ref var item = ref LayoutElementsHashMapInternal[hashIndex];
+        if (!item.BoundingBox.Contains(PointerInfo.Position))
+            return false;
+
+        // If the element is inside a scroll container, the pointer must also
+        // be within the scroll container's clip bounds (scissor region).
+        if (item.HasClipBounds && !item.ClipBounds.Contains(PointerInfo.Position))
+            return false;
+
+        return true;
     }
 
     public ElementData GetElementData(ElementId id)

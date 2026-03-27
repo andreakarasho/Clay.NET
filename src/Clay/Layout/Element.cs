@@ -155,10 +155,12 @@ public struct LayoutElementTreeRoot
 public struct LayoutElementHashMapItem
 {
     public BoundingBox BoundingBox;
+    public BoundingBox ClipBounds;
     public ElementId ElementId;
     public int LayoutElementIndex;
     public int NextIndex;
     public uint Generation;
     public uint IdAlias;
+    public bool HasClipBounds;
 }
 
