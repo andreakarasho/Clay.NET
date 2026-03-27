@@ -2492,25 +2492,46 @@ public static class ClayUI
             }
         }
 
-        // Handle click on thumb to start dragging — scrollbar takes priority over
-        // window resize when both overlap on the right edge, so use IsMouseJustPressed
-        // directly and cancel any resize that was started this frame.
-        if (isThumbHovered && IsMouseJustPressed)
+        // Check if mouse is within the track's actual bounds (not just the wider hit area)
+        bool isTrackHovered = trackData.Found && Clay.GetPointerState().Position.Y >= trackData.BoundingBox.Y
+            && Clay.GetPointerState().Position.Y <= trackData.BoundingBox.Y + trackData.BoundingBox.Height;
+
+        // Handle click — scrollbar takes priority over window resize when both
+        // overlap on the right edge, so use IsMouseJustPressed directly and cancel
+        // any resize that was started this frame.
+        if ((isThumbHovered || (isHitAreaHovered && isTrackHovered)) && IsMouseJustPressed)
         {
-            _context.ActiveScrollbarId = thumbId.Id;
-            _context.ActiveScrollContainerId = scrollContainerId;
-            _context.IsVerticalScrollbar = true;
+            if (isThumbHovered)
+            {
+                // Clicked on thumb — start dragging from current position
+                _context.ActiveScrollbarId = thumbId.Id;
+                _context.ActiveScrollContainerId = scrollContainerId;
+                _context.IsVerticalScrollbar = true;
+
+                var pointerData = Clay.GetPointerState();
+                var thumbData = Clay.GetElementData(thumbId);
+                if (thumbData.Found)
+                {
+                    _context.ScrollbarDragOffset = pointerData.Position.Y - thumbData.BoundingBox.Y;
+                }
+            }
+            else if (thumbTravel > 0)
+            {
+                // Clicked on track — jump thumb center to click position, then start dragging
+                float mouseY = Clay.GetPointerState().Position.Y;
+                float clickInTrack = mouseY - trackData.BoundingBox.Y - s.TrackPadding - thumbHeight / 2;
+                float normalizedY = Math.Clamp(clickInTrack / thumbTravel, 0f, 1f);
+                Clay.SetScrollPosition(scrollContainerId, new Vector2(scrollData.ScrollPosition.X, normalizedY * maxScrollY));
+
+                _context.ActiveScrollbarId = thumbId.Id;
+                _context.ActiveScrollContainerId = scrollContainerId;
+                _context.IsVerticalScrollbar = true;
+                _context.ScrollbarDragOffset = thumbHeight / 2;
+            }
+
             _context.ActiveResizeWindowId = 0;
             _context.ActiveResizeDirection = ResizeDirection.None;
             _context.ClickConsumedThisFrame = true;
-
-            // Calculate drag offset: distance from mouse click to top of thumb element
-            var pointerData = Clay.GetPointerState();
-            var thumbData = Clay.GetElementData(thumbId);
-            if (thumbData.Found)
-            {
-                _context.ScrollbarDragOffset = pointerData.Position.Y - thumbData.BoundingBox.Y;
-            }
         }
 
         // Determine thumb color based on state
@@ -2637,25 +2658,45 @@ public static class ClayUI
             }
         }
 
-        // Handle click on thumb to start dragging — scrollbar takes priority over
-        // window resize when both overlap, so use IsMouseJustPressed directly
-        // and cancel any resize that was started this frame.
-        if (isThumbHovered && IsMouseJustPressed)
+        // Check if mouse is within the track's actual bounds
+        bool isTrackHovered = trackData.Found && Clay.GetPointerState().Position.X >= trackData.BoundingBox.X
+            && Clay.GetPointerState().Position.X <= trackData.BoundingBox.X + trackData.BoundingBox.Width;
+
+        // Handle click — scrollbar takes priority over window resize when both
+        // overlap, so use IsMouseJustPressed directly and cancel any resize.
+        if ((isThumbHovered || (isHitAreaHovered && isTrackHovered)) && IsMouseJustPressed)
         {
-            _context.ActiveScrollbarId = thumbId.Id;
-            _context.ActiveScrollContainerId = scrollContainerId;
-            _context.IsVerticalScrollbar = false;
+            if (isThumbHovered)
+            {
+                // Clicked on thumb — start dragging from current position
+                _context.ActiveScrollbarId = thumbId.Id;
+                _context.ActiveScrollContainerId = scrollContainerId;
+                _context.IsVerticalScrollbar = false;
+
+                var pointerData = Clay.GetPointerState();
+                var thumbData = Clay.GetElementData(thumbId);
+                if (thumbData.Found)
+                {
+                    _context.ScrollbarDragOffset = pointerData.Position.X - thumbData.BoundingBox.X;
+                }
+            }
+            else if (thumbTravel > 0)
+            {
+                // Clicked on track — jump thumb center to click position, then start dragging
+                float mouseX = Clay.GetPointerState().Position.X;
+                float clickInTrack = mouseX - trackData.BoundingBox.X - s.TrackPadding - thumbWidth / 2;
+                float normalizedX = Math.Clamp(clickInTrack / thumbTravel, 0f, 1f);
+                Clay.SetScrollPosition(scrollContainerId, new Vector2(normalizedX * maxScrollX, scrollData.ScrollPosition.Y));
+
+                _context.ActiveScrollbarId = thumbId.Id;
+                _context.ActiveScrollContainerId = scrollContainerId;
+                _context.IsVerticalScrollbar = false;
+                _context.ScrollbarDragOffset = thumbWidth / 2;
+            }
+
             _context.ActiveResizeWindowId = 0;
             _context.ActiveResizeDirection = ResizeDirection.None;
             _context.ClickConsumedThisFrame = true;
-
-            // Calculate drag offset: distance from mouse click to left of thumb element
-            var pointerData = Clay.GetPointerState();
-            var thumbData = Clay.GetElementData(thumbId);
-            if (thumbData.Found)
-            {
-                _context.ScrollbarDragOffset = pointerData.Position.X - thumbData.BoundingBox.X;
-            }
         }
 
         // Determine thumb color based on state
