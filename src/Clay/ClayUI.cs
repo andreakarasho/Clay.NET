@@ -73,6 +73,7 @@ internal class ClayUIContext
     internal ElementId ActiveScrollContainerId;
     internal bool IsVerticalScrollbar;
     internal float ScrollbarDragOffset;
+    internal ElementId ScrollbarHitAreaId;
 
     // Active window drag tracking
     internal uint ActiveDragWindowId;
@@ -89,6 +90,9 @@ internal class ClayUIContext
     internal Vector2 ScrollDelta;
     internal bool ScrollConsumedByWindow;
 
+    // Click consumption - set when window chrome (title bar, close, collapse) handles a click
+    internal bool ClickConsumedThisFrame;
+
     /// <summary>
     /// Clears per-frame state. Called at the start of each frame.
     /// </summary>
@@ -103,6 +107,7 @@ internal class ClayUIContext
         MousePressed = mouseDown;
         MousePosition = mousePosition;
         ScrollConsumedByWindow = false;
+        ClickConsumedThisFrame = false;
 
         // Release active slider/scrollbar/window/resize when mouse is released
         if (!mouseDown)
@@ -470,11 +475,10 @@ public static class ClayUI
             float contentHeight = scrollData.ContentDimensions.Height;
             float maxScrollY = scrollData.MaxScrollY;
 
-            // Calculate thumb size to determine track travel distance
-            float thumbHeight = Math.Max(s.MinThumbSize, (containerHeight / contentHeight) * containerHeight);
-            float trackHeight = trackData.BoundingBox.Height;
-            // Account for padding on both ends of the track
-            float trackTravel = trackHeight - thumbHeight - s.TrackPadding * 2;
+            // Use track's actual inner height for thumb size (matches rendering)
+            float trackInnerHeight = trackData.BoundingBox.Height - s.TrackPadding * 2;
+            float thumbHeight = Math.Max(s.MinThumbSize, (containerHeight / contentHeight) * trackInnerHeight);
+            float trackTravel = trackInnerHeight - thumbHeight;
 
             if (trackTravel <= 0) return;
 
@@ -492,11 +496,10 @@ public static class ClayUI
             float contentWidth = scrollData.ContentDimensions.Width;
             float maxScrollX = scrollData.MaxScrollX;
 
-            // Calculate thumb size to determine track travel distance
-            float thumbWidth = Math.Max(s.MinThumbSize, (containerWidth / contentWidth) * containerWidth);
-            float trackWidth = trackData.BoundingBox.Width;
-            // Account for padding on both ends of the track
-            float trackTravel = trackWidth - thumbWidth - s.TrackPadding * 2;
+            // Use track's actual inner width for thumb size (matches rendering)
+            float trackInnerWidth = trackData.BoundingBox.Width - s.TrackPadding * 2;
+            float thumbWidth = Math.Max(s.MinThumbSize, (containerWidth / contentWidth) * trackInnerWidth);
+            float trackTravel = trackInnerWidth - thumbWidth;
 
             if (trackTravel <= 0) return;
 
@@ -580,6 +583,9 @@ public static class ClayUI
         get
         {
             if (!IsMouseJustPressed) return false;
+
+            // If a window's chrome (title bar, close, collapse) already handled this click, block it
+            if (_context.ClickConsumedThisFrame) return false;
 
             // If inside a window, only process if that window is topmost
             if (IsInsideWindow)
@@ -1622,6 +1628,12 @@ public static class ClayUI
             _context.BringWindowToFront(id.Id);
         }
 
+        // Any click on the title bar is consumed so it doesn't pass through to content widgets
+        if (isTitleBarHovered && IsMouseJustPressed)
+        {
+            _context.ClickConsumedThisFrame = true;
+        }
+
         // Handle title bar drag (only if topmost, in title bar, not clicking buttons, and move is enabled)
         if (isTitleBarHovered && !isCollapseHovered && !isCloseHovered && IsMouseJustPressed && !flags.HasFlag(WindowFlags.NoMove))
         {
@@ -1683,6 +1695,7 @@ public static class ClayUI
                 _context.ResizeStartMousePos = _context.MousePosition;
                 _context.ResizeStartSize = state.Size;
                 _context.ResizeStartPos = state.Position;
+                _context.ClickConsumedThisFrame = true;
             }
         }
 
@@ -1875,7 +1888,9 @@ public static class ClayUI
     {
         if (_context.WindowStack.Count > 0)
         {
-            var windowId = _context.WindowStack.Pop();
+            // Peek the window ID first — keep it on the stack so scrollbar click detection
+            // correctly sees itself as inside the window (ShouldProcessClick checks WindowStack).
+            var windowId = _context.WindowStack.Peek();
 
             // Pop window frame info
             ClayUIContext.WindowFrameInfo? frameInfo = null;
@@ -1899,8 +1914,10 @@ public static class ClayUI
 
                         // Right column (vertical: scrollbar + resize grip)
                         // Bottom-right corner matches window
+                        var rightColumnId = ElementId.Hash($"WinRCol_{windowId}");
                         using (Clay.Element(new ElementDeclaration
                         {
+                            Id = rightColumnId,
                             Layout = new LayoutConfig
                             {
                                 Direction = LayoutDirection.TopToBottom,
@@ -1916,7 +1933,9 @@ public static class ClayUI
                             // Scrollbar (grows to fill)
                             if (info.ShowScrollbar)
                             {
+                                _context.ScrollbarHitAreaId = rightColumnId;
                                 VerticalScrollbar(info.ScrollId);
+                                _context.ScrollbarHitAreaId = default;
                             }
                             else
                             {
@@ -1952,6 +1971,9 @@ public static class ClayUI
                 Clay.CloseElement();
                 _context.WindowDepth--;
             }
+
+            // Pop the window ID after all window content (including scrollbar) is processed
+            _context.WindowStack.Pop();
         }
     }
 
@@ -2438,24 +2460,49 @@ public static class ClayUI
         float scrollY = scrollData.ScrollPosition.Y;
         float maxScrollY = scrollData.MaxScrollY;
 
-        // Calculate thumb size and position
-        float thumbHeight = Math.Max(s.MinThumbSize, (containerHeight / contentHeight) * containerHeight);
-        float trackHeight = containerHeight - s.TrackPadding * 2;
-        float thumbTravel = trackHeight - thumbHeight;
-        float thumbY = maxScrollY > 0 ? (scrollY / maxScrollY) * thumbTravel : 0;
-
         var trackId = ElementId.Hash($"SbTrackV_{scrollContainerId.Id}");
         var thumbId = ElementId.Hash($"SbThumbV_{scrollContainerId.Id}");
 
-        bool isThumbHovered = Clay.PointerOver(thumbId);
+        // Use the track's actual rendered height from previous frame when available,
+        // so thumb positioning stays correct even when the track is shorter than the
+        // scroll container (e.g. resize grip taking space in the right column).
+        var trackData = Clay.GetElementData(trackId);
+        float trackInnerHeight = trackData.Found
+            ? trackData.BoundingBox.Height - s.TrackPadding * 2
+            : containerHeight - s.TrackPadding * 2;
+
+        // Calculate thumb size and position
+        float thumbHeight = Math.Max(s.MinThumbSize, (containerHeight / contentHeight) * trackInnerHeight);
+        float thumbTravel = trackInnerHeight - thumbHeight;
+        float thumbY = maxScrollY > 0 ? (scrollY / maxScrollY) * thumbTravel : 0;
+
+        // Use the hit area (or track) for hover detection, but check thumb Y range
+        var hoverId = _context.ScrollbarHitAreaId.Id != 0 ? _context.ScrollbarHitAreaId : trackId;
+        bool isHitAreaHovered = Clay.PointerOver(hoverId);
+        bool isThumbHovered = false;
         bool isActiveScrollbar = _context.ActiveScrollbarId == thumbId.Id;
 
-        // Handle click on thumb to start dragging (only thumb, not track)
-        if (isThumbHovered && ShouldProcessClick)
+        if (isHitAreaHovered || isActiveScrollbar)
+        {
+            var thumbData = Clay.GetElementData(thumbId);
+            if (thumbData.Found)
+            {
+                float mouseY = Clay.GetPointerState().Position.Y;
+                isThumbHovered = mouseY >= thumbData.BoundingBox.Y && mouseY <= thumbData.BoundingBox.Y + thumbData.BoundingBox.Height;
+            }
+        }
+
+        // Handle click on thumb to start dragging — scrollbar takes priority over
+        // window resize when both overlap on the right edge, so use IsMouseJustPressed
+        // directly and cancel any resize that was started this frame.
+        if (isThumbHovered && IsMouseJustPressed)
         {
             _context.ActiveScrollbarId = thumbId.Id;
             _context.ActiveScrollContainerId = scrollContainerId;
             _context.IsVerticalScrollbar = true;
+            _context.ActiveResizeWindowId = 0;
+            _context.ActiveResizeDirection = ResizeDirection.None;
+            _context.ClickConsumedThisFrame = true;
 
             // Calculate drag offset: distance from mouse click to top of thumb element
             var pointerData = Clay.GetPointerState();
@@ -2469,12 +2516,14 @@ public static class ClayUI
         // Determine thumb color based on state
         var thumbColor = (isActiveScrollbar || isThumbHovered) ? s.ThumbHoverColor : s.ThumbColor;
 
-        // Vertical scrollbar track (inline, sibling to scroll container)
+        // Vertical scrollbar track — uses spacers for thumb positioning instead of
+        // padding so the track always fills its parent height correctly.
         using (Clay.Element(new ElementDeclaration
         {
             Id = trackId,
             Layout = new LayoutConfig
             {
+                Direction = LayoutDirection.TopToBottom,
                 Sizing = new Sizing
                 {
                     Width = SizingAxis.Fixed(s.Width),
@@ -2482,9 +2531,9 @@ public static class ClayUI
                 },
                 Padding = new Padding
                 {
-                    Top = (ushort)(s.TrackPadding + thumbY),
                     Left = (ushort)s.TrackPadding,
                     Right = (ushort)s.TrackPadding,
+                    Top = (ushort)s.TrackPadding,
                     Bottom = (ushort)s.TrackPadding
                 }
             },
@@ -2492,6 +2541,19 @@ public static class ClayUI
             CornerRadius = s.CornerRadius
         }))
         {
+            // Top spacer — positions the thumb
+            using (Clay.Element(new ElementDeclaration
+            {
+                Layout = new LayoutConfig
+                {
+                    Sizing = new Sizing
+                    {
+                        Width = SizingAxis.Grow(),
+                        Height = SizingAxis.Fixed(thumbY)
+                    }
+                }
+            })) { }
+
             // Thumb
             using (Clay.Element(new ElementDeclaration
             {
@@ -2545,24 +2607,47 @@ public static class ClayUI
         float scrollX = scrollData.ScrollPosition.X;
         float maxScrollX = scrollData.MaxScrollX;
 
-        // Calculate thumb size and position
-        float thumbWidth = Math.Max(s.MinThumbSize, (containerWidth / contentWidth) * containerWidth);
-        float trackWidth = containerWidth - s.TrackPadding * 2;
-        float thumbTravel = trackWidth - thumbWidth;
-        float thumbX = maxScrollX > 0 ? (scrollX / maxScrollX) * thumbTravel : 0;
-
         var trackId = ElementId.Hash($"SbTrackH_{scrollContainerId.Id}");
         var thumbId = ElementId.Hash($"SbThumbH_{scrollContainerId.Id}");
 
-        bool isThumbHovered = Clay.PointerOver(thumbId);
+        // Use the track's actual rendered width from previous frame when available
+        var trackData = Clay.GetElementData(trackId);
+        float trackInnerWidth = trackData.Found
+            ? trackData.BoundingBox.Width - s.TrackPadding * 2
+            : containerWidth - s.TrackPadding * 2;
+
+        // Calculate thumb size and position
+        float thumbWidth = Math.Max(s.MinThumbSize, (containerWidth / contentWidth) * trackInnerWidth);
+        float thumbTravel = trackInnerWidth - thumbWidth;
+        float thumbX = maxScrollX > 0 ? (scrollX / maxScrollX) * thumbTravel : 0;
+
+        // Use the hit area (or track) for hover detection, but check thumb X range
+        var hoverId = _context.ScrollbarHitAreaId.Id != 0 ? _context.ScrollbarHitAreaId : trackId;
+        bool isHitAreaHovered = Clay.PointerOver(hoverId);
+        bool isThumbHovered = false;
         bool isActiveScrollbar = _context.ActiveScrollbarId == thumbId.Id;
 
-        // Handle click on thumb to start dragging (only thumb, not track)
-        if (isThumbHovered && ShouldProcessClick)
+        if (isHitAreaHovered || isActiveScrollbar)
+        {
+            var thumbData = Clay.GetElementData(thumbId);
+            if (thumbData.Found)
+            {
+                float mouseX = Clay.GetPointerState().Position.X;
+                isThumbHovered = mouseX >= thumbData.BoundingBox.X && mouseX <= thumbData.BoundingBox.X + thumbData.BoundingBox.Width;
+            }
+        }
+
+        // Handle click on thumb to start dragging — scrollbar takes priority over
+        // window resize when both overlap, so use IsMouseJustPressed directly
+        // and cancel any resize that was started this frame.
+        if (isThumbHovered && IsMouseJustPressed)
         {
             _context.ActiveScrollbarId = thumbId.Id;
             _context.ActiveScrollContainerId = scrollContainerId;
             _context.IsVerticalScrollbar = false;
+            _context.ActiveResizeWindowId = 0;
+            _context.ActiveResizeDirection = ResizeDirection.None;
+            _context.ClickConsumedThisFrame = true;
 
             // Calculate drag offset: distance from mouse click to left of thumb element
             var pointerData = Clay.GetPointerState();
@@ -2576,7 +2661,7 @@ public static class ClayUI
         // Determine thumb color based on state
         var thumbColor = (isActiveScrollbar || isThumbHovered) ? s.ThumbHoverColor : s.ThumbColor;
 
-        // Horizontal scrollbar track (inline, sibling to scroll container)
+        // Horizontal scrollbar track — uses spacers for thumb positioning
         using (Clay.Element(new ElementDeclaration
         {
             Id = trackId,
@@ -2590,7 +2675,7 @@ public static class ClayUI
                 },
                 Padding = new Padding
                 {
-                    Left = (ushort)(s.TrackPadding + thumbX),
+                    Left = (ushort)s.TrackPadding,
                     Top = (ushort)s.TrackPadding,
                     Bottom = (ushort)s.TrackPadding,
                     Right = (ushort)s.TrackPadding
@@ -2600,6 +2685,19 @@ public static class ClayUI
             CornerRadius = s.CornerRadius
         }))
         {
+            // Left spacer — positions the thumb
+            using (Clay.Element(new ElementDeclaration
+            {
+                Layout = new LayoutConfig
+                {
+                    Sizing = new Sizing
+                    {
+                        Width = SizingAxis.Fixed(thumbX),
+                        Height = SizingAxis.Grow()
+                    }
+                }
+            })) { }
+
             // Thumb
             using (Clay.Element(new ElementDeclaration
             {
