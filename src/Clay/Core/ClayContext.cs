@@ -1346,8 +1346,8 @@ public class ClayContext : IDisposable
         // Forward scroll delta to text input widgets
         TextInput?.SetScrollDelta(scrollDelta.Y);
 
-        // Find scroll container under pointer
-        for (int i = 0; i < ScrollContainerDatas.Length; i++)
+        // Find innermost scroll container under pointer (iterate in reverse so children take priority)
+        for (int i = ScrollContainerDatas.Length - 1; i >= 0; i--)
         {
             ref var scrollData = ref ScrollContainerDatas[i];
 

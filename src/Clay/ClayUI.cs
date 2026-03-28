@@ -36,6 +36,7 @@ internal class ClayUIContext
     // Open window bounding boxes for input blocking (updated each frame)
     // Stored as (windowId, bounds) to support z-order aware hit testing
     internal readonly List<(uint WindowId, BoundingBox Bounds)> OpenWindowBounds = new();
+    internal bool WindowBoundsRebuiltThisFrame;
 
     // Per-frame tracking
     internal readonly HashSet<uint> PressedThisFrame = new();
@@ -103,7 +104,13 @@ internal class ClayUIContext
     {
         PressedThisFrame.Clear();
         HoveredThisFrame.Clear();
-        OpenWindowBounds.Clear();
+
+        // If no windows rendered last frame, clear stale bounds.
+        // Otherwise keep previous frame's bounds so IsPointOverAnyWindow works
+        // before BeginWindow re-populates them this frame.
+        if (!WindowBoundsRebuiltThisFrame)
+            OpenWindowBounds.Clear();
+        WindowBoundsRebuiltThisFrame = false;
         IdCounter = 0;
         MouseWasPressed = MousePressed;
         MousePressed = mouseDown;
@@ -170,13 +177,12 @@ internal class ClayUIContext
     /// </summary>
     internal bool IsPointOverAnyWindow(Vector2 point, float titleBarHeight = 32)
     {
-        foreach (var (_, state) in WindowStates)
+        // Use OpenWindowBounds (populated each frame when windows render) instead of
+        // WindowStates (which persists even when windows aren't rendered this frame).
+        foreach (var (_, bounds) in OpenWindowBounds)
         {
-            if (!state.Open) continue; // Skip closed windows
-
-            float height = state.Collapsed ? titleBarHeight : state.Size.Y;
-            if (point.X >= state.Position.X && point.X <= state.Position.X + state.Size.X &&
-                point.Y >= state.Position.Y && point.Y <= state.Position.Y + height)
+            if (point.X >= bounds.X && point.X <= bounds.X + bounds.Width &&
+                point.Y >= bounds.Y && point.Y <= bounds.Y + bounds.Height)
             {
                 return true;
             }
@@ -1392,7 +1398,7 @@ public static class ClayUI
                     Sizing = new Sizing
                     {
                         Width = SizingAxis.Grow(),
-                        Height = maxHeight.HasValue ? SizingAxis.Fit(0, maxHeight.Value) : SizingAxis.Fit()
+                        Height = maxHeight.HasValue ? SizingAxis.Fit(0, maxHeight.Value) : SizingAxis.Grow()
                     }
                 },
                 BackgroundColor = s.BackgroundColor,
@@ -1615,7 +1621,12 @@ public static class ClayUI
             state.Size.X, windowHeight
         );
 
-        // Track window bounds for input blocking
+        // Track window bounds for input blocking (clear previous frame's data on first window)
+        if (!_context.WindowBoundsRebuiltThisFrame)
+        {
+            _context.OpenWindowBounds.Clear();
+            _context.WindowBoundsRebuiltThisFrame = true;
+        }
         _context.OpenWindowBounds.Add((id.Id, windowBounds));
 
         // Manual bounds checking for window hover (Clay.PointerOver doesn't respect z-order)
