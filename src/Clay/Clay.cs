@@ -16,6 +16,15 @@ public static partial class Clay
     public static ClayContext? Context => _context;
 
     /// <summary>
+    /// Sets the current layout context. Used by <see cref="ClayUI.SetContext"/> to switch
+    /// between independent UI contexts.
+    /// </summary>
+    public static void SetContext(ClayContext? context)
+    {
+        _context = context;
+    }
+
+    /// <summary>
     /// Initializes Clay with the given configuration.
     /// </summary>
     /// <param name="layoutDimensions">The initial layout dimensions (e.g., screen size).</param>

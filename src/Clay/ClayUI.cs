@@ -364,7 +364,27 @@ public static class ClayUI
 {
     // ============ Context ============
 
-    private static readonly ClayUIContext _context = new();
+    private static ClayUIContext _context = new();
+
+    /// <summary>
+    /// Gets the current UI context as an opaque handle. Use with <see cref="SetContext"/>
+    /// to switch between independent UI contexts (e.g., multiple viewports or render targets).
+    /// </summary>
+    public static ClayUIContextHandle GetContext()
+    {
+        return new ClayUIContextHandle(_context, Style, Clay.Context);
+    }
+
+    /// <summary>
+    /// Restores a previously saved UI context. Both the ClayUI widget state and the
+    /// underlying Clay layout context are switched.
+    /// </summary>
+    public static void SetContext(ClayUIContextHandle handle)
+    {
+        _context = handle.UIContext;
+        Style = handle.Style;
+        Clay.SetContext(handle.LayoutContext);
+    }
 
     // ============ Style Configuration ============
 
@@ -2866,6 +2886,310 @@ public static class ClayUI
         });
     }
 
+    // ============ ListBox ============
+
+    /// <summary>
+    /// Begins a scrollable list box. Each item is rendered with <see cref="ListBoxItem"/>.
+    /// Call <see cref="EndListBox"/> when done.
+    /// </summary>
+    /// <param name="label">Label displayed above the list box. Use ## for unique IDs.</param>
+    /// <param name="maxHeight">Maximum height before scrolling. Default 150.</param>
+    /// <param name="style">Optional style override.</param>
+    public static void BeginListBox(string label, float maxHeight = 150, ListBoxStyle? style = null)
+    {
+        var s = style ?? Style.ListBox;
+        var listId = StableId($"ListBox_{label}");
+        var scrollId = StableId($"ListBoxScroll_{label}");
+
+        // Outer container
+        Clay.Element(new ElementDeclaration
+        {
+            Layout = new LayoutConfig
+            {
+                Direction = LayoutDirection.TopToBottom,
+                ChildGap = 4,
+                Sizing = new Sizing { Width = SizingAxis.Grow() }
+            }
+        });
+        _context.LayoutDepth++;
+        _context.LayoutScrollInfo.Push(null);
+
+        // Label
+        if (!string.IsNullOrEmpty(label))
+        {
+            Clay.Text(ElementId.GetDisplayLabel(label), new TextConfig
+            {
+                FontId = s.FontId,
+                FontSize = s.FontSize,
+                TextColor = s.LabelColor
+            });
+        }
+
+        // Scroll wrapper (horizontal: scroll content + scrollbar)
+        Clay.Element(new ElementDeclaration
+        {
+            Id = listId,
+            Layout = new LayoutConfig
+            {
+                Direction = LayoutDirection.LeftToRight,
+                Sizing = new Sizing
+                {
+                    Width = SizingAxis.Grow(),
+                    Height = SizingAxis.Fit(0, maxHeight)
+                }
+            },
+            BackgroundColor = s.BackgroundColor,
+            CornerRadius = s.CornerRadius,
+            Border = s.Border
+        });
+        _context.LayoutDepth++;
+        _context.LayoutScrollInfo.Push(new ClayUIContext.ScrollWrapperInfo(scrollId, IsVertical: true, HasWrapper: true));
+
+        // Scroll container
+        Clay.Element(new ElementDeclaration
+        {
+            Id = scrollId,
+            Layout = new LayoutConfig
+            {
+                Direction = LayoutDirection.TopToBottom,
+                Sizing = Sizing.Fill(),
+                Padding = s.Padding
+            },
+            Scroll = ScrollConfig.VerticalScroll
+        });
+        _context.LayoutDepth++;
+        _context.LayoutScrollInfo.Push(null);
+    }
+
+    /// <summary>
+    /// Renders a selectable item inside a list box. Returns true when clicked.
+    /// </summary>
+    /// <param name="label">Item text.</param>
+    /// <param name="isSelected">Whether this item is currently selected.</param>
+    /// <returns>True if the item was clicked.</returns>
+    public static bool ListBoxItem(string label, bool isSelected)
+    {
+        var s = Style.ListBox;
+        var itemId = Id($"LBI_{label}");
+        bool isHovered = Clay.PointerOver(itemId);
+        bool clicked = isHovered && ShouldProcessClick;
+
+        var bgColor = isSelected ? s.SelectedColor
+            : isHovered ? s.HoverColor
+            : Color.Transparent;
+
+        using (Clay.Element(new ElementDeclaration
+        {
+            Id = itemId,
+            Layout = new LayoutConfig
+            {
+                Sizing = new Sizing { Width = SizingAxis.Grow() },
+                Padding = s.ItemPadding
+            },
+            BackgroundColor = bgColor,
+            CornerRadius = CornerRadius.All(s.ItemCornerRadius)
+        }))
+        {
+            Clay.Text(ElementId.GetDisplayLabel(label), new TextConfig
+            {
+                FontId = s.FontId,
+                FontSize = s.FontSize,
+                TextColor = isSelected ? s.SelectedTextColor : s.TextColor
+            });
+        }
+
+        return clicked;
+    }
+
+    /// <summary>
+    /// Ends a list box started with <see cref="BeginListBox"/>.
+    /// </summary>
+    public static void EndListBox()
+    {
+        // Close scroll container
+        if (_context.LayoutDepth > 0)
+        {
+            _context.LayoutScrollInfo.Pop();
+            Clay.CloseElement();
+            _context.LayoutDepth--;
+        }
+
+        // Close scroll wrapper + add vertical scrollbar
+        if (_context.LayoutDepth > 0)
+        {
+            var scrollInfo = _context.LayoutScrollInfo.Pop();
+            if (scrollInfo.HasValue && scrollInfo.Value.HasWrapper)
+                VerticalScrollbar(scrollInfo.Value.ScrollId);
+            Clay.CloseElement();
+            _context.LayoutDepth--;
+        }
+
+        // Close outer container
+        if (_context.LayoutDepth > 0)
+        {
+            _context.LayoutScrollInfo.Pop();
+            Clay.CloseElement();
+            _context.LayoutDepth--;
+        }
+    }
+
+    // ============ Combo ============
+
+    /// <summary>
+    /// Renders a combo box (dropdown). Shows the currently selected item; clicking opens a popup
+    /// with all options. Returns true when selection changes.
+    /// </summary>
+    /// <param name="label">Combo label. Use ## for unique IDs.</param>
+    /// <param name="selectedIndex">Index of the currently selected option.</param>
+    /// <param name="options">Display labels for each option.</param>
+    /// <param name="style">Optional style override.</param>
+    /// <returns>True if selection changed.</returns>
+    public static bool Combo(string label, ref int selectedIndex, string[] options, ComboStyle? style = null)
+    {
+        var s = style ?? Style.Combo;
+        string popupId = $"Combo_{label}";
+        var buttonId = Id($"ComboBtn_{label}");
+        bool changed = false;
+
+        using (Clay.Element(new ElementDeclaration
+        {
+            Layout = new LayoutConfig
+            {
+                Direction = LayoutDirection.LeftToRight,
+                ChildGap = 8,
+                ChildAlignment = ChildAlignment.CenterLeft,
+                Sizing = new Sizing { Width = SizingAxis.Grow() }
+            }
+        }))
+        {
+            // Label
+            if (!string.IsNullOrEmpty(label))
+            {
+                Clay.Text(ElementId.GetDisplayLabel(label), new TextConfig
+                {
+                    FontId = s.FontId,
+                    FontSize = s.FontSize,
+                    TextColor = s.LabelColor
+                });
+            }
+
+            // Combo button showing current selection
+            bool isHovered = Clay.PointerOver(buttonId);
+            string displayText = selectedIndex >= 0 && selectedIndex < options.Length
+                ? options[selectedIndex]
+                : "";
+
+            using (Clay.Element(new ElementDeclaration
+            {
+                Id = buttonId,
+                Layout = new LayoutConfig
+                {
+                    Sizing = new Sizing
+                    {
+                        Width = SizingAxis.Grow(s.MinWidth),
+                        Height = SizingAxis.Fit()
+                    },
+                    Padding = s.Padding,
+                    Direction = LayoutDirection.LeftToRight,
+                    ChildAlignment = ChildAlignment.CenterLeft
+                },
+                BackgroundColor = isHovered ? s.HoverColor : s.BackgroundColor,
+                CornerRadius = s.CornerRadius,
+                Border = s.Border
+            }))
+            {
+                // Selected text
+                Clay.Text(displayText, new TextConfig
+                {
+                    FontId = s.FontId,
+                    FontSize = s.FontSize,
+                    TextColor = s.TextColor
+                });
+
+                // Spacer + arrow
+                using (Clay.Element(new ElementDeclaration
+                {
+                    Layout = new LayoutConfig { Sizing = new Sizing { Width = SizingAxis.Grow() } }
+                })) { }
+
+                Clay.Text(IsPopupOpen(popupId) ? "^" : "v", new TextConfig
+                {
+                    FontId = s.FontId,
+                    FontSize = (ushort)(s.FontSize - 2),
+                    TextColor = s.ArrowColor
+                });
+            }
+
+            // Open popup on click
+            if (isHovered && ShouldProcessClick)
+            {
+                var btnData = Clay.GetElementData(buttonId);
+                if (btnData.Found)
+                {
+                    var box = btnData.BoundingBox;
+                    OpenPopupAt(popupId, new Vector2(box.X, box.Y + box.Height + 2));
+                }
+                else
+                {
+                    OpenPopup(popupId);
+                }
+            }
+        }
+
+        // Dropdown popup
+        if (BeginPopup(popupId, new PopupStyle
+        {
+            MinWidth = s.MinWidth,
+            MaxWidth = s.MaxWidth,
+            Padding = Padding.All(4),
+            ContentGap = 2
+        }))
+        {
+            for (int i = 0; i < options.Length; i++)
+            {
+                var itemId = StableId($"ComboItem_{label}_{i}");
+                bool isItemHovered = Clay.PointerOver(itemId);
+                bool isItemSelected = i == selectedIndex;
+                bool itemClicked = isItemHovered && ShouldProcessClick;
+
+                var bgColor = isItemSelected ? s.SelectedColor
+                    : isItemHovered ? s.ItemHoverColor
+                    : Color.Transparent;
+
+                using (Clay.Element(new ElementDeclaration
+                {
+                    Id = itemId,
+                    Layout = new LayoutConfig
+                    {
+                        Sizing = new Sizing { Width = SizingAxis.Grow() },
+                        Padding = Padding.Symmetric(8, 4)
+                    },
+                    BackgroundColor = bgColor,
+                    CornerRadius = CornerRadius.All(2)
+                }))
+                {
+                    Clay.Text(options[i], new TextConfig
+                    {
+                        FontId = s.FontId,
+                        FontSize = s.FontSize,
+                        TextColor = isItemSelected ? s.SelectedTextColor : s.TextColor
+                    });
+                }
+
+                if (itemClicked)
+                {
+                    selectedIndex = i;
+                    changed = true;
+                    CloseAllPopups();
+                }
+            }
+
+            EndPopup();
+        }
+
+        return changed;
+    }
+
     // ============ Selection Widgets ============
 
     /// <summary>
@@ -3599,6 +3923,26 @@ public static class ClayUI
     public static bool IsDebugWindowOpen => _debugWindowOpen;
 }
 
+// ============ Context Handle ============
+
+/// <summary>
+/// Opaque handle to a complete ClayUI context (widget state, style, and layout context).
+/// Obtain via <see cref="ClayUI.GetContext"/> and restore via <see cref="ClayUI.SetContext"/>.
+/// </summary>
+public sealed class ClayUIContextHandle
+{
+    internal ClayUIContext UIContext { get; }
+    internal ClayUIStyle Style { get; }
+    internal ClayContext? LayoutContext { get; }
+
+    internal ClayUIContextHandle(ClayUIContext uiContext, ClayUIStyle style, ClayContext? layoutContext)
+    {
+        UIContext = uiContext;
+        Style = style;
+        LayoutContext = layoutContext;
+    }
+}
+
 // ============ Style Definitions ============
 
 /// <summary>
@@ -3619,6 +3963,8 @@ public class ClayUIStyle
     public ScrollAreaStyle ScrollArea = new();
     public RadioGroupStyle RadioGroup = new();
     public ScrollbarStyle Scrollbar = new();
+    public ListBoxStyle ListBox = new();
+    public ComboStyle Combo = new();
     public WindowStyle Window = new();
     public PopupStyle Popup = new();
     public Color SeparatorColor = Color.Rgba(60, 60, 65);
@@ -3720,6 +4066,28 @@ public class ClayUIStyle
             TrackColor = Color.Rgba(230, 230, 235),
             ThumbColor = Color.Rgba(180, 180, 190),
             ThumbHoverColor = Color.Rgba(150, 150, 160)
+        },
+        ListBox = new ListBoxStyle
+        {
+            BackgroundColor = Color.Rgba(240, 240, 245),
+            TextColor = Color.Rgba(30, 30, 35),
+            LabelColor = Color.Rgba(100, 100, 105),
+            HoverColor = Color.Rgba(220, 220, 225),
+            SelectedColor = Color.Rgba(70, 130, 200),
+            SelectedTextColor = Color.White,
+            Border = BorderConfig.Uniform(1, Color.Rgba(200, 200, 205))
+        },
+        Combo = new ComboStyle
+        {
+            BackgroundColor = Color.Rgba(240, 240, 245),
+            HoverColor = Color.Rgba(225, 225, 230),
+            TextColor = Color.Rgba(30, 30, 35),
+            LabelColor = Color.Rgba(100, 100, 105),
+            ArrowColor = Color.Rgba(100, 100, 105),
+            SelectedColor = Color.Rgba(70, 130, 200),
+            SelectedTextColor = Color.White,
+            ItemHoverColor = Color.Rgba(220, 220, 225),
+            Border = BorderConfig.Uniform(1, Color.Rgba(200, 200, 205))
         },
         Window = new WindowStyle
         {
@@ -4013,5 +4381,49 @@ public struct PopupStyle
     public ushort FontId { get; set; } = 0;
 
     /// <summary>Font size for text in popup.</summary>
+    public ushort FontSize { get; set; } = 14;
+}
+
+/// <summary>
+/// Style configuration for list box widgets.
+/// </summary>
+public struct ListBoxStyle
+{
+    public ListBoxStyle() { }
+    public Color BackgroundColor { get; set; } = Color.Rgba(35, 35, 40);
+    public Color TextColor { get; set; } = Color.Rgba(200, 200, 200);
+    public Color LabelColor { get; set; } = Color.Rgba(150, 150, 155);
+    public Color HoverColor { get; set; } = Color.Rgba(55, 55, 65);
+    public Color SelectedColor { get; set; } = Color.Rgba(70, 130, 200);
+    public Color SelectedTextColor { get; set; } = Color.White;
+    public CornerRadius CornerRadius { get; set; } = CornerRadius.All(4);
+    public BorderConfig Border { get; set; } = BorderConfig.Uniform(1, Color.Rgba(60, 60, 65));
+    public Padding Padding { get; set; } = Padding.All(4);
+    public Padding ItemPadding { get; set; } = Padding.Symmetric(8, 4);
+    public float ItemCornerRadius { get; set; } = 3;
+    public ushort FontId { get; set; } = 0;
+    public ushort FontSize { get; set; } = 14;
+}
+
+/// <summary>
+/// Style configuration for combo box (dropdown) widgets.
+/// </summary>
+public struct ComboStyle
+{
+    public ComboStyle() { }
+    public Color BackgroundColor { get; set; } = Color.Rgba(45, 45, 50);
+    public Color HoverColor { get; set; } = Color.Rgba(55, 55, 65);
+    public Color TextColor { get; set; } = Color.Rgba(200, 200, 200);
+    public Color LabelColor { get; set; } = Color.Rgba(150, 150, 155);
+    public Color ArrowColor { get; set; } = Color.Rgba(150, 150, 155);
+    public Color SelectedColor { get; set; } = Color.Rgba(70, 130, 200);
+    public Color SelectedTextColor { get; set; } = Color.White;
+    public Color ItemHoverColor { get; set; } = Color.Rgba(55, 55, 65);
+    public CornerRadius CornerRadius { get; set; } = CornerRadius.All(4);
+    public BorderConfig Border { get; set; } = BorderConfig.Uniform(1, Color.Rgba(60, 60, 65));
+    public Padding Padding { get; set; } = Padding.Symmetric(8, 6);
+    public float MinWidth { get; set; } = 120;
+    public float MaxWidth { get; set; } = 300;
+    public ushort FontId { get; set; } = 0;
     public ushort FontSize { get; set; } = 14;
 }

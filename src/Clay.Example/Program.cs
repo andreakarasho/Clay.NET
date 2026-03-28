@@ -46,7 +46,7 @@ Clay.Clay.TextEditSetClipboard(new RaylibClipboard());
 // Sidebar
 string[] pages = ["Overview", "Buttons", "Text Input", "Checkboxes & Toggles", "Sliders & Progress",
     "Radio Group", "Tree View", "Layout Helpers", "Text Styles", "Color Picker",
-    "Scroll Areas", "Windows", "Popups & Context Menus", "Theming"];
+    "ListBox & Combo", "Scroll Areas", "Windows", "Popups & Context Menus", "Theming"];
 int selectedPage = 0;
 
 // Widget state
@@ -73,6 +73,12 @@ float windowSlider = 0.5f;
 
 // Color picker state
 Color pickerColor = Color.Rgba(70, 130, 200);
+
+// ListBox & Combo state
+int listBoxSelection = 0;
+string[] listBoxItems = ["Apple", "Banana", "Cherry", "Date", "Elderberry", "Fig", "Grape", "Honeydew", "Kiwi", "Lemon", "Mango", "Nectarine", "Orange", "Papaya"];
+int comboSelection = 0;
+string[] comboItems = ["Small", "Medium", "Large", "Extra Large"];
 
 // Debug
 bool debugWindowOpen = false;
@@ -361,10 +367,11 @@ void RenderContent()
                     case 7: PageLayoutHelpers(); break;
                     case 8: PageTextStyles(); break;
                     case 9: PageColorPicker(); break;
-                    case 10: PageScrollAreas(); break;
-                    case 11: PageWindows(); break;
-                    case 12: PagePopups(); break;
-                    case 13: PageTheming(); break;
+                    case 10: PageListBoxAndCombo(); break;
+                    case 11: PageScrollAreas(); break;
+                    case 12: PageWindows(); break;
+                    case 13: PagePopups(); break;
+                    case 14: PageTheming(); break;
                 }
             }
 
@@ -614,6 +621,34 @@ void PageColorPicker()
     ClayUI.Label("  - Hue bar");
     ClayUI.Label("  - Current color preview");
     ClayUI.Label("  - R, G, B, A number inputs");
+}
+
+void PageListBoxAndCombo()
+{
+    ClayUI.Label("ListBox — a scrollable list with selectable items:");
+    ClayUI.Space(8);
+
+    ClayUI.BeginListBox("Fruits##lb1", maxHeight: 180);
+    for (int i = 0; i < listBoxItems.Length; i++)
+    {
+        if (ClayUI.ListBoxItem(listBoxItems[i] + $"##lb1_{i}", i == listBoxSelection))
+            listBoxSelection = i;
+    }
+    ClayUI.EndListBox();
+
+    ClayUI.Space(8);
+    ClayUI.Label($"Selected: {listBoxItems[listBoxSelection]}");
+
+    ClayUI.Space(20);
+    ClayUI.Separator();
+    ClayUI.Space(12);
+
+    ClayUI.Label("Combo — a dropdown that opens on click:");
+    ClayUI.Space(8);
+
+    ClayUI.Combo("Size", ref comboSelection, comboItems);
+    ClayUI.Space(8);
+    ClayUI.Label($"Selected size: {comboItems[comboSelection]}");
 }
 
 void PageScrollAreas()
