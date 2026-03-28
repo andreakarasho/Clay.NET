@@ -221,9 +221,9 @@ public static partial class Clay
     /// <param name="enableDragScrolling">Enable click-and-drag scrolling.</param>
     /// <param name="scrollDelta">Mouse wheel delta (positive = scroll up).</param>
     /// <param name="deltaTime">Time since last frame in seconds.</param>
-    public static void UpdateScrollContainers(bool enableDragScrolling, Vector2 scrollDelta, float deltaTime, bool shiftHeld = false)
+    public static void UpdateScrollContainers(bool enableDragScrolling, Vector2 scrollDelta, float deltaTime)
     {
-        _context?.UpdateScrollContainers(enableDragScrolling, scrollDelta, deltaTime, shiftHeld);
+        _context?.UpdateScrollContainers(enableDragScrolling, scrollDelta, deltaTime);
     }
 
     /// <summary>

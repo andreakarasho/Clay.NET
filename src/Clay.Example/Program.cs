@@ -94,10 +94,12 @@ while (!Raylib.WindowShouldClose())
     var mousePos = Raylib.GetMousePosition();
     var mouseWheel = Raylib.GetMouseWheelMoveV();
     bool mouseDown = Raylib.IsMouseButtonDown(0);
-    var scrollDelta = new Vector2(mouseWheel.X, mouseWheel.Y);
     bool shiftHeld = Raylib.IsKeyDown(KeyboardKey.KEY_LEFT_SHIFT) || Raylib.IsKeyDown(KeyboardKey.KEY_RIGHT_SHIFT);
+    var scrollDelta = shiftHeld
+        ? new Vector2(mouseWheel.Y, 0)
+        : new Vector2(mouseWheel.X, mouseWheel.Y);
+    float deltaTime = Raylib.GetFrameTime();
 
-    Clay.Clay.SetPointerState(new Vector2(mousePos.X, mousePos.Y), mouseDown);
     Clay.Clay.SetLayoutDimensions(new Dimensions(Raylib.GetScreenWidth(), Raylib.GetScreenHeight()));
 
     // Apply deferred theme switch before frame starts
@@ -113,10 +115,7 @@ while (!Raylib.WindowShouldClose())
         pendingTheme = -1;
     }
 
-    ClayUI.BeginFrame(mouseDown, new Vector2(mousePos.X, mousePos.Y), scrollDelta);
-
-    if (!ClayUI.IsMouseOverAnyWindow)
-        Clay.Clay.UpdateScrollContainers(false, scrollDelta, Raylib.GetFrameTime(), shiftHeld);
+    ClayUI.BeginFrame(mouseDown, new Vector2(mousePos.X, mousePos.Y), scrollDelta, deltaTime);
 
     if (Raylib.IsKeyPressed(KeyboardKey.KEY_F12))
         ClayUI.ToggleDebugWindow();
@@ -842,17 +841,14 @@ void RenderDemoWindows()
     ClayUI.EndWindow();
 }
 
-// ============ Keyboard Input for TextEdit ============
+// ============ Keyboard Input ============
 
 void ForwardKeyboardInput()
 {
-    if (!Clay.Clay.TextEditHasFocus) return;
-
     bool shift = Raylib.IsKeyDown(KeyboardKey.KEY_LEFT_SHIFT) || Raylib.IsKeyDown(KeyboardKey.KEY_RIGHT_SHIFT);
     bool ctrl = Raylib.IsKeyDown(KeyboardKey.KEY_LEFT_CONTROL) || Raylib.IsKeyDown(KeyboardKey.KEY_RIGHT_CONTROL);
     var mods = (shift ? Clay.Widgets.ClayKeyModifiers.Shift : 0)
              | (ctrl ? Clay.Widgets.ClayKeyModifiers.Ctrl : 0);
-    float dt = Raylib.GetFrameTime();
 
     ReadOnlySpan<(KeyboardKey rayKey, Clay.Widgets.ClayKey clayKey)> keyMap =
     [
@@ -879,10 +875,9 @@ void ForwardKeyboardInput()
 
     foreach (var (rayKey, clayKey) in keyMap)
         if (Raylib.IsKeyDown(rayKey))
-            Clay.Clay.TextEditKeyDown(clayKey, mods, dt);
+            ClayUI.KeyDown(clayKey, mods);
 
     int ch;
     while ((ch = Raylib.GetCharPressed()) != 0)
-        if (ch >= 32)
-            Clay.Clay.TextEditProcessChar((char)ch);
+        ClayUI.CharInput((char)ch);
 }

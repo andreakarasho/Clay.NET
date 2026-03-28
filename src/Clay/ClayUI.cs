@@ -94,6 +94,9 @@ internal class ClayUIContext
     internal Vector2 ScrollDelta;
     internal bool ScrollConsumedByWindow;
 
+    // Frame timing
+    internal float DeltaTime;
+
     // Click consumption - set when window chrome (title bar, close, collapse) handles a click
     internal bool ClickConsumedThisFrame;
 
@@ -397,14 +400,27 @@ public static class ClayUI
 
     /// <summary>
     /// Call at the start of each frame before using ClayUI widgets.
+    /// Updates scroll containers, handles active scrollbar/window dragging/resizing.
     /// </summary>
     /// <param name="mouseDown">Whether the mouse button is currently pressed.</param>
     /// <param name="mousePosition">Current mouse position.</param>
     /// <param name="scrollDelta">Mouse wheel scroll delta (optional, for window scrolling).</param>
-    public static void BeginFrame(bool mouseDown, Vector2 mousePosition = default, Vector2 scrollDelta = default)
+    /// <param name="deltaTime">Frame delta time in seconds (for scroll momentum).</param>
+    /// <param name="shiftHeld">Whether Shift is held (redirects vertical wheel to horizontal scroll).</param>
+    public static void BeginFrame(bool mouseDown, Vector2 mousePosition = default, Vector2 scrollDelta = default, float deltaTime = 1f / 60f)
     {
+        // Forward pointer state to the layout engine
+        Clay.SetPointerState(mousePosition, mouseDown);
+
         _context.BeginFrame(mouseDown, mousePosition);
         _context.ScrollDelta = scrollDelta;
+        _context.DeltaTime = deltaTime;
+
+        // Update scroll containers (blocked by windows and popups)
+        if (!IsMouseOverAnyWindow && !IsMouseOverAnyPopup)
+        {
+            Clay.UpdateScrollContainers(false, scrollDelta, deltaTime);
+        }
 
         // Handle active scrollbar dragging
         if (_context.ActiveScrollbarId != 0 && mouseDown)
@@ -423,6 +439,31 @@ public static class ClayUI
         {
             UpdateActiveWindowResize();
         }
+    }
+
+    /// <summary>
+    /// Forwards a key-down event to ClayUI. Routes to text editing when a text input
+    /// has focus, and may handle other ClayUI shortcuts in the future.
+    /// Call this for every key that is held down each frame.
+    /// Uses the deltaTime passed to <see cref="BeginFrame"/>.
+    /// </summary>
+    /// <param name="key">The platform-agnostic key code.</param>
+    /// <param name="modifiers">Active modifier keys (Shift, Ctrl).</param>
+    public static void KeyDown(Widgets.ClayKey key, Widgets.ClayKeyModifiers modifiers = Widgets.ClayKeyModifiers.None)
+    {
+        if (Clay.TextEditHasFocus)
+            Clay.TextEditKeyDown(key, modifiers, _context.DeltaTime);
+    }
+
+    /// <summary>
+    /// Forwards a character input event to ClayUI. Routes to the focused text input.
+    /// Call this for each character produced by the OS text input system.
+    /// </summary>
+    /// <param name="ch">The character to insert.</param>
+    public static void CharInput(char ch)
+    {
+        if (ch >= 32 && Clay.TextEditHasFocus)
+            Clay.TextEditProcessChar(ch);
     }
 
     /// <summary>

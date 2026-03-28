@@ -721,7 +721,7 @@ public class ScrollTests : IDisposable
     }
 
     [Fact]
-    public void ShiftWheel_ForcesHorizontalScroll_EvenWithVerticalOverflow()
+    public void RemappedDelta_ForcesHorizontalScroll_EvenWithVerticalOverflow()
     {
         var scrollId = ClayApi.Id("shift-scroll");
 
@@ -773,13 +773,13 @@ public class ScrollTests : IDisposable
 
         ClayApi.EndLayout();
 
-        // Vertical wheel WITH shiftHeld=true — should scroll horizontally
-        ClayApi.UpdateScrollContainers(false, new System.Numerics.Vector2(0, -5), 1f / 60f, shiftHeld: true);
+        // Caller remaps Shift+Wheel by swapping Y delta to X (like the app layer would)
+        ClayApi.UpdateScrollContainers(false, new System.Numerics.Vector2(-5, 0), 1f / 60f);
 
         var data = ClayApi.GetScrollContainerData(scrollId);
         Assert.True(data.Found);
         Assert.True(data.ScrollPosition.X > 0,
-            "Shift+Wheel should force horizontal scroll even when vertical overflow exists");
+            "Remapped horizontal delta should scroll horizontally");
         Assert.Equal(0f, data.ScrollPosition.Y);
     }
 
