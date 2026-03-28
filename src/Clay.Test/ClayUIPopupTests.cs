@@ -253,4 +253,335 @@ public class ClayUIPopupTests : IDisposable
 
         Assert.True(ClayUI.IsPopupOpen("belowPop"));
     }
+
+    // ============ Popup Input Blocking ============
+
+    [Fact]
+    public void Popup_ClickOutside_ClosesPopup()
+    {
+        // Frame 1: open popup and establish layout
+        _fixture.RunFrame(() =>
+        {
+            ClayUI.OpenPopupAt("closePop", new Vector2(100, 100));
+            if (ClayUI.BeginPopup("closePop"))
+            {
+                ClayUI.MenuItem("Item");
+                ClayUI.EndPopup();
+            }
+        });
+        Assert.True(ClayUI.IsPopupOpen("closePop"));
+
+        // Frame 2: no click, keeps bounding boxes valid
+        _fixture.RunFrame(() =>
+        {
+            if (ClayUI.BeginPopup("closePop"))
+            {
+                ClayUI.MenuItem("Item");
+                ClayUI.EndPopup();
+            }
+        });
+        Assert.True(ClayUI.IsPopupOpen("closePop"));
+
+        // Frame 3: click far outside popup — should close it
+        _fixture.RunFrame(() =>
+        {
+            if (ClayUI.BeginPopup("closePop"))
+            {
+                ClayUI.MenuItem("Item");
+                ClayUI.EndPopup();
+            }
+        }, mousePos: new Vector2(700, 700), mouseDown: true);
+
+        Assert.False(ClayUI.IsPopupOpen("closePop"));
+    }
+
+    [Fact]
+    public void Popup_ClickInside_DoesNotClose()
+    {
+        // Frame 1: open popup at known position
+        _fixture.RunFrame(() =>
+        {
+            ClayUI.OpenPopupAt("stayPop", new Vector2(50, 50));
+            if (ClayUI.BeginPopup("stayPop"))
+            {
+                ClayUI.Label("Content");
+                ClayUI.EndPopup();
+            }
+        });
+        Assert.True(ClayUI.IsPopupOpen("stayPop"));
+
+        // Frame 2: establish layout data
+        _fixture.RunFrame(() =>
+        {
+            if (ClayUI.BeginPopup("stayPop"))
+            {
+                ClayUI.Label("Content");
+                ClayUI.EndPopup();
+            }
+        });
+
+        // Frame 3: click inside the popup area — should stay open
+        _fixture.RunFrame(() =>
+        {
+            if (ClayUI.BeginPopup("stayPop"))
+            {
+                ClayUI.Label("Content");
+                ClayUI.EndPopup();
+            }
+        }, mousePos: new Vector2(80, 70), mouseDown: true);
+
+        Assert.True(ClayUI.IsPopupOpen("stayPop"));
+    }
+
+    [Fact]
+    public void Popup_ClickOutside_BlocksButtonBehind()
+    {
+        bool buttonClicked = false;
+
+        // Frame 1: open popup, render button behind it
+        _fixture.RunFrame(() =>
+        {
+            ClayUI.Button("Behind");
+            ClayUI.OpenPopupAt("blockPop", new Vector2(10, 10));
+            if (ClayUI.BeginPopup("blockPop"))
+            {
+                ClayUI.Label("Popup");
+                ClayUI.EndPopup();
+            }
+        });
+
+        // Frame 2: establish layout
+        _fixture.RunFrame(() =>
+        {
+            ClayUI.Button("Behind");
+            if (ClayUI.BeginPopup("blockPop"))
+            {
+                ClayUI.Label("Popup");
+                ClayUI.EndPopup();
+            }
+        });
+
+        // Frame 3: click outside popup to close it — the button behind should NOT fire
+        _fixture.RunFrame(() =>
+        {
+            buttonClicked = ClayUI.Button("Behind");
+            if (ClayUI.BeginPopup("blockPop"))
+            {
+                ClayUI.Label("Popup");
+                ClayUI.EndPopup();
+            }
+        }, mousePos: new Vector2(5, 5), mouseDown: true);
+
+        Assert.False(ClayUI.IsPopupOpen("blockPop"), "Popup should have closed");
+        Assert.False(buttonClicked, "Button behind popup should not receive click on close frame");
+    }
+
+    [Fact]
+    public void Popup_Open_BlocksButtonBehind()
+    {
+        bool buttonClicked = false;
+
+        // Frame 1: open popup that overlaps a button area
+        _fixture.RunFrame(() =>
+        {
+            buttonClicked = ClayUI.Button("Behind");
+            ClayUI.OpenPopupAt("overlapPop", new Vector2(0, 0));
+            if (ClayUI.BeginPopup("overlapPop", new PopupStyle { MinWidth = 200 }))
+            {
+                ClayUI.Label("Popup content");
+                ClayUI.EndPopup();
+            }
+        });
+
+        // Frame 2: establish layout
+        _fixture.RunFrame(() =>
+        {
+            buttonClicked = ClayUI.Button("Behind");
+            if (ClayUI.BeginPopup("overlapPop", new PopupStyle { MinWidth = 200 }))
+            {
+                ClayUI.Label("Popup content");
+                ClayUI.EndPopup();
+            }
+        });
+
+        // Frame 3: click in the popup area — button behind should be blocked
+        _fixture.RunFrame(() =>
+        {
+            buttonClicked = ClayUI.Button("Behind");
+            if (ClayUI.BeginPopup("overlapPop", new PopupStyle { MinWidth = 200 }))
+            {
+                ClayUI.Label("Popup content");
+                ClayUI.EndPopup();
+            }
+        }, mousePos: new Vector2(20, 20), mouseDown: true);
+
+        Assert.True(ClayUI.IsPopupOpen("overlapPop"), "Popup should stay open (click was inside)");
+        Assert.False(buttonClicked, "Button behind open popup should not receive click");
+    }
+
+    // ============ Popup Blocks Window Interactions ============
+
+    [Fact]
+    public void Popup_Open_BlocksWindowResize()
+    {
+        bool open = true;
+        var winPos = new Vector2(100, 100);
+        var winSize = new Vector2(300, 200);
+
+        // Frame 1: create window and open popup over the window's right edge
+        _fixture.RunFrame(() =>
+        {
+            ClayUI.BeginWindow("ResizeWin", ref open, defaultPosition: winPos, defaultSize: winSize);
+            ClayUI.Label("Content");
+            ClayUI.EndWindow();
+
+            // Popup overlaps the window's right border (at x=400)
+            ClayUI.OpenPopupAt("resizePop", new Vector2(390, 150));
+            if (ClayUI.BeginPopup("resizePop"))
+            {
+                ClayUI.Label("Popup");
+                ClayUI.EndPopup();
+            }
+        });
+
+        // Frame 2: establish layout
+        _fixture.RunFrame(() =>
+        {
+            ClayUI.BeginWindow("ResizeWin", ref open);
+            ClayUI.Label("Content");
+            ClayUI.EndWindow();
+            if (ClayUI.BeginPopup("resizePop"))
+            {
+                ClayUI.Label("Popup");
+                ClayUI.EndPopup();
+            }
+        });
+
+        var sizeBefore = ClayUI.GetWindowSize("ResizeWin");
+
+        // Frame 3: click on the window border where the popup overlaps — resize should be blocked
+        _fixture.RunFrame(() =>
+        {
+            ClayUI.BeginWindow("ResizeWin", ref open);
+            ClayUI.Label("Content");
+            ClayUI.EndWindow();
+            if (ClayUI.BeginPopup("resizePop"))
+            {
+                ClayUI.Label("Popup");
+                ClayUI.EndPopup();
+            }
+        }, mousePos: new Vector2(399, 160), mouseDown: true);
+
+        var sizeAfter = ClayUI.GetWindowSize("ResizeWin");
+        Assert.Equal(sizeBefore.X, sizeAfter.X);
+        Assert.Equal(sizeBefore.Y, sizeAfter.Y);
+    }
+
+    [Fact]
+    public void Popup_Open_BlocksWindowDrag()
+    {
+        bool open = true;
+        var winPos = new Vector2(100, 100);
+        var winSize = new Vector2(300, 200);
+
+        // Frame 1: create window and open popup over its title bar
+        _fixture.RunFrame(() =>
+        {
+            ClayUI.BeginWindow("DragWin", ref open, defaultPosition: winPos, defaultSize: winSize);
+            ClayUI.Label("Content");
+            ClayUI.EndWindow();
+
+            // Popup overlaps the title bar area (y=100..132)
+            ClayUI.OpenPopupAt("dragPop", new Vector2(150, 105));
+            if (ClayUI.BeginPopup("dragPop"))
+            {
+                ClayUI.Label("Popup");
+                ClayUI.EndPopup();
+            }
+        });
+
+        // Frame 2: establish layout
+        _fixture.RunFrame(() =>
+        {
+            ClayUI.BeginWindow("DragWin", ref open);
+            ClayUI.Label("Content");
+            ClayUI.EndWindow();
+            if (ClayUI.BeginPopup("dragPop"))
+            {
+                ClayUI.Label("Popup");
+                ClayUI.EndPopup();
+            }
+        });
+
+        var posBefore = ClayUI.GetWindowPosition("DragWin");
+
+        // Frame 3: click on title bar where popup overlaps — drag should be blocked
+        _fixture.RunFrame(() =>
+        {
+            ClayUI.BeginWindow("DragWin", ref open);
+            ClayUI.Label("Content");
+            ClayUI.EndWindow();
+            if (ClayUI.BeginPopup("dragPop"))
+            {
+                ClayUI.Label("Popup");
+                ClayUI.EndPopup();
+            }
+        }, mousePos: new Vector2(180, 115), mouseDown: true);
+
+        var posAfter = ClayUI.GetWindowPosition("DragWin");
+        Assert.Equal(posBefore.X, posAfter.X);
+        Assert.Equal(posBefore.Y, posAfter.Y);
+    }
+
+    [Fact]
+    public void Popup_Open_BlocksWindowClose()
+    {
+        bool open = true;
+        var winPos = new Vector2(100, 100);
+        var winSize = new Vector2(300, 200);
+
+        // Frame 1: create window and open popup over its close button area
+        _fixture.RunFrame(() =>
+        {
+            ClayUI.BeginWindow("CloseWin", ref open, defaultPosition: winPos, defaultSize: winSize);
+            ClayUI.Label("Content");
+            ClayUI.EndWindow();
+
+            // Popup over the top-right area where close button is
+            ClayUI.OpenPopupAt("closeBtnPop", new Vector2(370, 100));
+            if (ClayUI.BeginPopup("closeBtnPop"))
+            {
+                ClayUI.Label("Popup");
+                ClayUI.EndPopup();
+            }
+        });
+
+        // Frame 2: establish layout
+        _fixture.RunFrame(() =>
+        {
+            ClayUI.BeginWindow("CloseWin", ref open);
+            ClayUI.Label("Content");
+            ClayUI.EndWindow();
+            if (ClayUI.BeginPopup("closeBtnPop"))
+            {
+                ClayUI.Label("Popup");
+                ClayUI.EndPopup();
+            }
+        });
+
+        // Frame 3: click where close button and popup overlap — window should NOT close
+        _fixture.RunFrame(() =>
+        {
+            ClayUI.BeginWindow("CloseWin", ref open);
+            ClayUI.Label("Content");
+            ClayUI.EndWindow();
+            if (ClayUI.BeginPopup("closeBtnPop"))
+            {
+                ClayUI.Label("Popup");
+                ClayUI.EndPopup();
+            }
+        }, mousePos: new Vector2(390, 110), mouseDown: true);
+
+        Assert.True(open, "Window should not close when popup is over the close button");
+    }
 }

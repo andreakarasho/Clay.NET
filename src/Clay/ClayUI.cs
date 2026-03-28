@@ -14,6 +14,7 @@ internal class ClayUIContext
     internal readonly Dictionary<uint, float> SliderStates = new();
     internal readonly Dictionary<uint, string> TextInputStates = new();
     internal readonly Dictionary<uint, bool> ExpandedStates = new();
+    internal readonly Dictionary<uint, Color> ColorPickerStates = new();
 
     // Window states
     internal record struct WindowState(Vector2 Position, Vector2 Size, bool Collapsed, bool Open, bool Topmost);
@@ -44,6 +45,7 @@ internal class ClayUIContext
     internal int PanelDepth;
     internal int LayoutDepth;
     internal int WindowDepth;
+    internal int PopupDepth;
 
     // Scroll container info for automatic scrollbar rendering
     internal record struct ScrollWrapperInfo(ElementId ScrollId, bool IsVertical, bool HasWrapper);
@@ -101,13 +103,33 @@ internal class ClayUIContext
         PressedThisFrame.Clear();
         HoveredThisFrame.Clear();
         OpenWindowBounds.Clear();
-        OpenPopupBounds.Clear();
         IdCounter = 0;
         MouseWasPressed = MousePressed;
         MousePressed = mouseDown;
         MousePosition = mousePosition;
         ScrollConsumedByWindow = false;
         ClickConsumedThisFrame = false;
+        PopupDepth = 0;
+
+        // Rebuild popup bounds from previous frame's layout data for all open popups.
+        // This ensures click-inside detection works before BeginPopup re-renders.
+        OpenPopupBounds.Clear();
+        foreach (var popupUint in OpenPopupStack)
+        {
+            var eid = new ElementId { Id = popupUint };
+            var data = Clay.GetElementData(eid);
+            if (data.Found)
+                OpenPopupBounds.Add((popupUint, data.BoundingBox));
+        }
+
+        // If any popup is open and a click just happened outside all popups,
+        // pre-consume the click so widgets rendered before BeginPopup don't fire.
+        // BeginPopup will handle the actual closing.
+        bool justPressed = mouseDown && !MouseWasPressed;
+        if (justPressed && OpenPopupStack.Count > 0 && !IsPointOverAnyPopup(mousePosition))
+        {
+            ClickConsumedThisFrame = true;
+        }
 
         // Release active slider/scrollbar/window/resize when mouse is released
         if (!mouseDown)
@@ -134,6 +156,7 @@ internal class ClayUIContext
         SliderStates.Clear();
         TextInputStates.Clear();
         ExpandedStates.Clear();
+        ColorPickerStates.Clear();
         WindowStates.Clear();
         WindowFocusOrder.Clear();
         PopupStates.Clear();
@@ -525,6 +548,17 @@ public static class ClayUI
     public static bool IsMouseOverAnyWindow => _context.IsPointOverAnyWindow(_context.MousePosition, Style.Window.TitleBarHeight);
 
     /// <summary>
+    /// Returns true if the mouse is currently over any open popup.
+    /// Use this to block input to elements behind popups.
+    /// </summary>
+    public static bool IsMouseOverAnyPopup => _context.IsPointOverAnyPopup(_context.MousePosition);
+
+    /// <summary>
+    /// Returns true if we are currently rendering inside a popup (between BeginPopup/EndPopup).
+    /// </summary>
+    public static bool IsInsidePopup => _context.PopupDepth > 0;
+
+    /// <summary>
     /// Gets the number of windows currently tracked (for debugging).
     /// </summary>
     public static int WindowCount => _context.WindowStates.Count;
@@ -554,7 +588,7 @@ public static class ClayUI
     /// Returns true if a click just happened and no window is blocking it.
     /// Use this instead of IsMouseJustPressed for elements that should be blocked by windows.
     /// </summary>
-    public static bool IsMouseJustPressedUnblocked => IsMouseJustPressed && !IsMouseOverAnyWindow;
+    public static bool IsMouseJustPressedUnblocked => IsMouseJustPressed && !IsMouseOverAnyWindow && !IsMouseOverAnyPopup;
 
     /// <summary>
     /// Returns true if we're currently inside a window context (between BeginWindow and EndWindow).
@@ -577,6 +611,7 @@ public static class ClayUI
     /// <summary>
     /// Returns true if a click should be processed for this widget.
     /// Widgets inside topmost windows process clicks; widgets outside are blocked if mouse is over any window.
+    /// Widgets behind open popups are blocked unless the widget is inside the popup.
     /// </summary>
     private static bool ShouldProcessClick
     {
@@ -586,6 +621,9 @@ public static class ClayUI
 
             // If a window's chrome (title bar, close, collapse) already handled this click, block it
             if (_context.ClickConsumedThisFrame) return false;
+
+            // Block clicks on widgets behind popups (but allow clicks inside the popup itself)
+            if (!IsInsidePopup && IsMouseOverAnyPopup) return false;
 
             // If inside a window, only process if that window is topmost
             if (IsInsideWindow)
@@ -1622,20 +1660,20 @@ public static class ClayUI
         bool isCollapseHovered = isTopmostAtMouse && Clay.PointerOver(collapseButtonId);
         bool isCloseHovered = isTopmostAtMouse && Clay.PointerOver(closeButtonId);
 
-        // Bring window to front when clicked anywhere on it (only if topmost at that position)
-        if (isTopmostAtMouse && IsMouseJustPressed)
+        // Bring window to front when clicked anywhere on it (only if topmost at that position, not blocked by popup)
+        if (isTopmostAtMouse && IsMouseJustPressed && !IsMouseOverAnyPopup)
         {
             _context.BringWindowToFront(id.Id);
         }
 
         // Any click on the title bar is consumed so it doesn't pass through to content widgets
-        if (isTitleBarHovered && IsMouseJustPressed)
+        if (isTitleBarHovered && IsMouseJustPressed && !IsMouseOverAnyPopup)
         {
             _context.ClickConsumedThisFrame = true;
         }
 
         // Handle title bar drag (only if topmost, in title bar, not clicking buttons, and move is enabled)
-        if (isTitleBarHovered && !isCollapseHovered && !isCloseHovered && IsMouseJustPressed && !flags.HasFlag(WindowFlags.NoMove))
+        if (isTitleBarHovered && !isCollapseHovered && !isCloseHovered && IsMouseJustPressed && !IsMouseOverAnyPopup && !flags.HasFlag(WindowFlags.NoMove))
         {
             _context.ActiveDragWindowId = id.Id;
             // Use actual position for drag offset calculation
@@ -1646,14 +1684,14 @@ public static class ClayUI
         }
 
         // Handle collapse button
-        if (isCollapseHovered && IsMouseJustPressed && !flags.HasFlag(WindowFlags.NoCollapse))
+        if (isCollapseHovered && IsMouseJustPressed && !IsMouseOverAnyPopup && !flags.HasFlag(WindowFlags.NoCollapse))
         {
             state = state with { Collapsed = !state.Collapsed };
             _context.WindowStates[id.Id] = state;
         }
 
         // Handle close button
-        if (isCloseHovered && IsMouseJustPressed && !flags.HasFlag(WindowFlags.NoClose))
+        if (isCloseHovered && IsMouseJustPressed && !IsMouseOverAnyPopup && !flags.HasFlag(WindowFlags.NoClose))
         {
             open = false;
             _context.WindowStates[id.Id] = state with { Open = false };
@@ -1687,8 +1725,8 @@ public static class ClayUI
             else if (nearBottom) resizeDir = ResizeDirection.Bottom;
             else if (nearTop) resizeDir = ResizeDirection.Top;
 
-            // Start resize on click
-            if (resizeDir != ResizeDirection.None && IsMouseJustPressed)
+            // Start resize on click (blocked by open popups)
+            if (resizeDir != ResizeDirection.None && IsMouseJustPressed && !IsMouseOverAnyPopup)
             {
                 _context.ActiveResizeWindowId = id.Id;
                 _context.ActiveResizeDirection = resizeDir;
@@ -2155,8 +2193,10 @@ public static class ClayUI
             return false;
         }
 
-        // Handle click-outside-to-close (but not on the frame the popup was just opened)
-        if (!justOpened && ShouldProcessClick && !_context.IsPointOverAnyPopup(_context.MousePosition))
+        // Handle click-outside-to-close (but not on the frame the popup was just opened).
+        // Note: ClickConsumedThisFrame may already be set by BeginFrame's pre-consumption
+        // for clicks outside popups, so we don't check it here.
+        if (!justOpened && IsMouseJustPressed && !_context.IsPointOverAnyPopup(_context.MousePosition))
         {
             Console.WriteLine($">>> BeginPopup: CLOSING popup '{id}' - click outside detected");
             // Click was outside all popups, close this one and any nested popups
@@ -2171,6 +2211,22 @@ public static class ClayUI
 
         // Get z-index for this popup
         short zIndex = _context.GetPopupZIndex(popupId.Id);
+
+        // Clamp popup position to stay within layout bounds
+        var layoutDims = Clay.GetLayoutDimensions();
+        var popupPos = state.Position;
+
+        // Use previous frame's bounding box for accurate size, fall back to MinWidth estimate
+        var prevData = Clay.GetElementData(popupId);
+        float popupWidth = prevData.Found ? prevData.BoundingBox.Width : s.MinWidth;
+        float popupHeight = prevData.Found ? prevData.BoundingBox.Height : 50;
+
+        if (popupPos.X + popupWidth > layoutDims.Width)
+            popupPos.X = layoutDims.Width - popupWidth;
+        if (popupPos.Y + popupHeight > layoutDims.Height)
+            popupPos.Y = layoutDims.Height - popupHeight;
+        if (popupPos.X < 0) popupPos.X = 0;
+        if (popupPos.Y < 0) popupPos.Y = 0;
 
         // Render popup container
         Clay.Element(new ElementDeclaration
@@ -2193,18 +2249,28 @@ public static class ClayUI
             Floating = new FloatingConfig
             {
                 AttachTo = FloatingAttachTo.Root,
-                Offset = state.Position,
+                Offset = popupPos,
                 ZIndex = zIndex
             }
         });
 
-        // Track popup bounds for click-outside detection
-        // We'll estimate bounds based on position and min size for now
-        // The actual bounds will be updated after layout
-        var estimatedBounds = new BoundingBox(state.Position.X, state.Position.Y, s.MinWidth, 50);
-        _context.OpenPopupBounds.Add((popupId.Id, estimatedBounds));
+        // Update popup bounds for click-outside detection (may already exist from frame-start rebuild)
+        var estimatedBounds = new BoundingBox(popupPos.X, popupPos.Y, popupWidth, popupHeight);
+        bool boundsUpdated = false;
+        for (int i = 0; i < _context.OpenPopupBounds.Count; i++)
+        {
+            if (_context.OpenPopupBounds[i].PopupId == popupId.Id)
+            {
+                _context.OpenPopupBounds[i] = (popupId.Id, estimatedBounds);
+                boundsUpdated = true;
+                break;
+            }
+        }
+        if (!boundsUpdated)
+            _context.OpenPopupBounds.Add((popupId.Id, estimatedBounds));
 
         Console.WriteLine($">>> BeginPopup: RENDERING popup '{id}' at ({state.Position.X}, {state.Position.Y}), z={zIndex}");
+        _context.PopupDepth++;
         return true;
     }
 
@@ -2213,6 +2279,8 @@ public static class ClayUI
     /// </summary>
     public static void EndPopup()
     {
+        if (_context.PopupDepth > 0)
+            _context.PopupDepth--;
         Clay.CloseElement();
     }
 
@@ -2499,7 +2567,7 @@ public static class ClayUI
         // Handle click — scrollbar takes priority over window resize when both
         // overlap on the right edge, so use IsMouseJustPressed directly and cancel
         // any resize that was started this frame.
-        if ((isThumbHovered || (isHitAreaHovered && isTrackHovered)) && IsMouseJustPressed)
+        if ((isThumbHovered || (isHitAreaHovered && isTrackHovered)) && IsMouseJustPressed && !IsMouseOverAnyPopup)
         {
             if (isThumbHovered)
             {
@@ -2664,7 +2732,7 @@ public static class ClayUI
 
         // Handle click — scrollbar takes priority over window resize when both
         // overlap, so use IsMouseJustPressed directly and cancel any resize.
-        if ((isThumbHovered || (isHitAreaHovered && isTrackHovered)) && IsMouseJustPressed)
+        if ((isThumbHovered || (isHitAreaHovered && isTrackHovered)) && IsMouseJustPressed && !IsMouseOverAnyPopup)
         {
             if (isThumbHovered)
             {
@@ -3256,200 +3324,259 @@ public static class ClayUI
     private const float HueBarHeight = 150;
 
     /// <summary>
-    /// Renders an HSV color picker with a 2D saturation/value panel, a hue bar,
-    /// a preview swatch, and RGB/A sliders. Returns the updated color.
+    /// Renders a color swatch showing the current color. When clicked, opens a popup
+    /// with a full HSV color picker. The swatch updates when the popup is closed.
+    /// Returns the updated color.
     /// </summary>
     public static Color ColorPicker(string label, Color color)
     {
-        var (h, s, v) = color.ToHsv();
-        float alpha = color.A;
-        bool changed = false;
+        string popupId = $"cpPopup_{label}";
+        var swatchId = Id($"cpSwatch_{label}");
+        uint stateKey = swatchId.Id;
 
-        BeginVertical(gap: 4);
+        // Initialize editing state from the passed-in color if not yet tracked
+        if (!_context.ColorPickerStates.ContainsKey(stateKey))
+            _context.ColorPickerStates[stateKey] = color;
 
-        // Label
+        // The display color is always the stored state (updated live while popup is open)
+        var displayColor = _context.ColorPickerStates[stateKey];
+
+        // If the caller changed the color externally (e.g. reset), sync state
+        if (!IsPopupOpen(popupId) &&
+            (displayColor.R != color.R || displayColor.G != color.G ||
+             displayColor.B != color.B || displayColor.A != color.A))
+            _context.ColorPickerStates[stateKey] = color;
+
+        // === Swatch trigger (label + color rectangle) ===
+        BeginHorizontal(gap: 6);
         Label(ElementId.GetDisplayLabel(label).ToString(), new LabelStyle { FontSize = 12 });
 
-        BeginHorizontal(gap: 8);
-
-        // === SV Panel (saturation horizontal, value vertical) ===
+        bool isHovered = Clay.PointerOver(swatchId);
+        using (Clay.Element(new ElementDeclaration
         {
-            var panelId = Id($"cpSV_{label}");
-            var panelData = Clay.GetElementData(panelId);
+            Id = swatchId,
+            Layout = new LayoutConfig { Sizing = Sizing.FixedSize(40, 18) },
+            BackgroundColor = _context.ColorPickerStates[stateKey],
+            CornerRadius = CornerRadius.All(3),
+            Border = BorderConfig.Uniform(1, isHovered ? Color.Rgba(140, 140, 150) : Color.Rgba(80, 80, 80))
+        })) { }
 
-            using (Clay.Element(new ElementDeclaration
+        EndHorizontal();
+
+        // Open popup on left-click on the swatch
+        if (isHovered && ShouldProcessClick)
+        {
+            // Position popup below the swatch
+            var swatchData = Clay.GetElementData(swatchId);
+            if (swatchData.Found)
             {
-                Id = panelId,
-                Layout = new LayoutConfig
-                {
-                    Sizing = Sizing.FixedSize(SvPanelSize, SvPanelSize),
-                    Direction = LayoutDirection.TopToBottom
-                },
-                BackgroundColor = Color.Black,
-                Border = BorderConfig.Uniform(1, Color.Rgba(60, 60, 60))
-            }))
+                var box = swatchData.BoundingBox;
+                OpenPopupAt(popupId, new Vector2(box.X, box.Y + box.Height + 2));
+            }
+            else
             {
-                float cellW = SvPanelSize / SvGridSize;
-                float cellH = SvPanelSize / SvGridSize;
+                OpenPopup(popupId);
+            }
+        }
 
-                for (int row = 0; row < SvGridSize; row++)
+        // === Popup with full color picker ===
+        if (BeginPopup(popupId, new PopupStyle
+        {
+            MinWidth = 220,
+            MaxWidth = 400,
+            Padding = Padding.All(8),
+            ContentGap = 6
+        }))
+        {
+            var editColor = _context.ColorPickerStates[stateKey];
+            var (h, s, v) = editColor.ToHsv();
+            float alpha = editColor.A;
+            bool changed = false;
+
+            BeginHorizontal(gap: 8);
+
+            // === SV Panel ===
+            {
+                var panelId = Id($"cpSV_{label}");
+                var panelData = Clay.GetElementData(panelId);
+
+                using (Clay.Element(new ElementDeclaration
                 {
-                    using (Clay.Element(new ElementDeclaration
+                    Id = panelId,
+                    Layout = new LayoutConfig
                     {
-                        Layout = new LayoutConfig
-                        {
-                            Direction = LayoutDirection.LeftToRight,
-                            Sizing = new Sizing(SizingAxis.Grow(), SizingAxis.Fixed(cellH))
-                        }
-                    }))
-                    {
-                        for (int col = 0; col < SvGridSize; col++)
-                        {
-                            float cs = (col + 0.5f) / SvGridSize;
-                            float cv = 1f - (row + 0.5f) / SvGridSize;
-                            var cellColor = Color.FromHsv(h, cs, cv);
+                        Sizing = Sizing.FixedSize(SvPanelSize, SvPanelSize),
+                        Direction = LayoutDirection.TopToBottom
+                    },
+                    BackgroundColor = Color.Black,
+                    Border = BorderConfig.Uniform(1, Color.Rgba(60, 60, 60))
+                }))
+                {
+                    float cellW = SvPanelSize / SvGridSize;
+                    float cellH = SvPanelSize / SvGridSize;
 
-                            using (Clay.Element(new ElementDeclaration
+                    for (int row = 0; row < SvGridSize; row++)
+                    {
+                        using (Clay.Element(new ElementDeclaration
+                        {
+                            Layout = new LayoutConfig
                             {
-                                Layout = new LayoutConfig
+                                Direction = LayoutDirection.LeftToRight,
+                                Sizing = new Sizing(SizingAxis.Grow(), SizingAxis.Fixed(cellH))
+                            }
+                        }))
+                        {
+                            for (int col = 0; col < SvGridSize; col++)
+                            {
+                                float cs = (col + 0.5f) / SvGridSize;
+                                float cv = 1f - (row + 0.5f) / SvGridSize;
+                                var cellColor = Color.FromHsv(h, cs, cv);
+
+                                using (Clay.Element(new ElementDeclaration
                                 {
-                                    Sizing = new Sizing(SizingAxis.Fixed(cellW), SizingAxis.Grow())
-                                },
-                                BackgroundColor = cellColor
-                            })) { }
+                                    Layout = new LayoutConfig
+                                    {
+                                        Sizing = new Sizing(SizingAxis.Fixed(cellW), SizingAxis.Grow())
+                                    },
+                                    BackgroundColor = cellColor
+                                })) { }
+                            }
                         }
+                    }
+                }
+
+                if (panelData.Found && _context.MousePressed)
+                {
+                    var mouse = _context.MousePosition;
+                    var box = panelData.BoundingBox;
+                    if (box.Contains(mouse))
+                    {
+                        s = Math.Clamp((mouse.X - box.X) / box.Width, 0f, 1f);
+                        v = Math.Clamp(1f - (mouse.Y - box.Y) / box.Height, 0f, 1f);
+                        changed = true;
                     }
                 }
             }
 
-            // Handle SV panel click
-            if (panelData.Found && _context.MousePressed)
+            // === Hue Bar ===
             {
-                var mouse = _context.MousePosition;
-                var box = panelData.BoundingBox;
-                if (box.Contains(mouse))
+                var hueId = Id($"cpHue_{label}");
+                var hueData = Clay.GetElementData(hueId);
+
+                using (Clay.Element(new ElementDeclaration
                 {
-                    s = Math.Clamp((mouse.X - box.X) / box.Width, 0f, 1f);
-                    v = Math.Clamp(1f - (mouse.Y - box.Y) / box.Height, 0f, 1f);
-                    changed = true;
+                    Id = hueId,
+                    Layout = new LayoutConfig
+                    {
+                        Sizing = Sizing.FixedSize(HueBarWidth, HueBarHeight),
+                        Direction = LayoutDirection.TopToBottom
+                    },
+                    Border = BorderConfig.Uniform(1, Color.Rgba(60, 60, 60))
+                }))
+                {
+                    int hueSteps = 12;
+                    float stepH = HueBarHeight / hueSteps;
+                    for (int i = 0; i < hueSteps; i++)
+                    {
+                        float hueVal = (i + 0.5f) / hueSteps * 360f;
+                        using (Clay.Element(new ElementDeclaration
+                        {
+                            Layout = new LayoutConfig
+                            {
+                                Sizing = new Sizing(SizingAxis.Grow(), SizingAxis.Fixed(stepH))
+                            },
+                            BackgroundColor = Color.FromHsv(hueVal, 1f, 1f)
+                        })) { }
+                    }
+                }
+
+                if (hueData.Found && _context.MousePressed)
+                {
+                    var mouse = _context.MousePosition;
+                    var box = hueData.BoundingBox;
+                    if (box.Contains(mouse))
+                    {
+                        h = Math.Clamp((mouse.Y - box.Y) / box.Height, 0f, 1f) * 360f;
+                        changed = true;
+                    }
                 }
             }
-        }
 
-        // === Hue Bar ===
-        {
-            var hueId = Id($"cpHue_{label}");
-            var hueData = Clay.GetElementData(hueId);
-
+            // === Preview swatch inside popup ===
+            BeginVertical(gap: 4);
+            Label("Current", new LabelStyle { FontSize = 10 });
             using (Clay.Element(new ElementDeclaration
             {
-                Id = hueId,
-                Layout = new LayoutConfig
-                {
-                    Sizing = Sizing.FixedSize(HueBarWidth, HueBarHeight),
-                    Direction = LayoutDirection.TopToBottom
-                },
-                Border = BorderConfig.Uniform(1, Color.Rgba(60, 60, 60))
-            }))
+                Id = Id($"cpCur_{label}"),
+                Layout = new LayoutConfig { Sizing = Sizing.FixedSize(40, 24) },
+                BackgroundColor = changed ? Color.FromHsv(h, s, v, alpha) : editColor,
+                CornerRadius = CornerRadius.All(3),
+                Border = BorderConfig.Uniform(1, Color.Rgba(80, 80, 80))
+            })) { }
+            EndVertical();
+
+            EndHorizontal();
+
+            // === RGBA number inputs ===
+            var result = changed ? Color.FromHsv(h, s, v, alpha) : editColor;
+
+            var numStyle = new TextInputStyle
             {
-                int hueSteps = 12;
-                float stepH = HueBarHeight / hueSteps;
-                for (int i = 0; i < hueSteps; i++)
+                BackgroundColor = Color.Rgba(40, 40, 45),
+                FocusedBackgroundColor = Color.Rgba(55, 55, 65),
+                TextColor = Color.Rgba(220, 220, 220),
+                CursorColor = Color.Rgba(100, 180, 255),
+                SelectionColor = Color.Rgba(80, 130, 200, 120),
+                CornerRadius = CornerRadius.All(3),
+                Border = new BorderConfig { Width = BorderWidth.All(1), Color = Color.Rgba(70, 70, 80) },
+                Padding = Padding.Symmetric(4, 3),
+                FontId = 0,
+                FontSize = 12,
+                Sizing = new Sizing(SizingAxis.Fixed(42), SizingAxis.Default),
+                CharFilter = TextInputFilters.DigitsOnly,
+            };
+
+            string rStr = ((int)result.R).ToString();
+            string gStr = ((int)result.G).ToString();
+            string bStr = ((int)result.B).ToString();
+            string aStr = ((int)result.A).ToString();
+
+            BeginHorizontal(gap: 4);
+            Label("R", new LabelStyle { FontSize = 10 });
+            bool rChanged = TextInput($"R##{label}_r", ref rStr, style: numStyle);
+            Label("G", new LabelStyle { FontSize = 10 });
+            bool gChanged = TextInput($"G##{label}_g", ref gStr, style: numStyle);
+            Label("B", new LabelStyle { FontSize = 10 });
+            bool bChanged = TextInput($"B##{label}_b", ref bStr, style: numStyle);
+            Label("A", new LabelStyle { FontSize = 10 });
+            bool aChanged = TextInput($"A##{label}_a", ref aStr, style: numStyle);
+            EndHorizontal();
+
+            bool rgbaChanged = rChanged || gChanged || bChanged || aChanged;
+            changed |= rgbaChanged;
+
+            // Update stored color if anything changed
+            if (changed)
+            {
+                if (rgbaChanged)
                 {
-                    float hueVal = (i + 0.5f) / hueSteps * 360f;
-                    using (Clay.Element(new ElementDeclaration
-                    {
-                        Layout = new LayoutConfig
-                        {
-                            Sizing = new Sizing(SizingAxis.Grow(), SizingAxis.Fixed(stepH))
-                        },
-                        BackgroundColor = Color.FromHsv(hueVal, 1f, 1f)
-                    })) { }
+                    float r = int.TryParse(rStr, out var ri) ? Math.Clamp(ri, 0, 255) : result.R;
+                    float g = int.TryParse(gStr, out var gi) ? Math.Clamp(gi, 0, 255) : result.G;
+                    float b = int.TryParse(bStr, out var bi) ? Math.Clamp(bi, 0, 255) : result.B;
+                    float a2 = int.TryParse(aStr, out var ai) ? Math.Clamp(ai, 0, 255) : result.A;
+                    _context.ColorPickerStates[stateKey] = new Color(r, g, b, a2);
+                }
+                else
+                {
+                    _context.ColorPickerStates[stateKey] = Color.FromHsv(h, s, v, alpha);
                 }
             }
 
-            // Handle hue bar click
-            if (hueData.Found && _context.MousePressed)
-            {
-                var mouse = _context.MousePosition;
-                var box = hueData.BoundingBox;
-                if (box.Contains(mouse))
-                {
-                    h = Math.Clamp((mouse.Y - box.Y) / box.Height, 0f, 1f) * 360f;
-                    changed = true;
-                }
-            }
+            EndPopup();
         }
 
-        // === Preview swatches ===
-        BeginVertical(gap: 4);
-        Label("Current", new LabelStyle { FontSize = 10 });
-        using (Clay.Element(new ElementDeclaration
-        {
-            Id = Id($"cpCur_{label}"),
-            Layout = new LayoutConfig { Sizing = Sizing.FixedSize(40, 24) },
-            BackgroundColor = changed ? Color.FromHsv(h, s, v, alpha) : color,
-            CornerRadius = CornerRadius.All(3),
-            Border = BorderConfig.Uniform(1, Color.Rgba(80, 80, 80))
-        })) { }
-        EndVertical();
-
-        EndHorizontal();
-
-        // === RGBA number inputs ===
-        var result = changed ? Color.FromHsv(h, s, v, alpha) : color;
-
-        var numStyle = new TextInputStyle
-        {
-            BackgroundColor = Color.Rgba(40, 40, 45),
-            FocusedBackgroundColor = Color.Rgba(55, 55, 65),
-            TextColor = Color.Rgba(220, 220, 220),
-            CursorColor = Color.Rgba(100, 180, 255),
-            SelectionColor = Color.Rgba(80, 130, 200, 120),
-            CornerRadius = CornerRadius.All(3),
-            Border = new BorderConfig { Width = BorderWidth.All(1), Color = Color.Rgba(70, 70, 80) },
-            Padding = Padding.Symmetric(4, 3),
-            FontId = 0,
-            FontSize = 12,
-            Sizing = new Sizing(SizingAxis.Fixed(42), SizingAxis.Default),
-            CharFilter = TextInputFilters.DigitsOnly,
-        };
-
-        // Store RGBA as strings for the text inputs
-        string rStr = ((int)result.R).ToString();
-        string gStr = ((int)result.G).ToString();
-        string bStr = ((int)result.B).ToString();
-        string aStr = ((int)result.A).ToString();
-
-        BeginHorizontal(gap: 4);
-        Label("R", new LabelStyle { FontSize = 10 });
-        bool rChanged = TextInput($"R##{label}_r", ref rStr, style: numStyle);
-        Label("G", new LabelStyle { FontSize = 10 });
-        bool gChanged = TextInput($"G##{label}_g", ref gStr, style: numStyle);
-        Label("B", new LabelStyle { FontSize = 10 });
-        bool bChanged = TextInput($"B##{label}_b", ref bStr, style: numStyle);
-        Label("A", new LabelStyle { FontSize = 10 });
-        bool aChanged = TextInput($"A##{label}_a", ref aStr, style: numStyle);
-        EndHorizontal();
-
-        bool rgbaChanged = rChanged || gChanged || bChanged || aChanged;
-        changed |= rgbaChanged;
-
-        EndVertical();
-
-        if (changed)
-        {
-            if (rgbaChanged)
-            {
-                float r = int.TryParse(rStr, out var ri) ? Math.Clamp(ri, 0, 255) : result.R;
-                float g = int.TryParse(gStr, out var gi) ? Math.Clamp(gi, 0, 255) : result.G;
-                float b = int.TryParse(bStr, out var bi) ? Math.Clamp(bi, 0, 255) : result.B;
-                float a2 = int.TryParse(aStr, out var ai) ? Math.Clamp(ai, 0, 255) : result.A;
-                return new Color(r, g, b, a2);
-            }
-            return Color.FromHsv(h, s, v, alpha);
-        }
-        return color;
+        // Return the current stored color (reflects live edits and persists after popup closes)
+        return _context.ColorPickerStates[stateKey];
     }
 
     // ============ Style Editor Helpers ============
