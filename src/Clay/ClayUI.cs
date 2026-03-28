@@ -3587,22 +3587,22 @@ public static class ClayUI
 /// </summary>
 public class ClayUIStyle
 {
-    public ButtonStyle Button { get; set; } = new();
-    public ImageStyle Image { get; set; } = new();
-    public LabelStyle Label { get; set; } = new();
-    public HeadingStyle Heading { get; set; } = new();
-    public CheckboxStyle Checkbox { get; set; } = new();
-    public SliderStyle Slider { get; set; } = new();
-    public ToggleStyle Toggle { get; set; } = new();
-    public ProgressBarStyle ProgressBar { get; set; } = new();
-    public PanelStyle Panel { get; set; } = new();
-    public TreeNodeStyle TreeNode { get; set; } = new();
-    public ScrollAreaStyle ScrollArea { get; set; } = new();
-    public RadioGroupStyle RadioGroup { get; set; } = new();
-    public ScrollbarStyle Scrollbar { get; set; } = new();
-    public WindowStyle Window { get; set; } = new();
-    public PopupStyle Popup { get; set; } = new();
-    public Color SeparatorColor { get; set; } = Color.Rgba(60, 60, 65);
+    public ButtonStyle Button = new();
+    public ImageStyle Image = new();
+    public LabelStyle Label = new();
+    public HeadingStyle Heading = new();
+    public CheckboxStyle Checkbox = new();
+    public SliderStyle Slider = new();
+    public ToggleStyle Toggle = new();
+    public ProgressBarStyle ProgressBar = new();
+    public PanelStyle Panel = new();
+    public TreeNodeStyle TreeNode = new();
+    public ScrollAreaStyle ScrollArea = new();
+    public RadioGroupStyle RadioGroup = new();
+    public ScrollbarStyle Scrollbar = new();
+    public WindowStyle Window = new();
+    public PopupStyle Popup = new();
+    public Color SeparatorColor = Color.Rgba(60, 60, 65);
 
     public static ClayUIStyle Default => new();
 
@@ -3635,17 +3635,99 @@ public class ClayUIStyle
         {
             TextColor = Color.Rgba(30, 30, 35)
         },
+        Heading = new HeadingStyle
+        {
+            TextColor = Color.Rgba(30, 30, 35)
+        },
+        Checkbox = new CheckboxStyle
+        {
+            BoxColor = Color.Rgba(230, 230, 235),
+            CheckedColor = Color.Rgba(70, 130, 200),
+            CheckmarkColor = Color.White,
+            BoxBorderColor = Color.Rgba(180, 180, 185),
+            TextColor = Color.Rgba(30, 30, 35),
+            HoverColor = Color.Rgba(210, 210, 215),
+            PressedColor = Color.Rgba(200, 200, 205)
+        },
+        Slider = new SliderStyle
+        {
+            TrackColor = Color.Rgba(210, 210, 215),
+            FillColor = Color.Rgba(70, 130, 200),
+            TextColor = Color.Rgba(30, 30, 35),
+            ValueTextColor = Color.Rgba(100, 100, 105)
+        },
+        Toggle = new ToggleStyle
+        {
+            OnColor = Color.Rgba(70, 130, 200),
+            OffColor = Color.Rgba(200, 200, 205),
+            KnobColor = Color.White,
+            TextColor = Color.Rgba(30, 30, 35),
+            HoverColor = Color.Rgba(210, 210, 215),
+            PressedColor = Color.Rgba(200, 200, 205)
+        },
+        ProgressBar = new ProgressBarStyle
+        {
+            BackgroundColor = Color.Rgba(210, 210, 215),
+            FillColor = Color.Rgba(70, 130, 200)
+        },
         Panel = new PanelStyle
         {
             BackgroundColor = Color.Rgba(245, 245, 250),
-            TitleColor = Color.Rgba(30, 30, 35)
+            TitleColor = Color.Rgba(30, 30, 35),
+            SeparatorColor = Color.Rgba(200, 200, 205),
+            Border = BorderConfig.Uniform(1, Color.Rgba(210, 210, 215))
+        },
+        TreeNode = new TreeNodeStyle
+        {
+            TextColor = Color.Rgba(30, 30, 35),
+            ArrowColor = Color.Rgba(100, 100, 105),
+            HoverColor = Color.Rgba(220, 220, 225)
+        },
+        ScrollArea = new ScrollAreaStyle
+        {
+            BackgroundColor = Color.Rgba(235, 235, 240)
+        },
+        RadioGroup = new RadioGroupStyle
+        {
+            TextColor = Color.Rgba(30, 30, 35),
+            LabelColor = Color.Rgba(100, 100, 105),
+            CircleColor = Color.Rgba(230, 230, 235),
+            CircleBorderColor = Color.Rgba(180, 180, 185),
+            DotColor = Color.Rgba(70, 130, 200),
+            HoverColor = Color.Rgba(210, 210, 215)
+        },
+        Scrollbar = new ScrollbarStyle
+        {
+            TrackColor = Color.Rgba(230, 230, 235),
+            ThumbColor = Color.Rgba(180, 180, 190),
+            ThumbHoverColor = Color.Rgba(150, 150, 160)
+        },
+        Window = new WindowStyle
+        {
+            BackgroundColor = Color.Rgba(245, 245, 250),
+            CornerRadius = CornerRadius.All(8),
+            Border = BorderConfig.Uniform(1, Color.Rgba(200, 200, 205)),
+            TitleBarColor = Color.Rgba(230, 230, 235),
+            TitleBarDragColor = Color.Rgba(220, 220, 225),
+            TitleColor = Color.Rgba(30, 30, 35),
+            ButtonHoverColor = Color.Rgba(210, 210, 215),
+            CloseButtonHoverColor = Color.Rgba(200, 60, 60),
+            ResizeHandleColor = Color.Rgba(180, 180, 190),
+            ResizeHandleHoverColor = Color.Rgba(140, 140, 150)
+        },
+        Popup = new PopupStyle
+        {
+            BackgroundColor = Color.Rgba(250, 250, 255),
+            CornerRadius = CornerRadius.All(4),
+            Border = BorderConfig.Uniform(1, Color.Rgba(200, 200, 205))
         },
         SeparatorColor = Color.Rgba(200, 200, 205)
     };
 }
 
-public class ButtonStyle
+public struct ButtonStyle
 {
+    public ButtonStyle() { }
     public Color BackgroundColor { get; set; } = Color.Rgba(55, 55, 65);
     public Color HoverColor { get; set; } = Color.Rgba(70, 70, 80);
     public Color PressedColor { get; set; } = Color.Rgba(50, 100, 180);
@@ -3656,8 +3738,9 @@ public class ButtonStyle
     public ushort FontSize { get; set; } = 14;
 }
 
-public class ImageStyle
+public struct ImageStyle
 {
+    public ImageStyle() { }
     public CornerRadius CornerRadius { get; set; } = CornerRadius.Zero;
     public BorderConfig Border { get; set; } = default;
     public BorderConfig HoverBorder { get; set; } = BorderConfig.Uniform(1, Color.Rgba(100, 150, 255));
@@ -3666,23 +3749,26 @@ public class ImageStyle
     public Padding Padding { get; set; } = Padding.Zero;
 }
 
-public class LabelStyle
+public struct LabelStyle
 {
+    public LabelStyle() { }
     public Color TextColor { get; set; } = Color.Rgba(200, 200, 200);
     public ushort FontId { get; set; } = 0;
     public ushort FontSize { get; set; } = 14;
     public ushort LineHeight { get; set; } = 20;
 }
 
-public class HeadingStyle
+public struct HeadingStyle
 {
+    public HeadingStyle() { }
     public Color TextColor { get; set; } = Color.White;
     public ushort FontId { get; set; } = 0;
     public ushort FontSize { get; set; } = 20;
 }
 
-public class CheckboxStyle
+public struct CheckboxStyle
 {
+    public CheckboxStyle() { }
     public Color BoxColor { get; set; } = Color.Rgba(45, 45, 50);
     public Color CheckedColor { get; set; } = Color.Rgba(70, 130, 200);
     public Color CheckmarkColor { get; set; } = Color.White;
@@ -3697,8 +3783,9 @@ public class CheckboxStyle
     public ushort FontSize { get; set; } = 14;
 }
 
-public class SliderStyle
+public struct SliderStyle
 {
+    public SliderStyle() { }
     public Color TrackColor { get; set; } = Color.Rgba(45, 45, 50);
     public Color FillColor { get; set; } = Color.Rgba(70, 130, 200);
     public Color TextColor { get; set; } = Color.Rgba(200, 200, 200);
@@ -3708,8 +3795,9 @@ public class SliderStyle
     public ushort FontSize { get; set; } = 14;
 }
 
-public class ToggleStyle
+public struct ToggleStyle
 {
+    public ToggleStyle() { }
     public Color OnColor { get; set; } = Color.Rgba(70, 130, 200);
     public Color OffColor { get; set; } = Color.Rgba(60, 60, 65);
     public Color KnobColor { get; set; } = Color.White;
@@ -3724,16 +3812,18 @@ public class ToggleStyle
     public ushort FontSize { get; set; } = 14;
 }
 
-public class ProgressBarStyle
+public struct ProgressBarStyle
 {
+    public ProgressBarStyle() { }
     public Color BackgroundColor { get; set; } = Color.Rgba(45, 45, 50);
     public Color FillColor { get; set; } = Color.Rgba(70, 130, 200);
     public float Height { get; set; } = 8;
     public float CornerRadius { get; set; } = 4;
 }
 
-public class PanelStyle
+public struct PanelStyle
 {
+    public PanelStyle() { }
     public Color BackgroundColor { get; set; } = Color.Rgba(40, 40, 45);
     public Color TitleColor { get; set; } = Color.White;
     public Color SeparatorColor { get; set; } = Color.Rgba(60, 60, 65);
@@ -3745,8 +3835,9 @@ public class PanelStyle
     public ushort TitleFontSize { get; set; } = 16;
 }
 
-public class TreeNodeStyle
+public struct TreeNodeStyle
 {
+    public TreeNodeStyle() { }
     public Color TextColor { get; set; } = Color.Rgba(200, 200, 200);
     public Color ArrowColor { get; set; } = Color.Rgba(150, 150, 155);
     public Color HoverColor { get; set; } = Color.Rgba(50, 50, 55);
@@ -3759,15 +3850,17 @@ public class TreeNodeStyle
     public ushort FontSize { get; set; } = 14;
 }
 
-public class ScrollAreaStyle
+public struct ScrollAreaStyle
 {
+    public ScrollAreaStyle() { }
     public Color BackgroundColor { get; set; } = Color.Rgba(35, 35, 40);
     public Padding Padding { get; set; } = Padding.All(8);
     public CornerRadius CornerRadius { get; set; } = CornerRadius.All(4);
 }
 
-public class RadioGroupStyle
+public struct RadioGroupStyle
 {
+    public RadioGroupStyle() { }
     public Color TextColor { get; set; } = Color.Rgba(200, 200, 200);
     public Color LabelColor { get; set; } = Color.Rgba(150, 150, 155);
     public Color CircleColor { get; set; } = Color.Rgba(45, 45, 50);
@@ -3781,8 +3874,9 @@ public class RadioGroupStyle
     public ushort FontSize { get; set; } = 14;
 }
 
-public class ScrollbarStyle
+public struct ScrollbarStyle
 {
+    public ScrollbarStyle() { }
     public Color TrackColor { get; set; } = Color.Rgba(40, 40, 45);
     public Color ThumbColor { get; set; } = Color.Rgba(80, 80, 90);
     public Color ThumbHoverColor { get; set; } = Color.Rgba(100, 100, 110);
@@ -3828,8 +3922,9 @@ public enum ResizeDirection
     BottomRight = Bottom | Right
 }
 
-public class WindowStyle
+public struct WindowStyle
 {
+    public WindowStyle() { }
     // Window background and border
     public Color BackgroundColor { get; set; } = Color.Rgba(35, 35, 40);
     public CornerRadius CornerRadius { get; set; } = CornerRadius.All(8);
@@ -3868,8 +3963,9 @@ public class WindowStyle
 /// <summary>
 /// Style configuration for popup widgets.
 /// </summary>
-public class PopupStyle
+public struct PopupStyle
 {
+    public PopupStyle() { }
     /// <summary>Background color of the popup.</summary>
     public Color BackgroundColor { get; set; } = Color.Rgba(40, 40, 45);
 
