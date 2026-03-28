@@ -89,6 +89,7 @@ while (!Raylib.WindowShouldClose())
     var mouseWheel = Raylib.GetMouseWheelMoveV();
     bool mouseDown = Raylib.IsMouseButtonDown(0);
     var scrollDelta = new Vector2(mouseWheel.X, mouseWheel.Y);
+    bool shiftHeld = Raylib.IsKeyDown(KeyboardKey.KEY_LEFT_SHIFT) || Raylib.IsKeyDown(KeyboardKey.KEY_RIGHT_SHIFT);
 
     Clay.Clay.SetPointerState(new Vector2(mousePos.X, mousePos.Y), mouseDown);
     Clay.Clay.SetLayoutDimensions(new Dimensions(Raylib.GetScreenWidth(), Raylib.GetScreenHeight()));
@@ -109,7 +110,7 @@ while (!Raylib.WindowShouldClose())
     ClayUI.BeginFrame(mouseDown, new Vector2(mousePos.X, mousePos.Y), scrollDelta);
 
     if (!ClayUI.IsMouseOverAnyWindow)
-        Clay.Clay.UpdateScrollContainers(false, scrollDelta, Raylib.GetFrameTime());
+        Clay.Clay.UpdateScrollContainers(false, scrollDelta, Raylib.GetFrameTime(), shiftHeld);
 
     if (Raylib.IsKeyPressed(KeyboardKey.KEY_F12))
         ClayUI.ToggleDebugWindow();
@@ -309,54 +310,68 @@ void RenderContent()
 {
     var contentId = Clay.Clay.Id("Content");
 
+    // Outer wrapper (vertical: [scroll row] + horizontal scrollbar)
     using (Clay.Clay.Element(new ElementDeclaration
     {
         Layout = new LayoutConfig
         {
             Sizing = Sizing.Fill(),
-            Direction = LayoutDirection.LeftToRight
+            Direction = LayoutDirection.TopToBottom
         },
         BackgroundColor = ClayUI.Style.Panel.BackgroundColor,
         CornerRadius = CornerRadius.All(8)
     }))
     {
+        // Inner row (horizontal: scroll container + vertical scrollbar)
         using (Clay.Clay.Element(new ElementDeclaration
         {
-            Id = contentId,
             Layout = new LayoutConfig
             {
                 Sizing = Sizing.Fill(),
-                Direction = LayoutDirection.TopToBottom,
-                Padding = Padding.All(20),
-                ChildGap = 12
-            },
-            Scroll = new ScrollConfig { Vertical = true }
+                Direction = LayoutDirection.LeftToRight
+            }
         }))
         {
-            ClayUI.Heading(pages[selectedPage]);
-            ClayUI.Separator();
-            ClayUI.Space(8);
-
-            switch (selectedPage)
+            using (Clay.Clay.Element(new ElementDeclaration
             {
-                case 0: PageOverview(); break;
-                case 1: PageButtons(); break;
-                case 2: PageTextInput(); break;
-                case 3: PageCheckboxesAndToggles(); break;
-                case 4: PageSlidersAndProgress(); break;
-                case 5: PageRadioGroup(); break;
-                case 6: PageTreeView(); break;
-                case 7: PageLayoutHelpers(); break;
-                case 8: PageTextStyles(); break;
-                case 9: PageColorPicker(); break;
-                case 10: PageScrollAreas(); break;
-                case 11: PageWindows(); break;
-                case 12: PagePopups(); break;
-                case 13: PageTheming(); break;
+                Id = contentId,
+                Layout = new LayoutConfig
+                {
+                    Sizing = Sizing.Fill(),
+                    Direction = LayoutDirection.TopToBottom,
+                    Padding = Padding.All(20),
+                    ChildGap = 12
+                },
+                Scroll = new ScrollConfig { Vertical = true, Horizontal = true }
+            }))
+            {
+                ClayUI.Heading(pages[selectedPage]);
+                ClayUI.Separator();
+                ClayUI.Space(8);
+
+                switch (selectedPage)
+                {
+                    case 0: PageOverview(); break;
+                    case 1: PageButtons(); break;
+                    case 2: PageTextInput(); break;
+                    case 3: PageCheckboxesAndToggles(); break;
+                    case 4: PageSlidersAndProgress(); break;
+                    case 5: PageRadioGroup(); break;
+                    case 6: PageTreeView(); break;
+                    case 7: PageLayoutHelpers(); break;
+                    case 8: PageTextStyles(); break;
+                    case 9: PageColorPicker(); break;
+                    case 10: PageScrollAreas(); break;
+                    case 11: PageWindows(); break;
+                    case 12: PagePopups(); break;
+                    case 13: PageTheming(); break;
+                }
             }
+
+            ClayUI.VerticalScrollbar(contentId);
         }
 
-        ClayUI.VerticalScrollbar(contentId);
+        ClayUI.HorizontalScrollbar(contentId);
     }
 }
 

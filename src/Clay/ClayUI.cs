@@ -3008,6 +3008,11 @@ public static class ClayUI
     {
         if (!open) return;
 
+        // Use default style for the debug window so user style edits don't break the editor UI.
+        // The style editor reads/writes from editStyle (the user's style) and we restore it after.
+        var editStyle = Style;
+        Style = ClayUIStyle.Default;
+
         var defaultPos = new Vector2(10, 10);
         var defaultSize = new Vector2(320, 400);
 
@@ -3215,110 +3220,110 @@ public static class ClayUI
                 if (BeginTreeNode("Theme Presets"))
                 {
                     BeginHorizontal(gap: 8);
-                    if (Button("Default")) Style = ClayUIStyle.Default;
-                    if (Button("Dark")) Style = ClayUIStyle.Dark;
-                    if (Button("Light")) Style = ClayUIStyle.Light;
+                    if (Button("Default")) editStyle = ClayUIStyle.Default;
+                    if (Button("Dark")) editStyle = ClayUIStyle.Dark;
+                    if (Button("Light")) editStyle = ClayUIStyle.Light;
                     EndHorizontal();
                     EndTreeNode();
                 }
 
                 if (BeginTreeNode("Button"))
                 {
-                    Style.Button.BackgroundColor = StyleColorEditor("Background##btn_bg", Style.Button.BackgroundColor);
-                    Style.Button.HoverColor = StyleColorEditor("Hover##btn_hv", Style.Button.HoverColor);
-                    Style.Button.PressedColor = StyleColorEditor("Pressed##btn_pr", Style.Button.PressedColor);
-                    Style.Button.TextColor = StyleColorEditor("Text##btn_tx", Style.Button.TextColor);
-                    Style.Button.FontSize = StyleUshortEditor("Font Size##btn_fs", Style.Button.FontSize, 8, 32);
-                    Style.Button.CornerRadius = StyleCornerRadiusEditor("Corner Radius##btn_cr", Style.Button.CornerRadius);
+                    editStyle.Button.BackgroundColor = StyleColorEditor("Background##btn_bg", editStyle.Button.BackgroundColor);
+                    editStyle.Button.HoverColor = StyleColorEditor("Hover##btn_hv", editStyle.Button.HoverColor);
+                    editStyle.Button.PressedColor = StyleColorEditor("Pressed##btn_pr", editStyle.Button.PressedColor);
+                    editStyle.Button.TextColor = StyleColorEditor("Text##btn_tx", editStyle.Button.TextColor);
+                    editStyle.Button.FontSize = StyleUshortEditor("Font Size##btn_fs", editStyle.Button.FontSize, 8, 32);
+                    editStyle.Button.CornerRadius = StyleCornerRadiusEditor("Corner Radius##btn_cr", editStyle.Button.CornerRadius);
                     EndTreeNode();
                 }
 
                 if (BeginTreeNode("Label"))
                 {
-                    Style.Label.TextColor = StyleColorEditor("Text##lbl_tx", Style.Label.TextColor);
-                    Style.Label.FontSize = StyleUshortEditor("Font Size##lbl_fs", Style.Label.FontSize, 8, 32);
-                    Style.Label.LineHeight = StyleUshortEditor("Line Height##lbl_lh", Style.Label.LineHeight, 10, 40);
+                    editStyle.Label.TextColor = StyleColorEditor("Text##lbl_tx", editStyle.Label.TextColor);
+                    editStyle.Label.FontSize = StyleUshortEditor("Font Size##lbl_fs", editStyle.Label.FontSize, 8, 32);
+                    editStyle.Label.LineHeight = StyleUshortEditor("Line Height##lbl_lh", editStyle.Label.LineHeight, 10, 40);
                     EndTreeNode();
                 }
 
                 if (BeginTreeNode("Heading"))
                 {
-                    Style.Heading.TextColor = StyleColorEditor("Text##hd_tx", Style.Heading.TextColor);
-                    Style.Heading.FontSize = StyleUshortEditor("Font Size##hd_fs", Style.Heading.FontSize, 10, 48);
+                    editStyle.Heading.TextColor = StyleColorEditor("Text##hd_tx", editStyle.Heading.TextColor);
+                    editStyle.Heading.FontSize = StyleUshortEditor("Font Size##hd_fs", editStyle.Heading.FontSize, 10, 48);
                     EndTreeNode();
                 }
 
                 if (BeginTreeNode("Checkbox"))
                 {
-                    Style.Checkbox.BoxColor = StyleColorEditor("Box##cb_box", Style.Checkbox.BoxColor);
-                    Style.Checkbox.CheckedColor = StyleColorEditor("Checked##cb_chk", Style.Checkbox.CheckedColor);
-                    Style.Checkbox.CheckmarkColor = StyleColorEditor("Checkmark##cb_cm", Style.Checkbox.CheckmarkColor);
-                    Style.Checkbox.BoxBorderColor = StyleColorEditor("Border##cb_brd", Style.Checkbox.BoxBorderColor);
-                    Style.Checkbox.TextColor = StyleColorEditor("Text##cb_tx", Style.Checkbox.TextColor);
-                    Style.Checkbox.HoverColor = StyleColorEditor("Hover##cb_hv", Style.Checkbox.HoverColor);
-                    Style.Checkbox.BoxSize = StyleFloatEditor("Box Size##cb_bs", Style.Checkbox.BoxSize, 10, 30);
-                    Style.Checkbox.FontSize = StyleUshortEditor("Font Size##cb_fs", Style.Checkbox.FontSize, 8, 32);
+                    editStyle.Checkbox.BoxColor = StyleColorEditor("Box##cb_box", editStyle.Checkbox.BoxColor);
+                    editStyle.Checkbox.CheckedColor = StyleColorEditor("Checked##cb_chk", editStyle.Checkbox.CheckedColor);
+                    editStyle.Checkbox.CheckmarkColor = StyleColorEditor("Checkmark##cb_cm", editStyle.Checkbox.CheckmarkColor);
+                    editStyle.Checkbox.BoxBorderColor = StyleColorEditor("Border##cb_brd", editStyle.Checkbox.BoxBorderColor);
+                    editStyle.Checkbox.TextColor = StyleColorEditor("Text##cb_tx", editStyle.Checkbox.TextColor);
+                    editStyle.Checkbox.HoverColor = StyleColorEditor("Hover##cb_hv", editStyle.Checkbox.HoverColor);
+                    editStyle.Checkbox.BoxSize = StyleFloatEditor("Box Size##cb_bs", editStyle.Checkbox.BoxSize, 10, 30);
+                    editStyle.Checkbox.FontSize = StyleUshortEditor("Font Size##cb_fs", editStyle.Checkbox.FontSize, 8, 32);
                     EndTreeNode();
                 }
 
                 if (BeginTreeNode("Slider"))
                 {
-                    Style.Slider.TrackColor = StyleColorEditor("Track##sl_tr", Style.Slider.TrackColor);
-                    Style.Slider.FillColor = StyleColorEditor("Fill##sl_fl", Style.Slider.FillColor);
-                    Style.Slider.TextColor = StyleColorEditor("Text##sl_tx", Style.Slider.TextColor);
-                    Style.Slider.ValueTextColor = StyleColorEditor("Value Text##sl_vt", Style.Slider.ValueTextColor);
-                    Style.Slider.TrackHeight = StyleFloatEditor("Track Height##sl_th", Style.Slider.TrackHeight, 4, 20);
-                    Style.Slider.FontSize = StyleUshortEditor("Font Size##sl_fs", Style.Slider.FontSize, 8, 32);
+                    editStyle.Slider.TrackColor = StyleColorEditor("Track##sl_tr", editStyle.Slider.TrackColor);
+                    editStyle.Slider.FillColor = StyleColorEditor("Fill##sl_fl", editStyle.Slider.FillColor);
+                    editStyle.Slider.TextColor = StyleColorEditor("Text##sl_tx", editStyle.Slider.TextColor);
+                    editStyle.Slider.ValueTextColor = StyleColorEditor("Value Text##sl_vt", editStyle.Slider.ValueTextColor);
+                    editStyle.Slider.TrackHeight = StyleFloatEditor("Track Height##sl_th", editStyle.Slider.TrackHeight, 4, 20);
+                    editStyle.Slider.FontSize = StyleUshortEditor("Font Size##sl_fs", editStyle.Slider.FontSize, 8, 32);
                     EndTreeNode();
                 }
 
                 if (BeginTreeNode("Toggle"))
                 {
-                    Style.Toggle.OnColor = StyleColorEditor("On##tg_on", Style.Toggle.OnColor);
-                    Style.Toggle.OffColor = StyleColorEditor("Off##tg_off", Style.Toggle.OffColor);
-                    Style.Toggle.KnobColor = StyleColorEditor("Knob##tg_kn", Style.Toggle.KnobColor);
-                    Style.Toggle.TextColor = StyleColorEditor("Text##tg_tx", Style.Toggle.TextColor);
-                    Style.Toggle.TrackWidth = StyleFloatEditor("Track Width##tg_tw", Style.Toggle.TrackWidth, 30, 60);
-                    Style.Toggle.TrackHeight = StyleFloatEditor("Track Height##tg_th", Style.Toggle.TrackHeight, 16, 36);
-                    Style.Toggle.KnobSize = StyleFloatEditor("Knob Size##tg_ks", Style.Toggle.KnobSize, 12, 32);
+                    editStyle.Toggle.OnColor = StyleColorEditor("On##tg_on", editStyle.Toggle.OnColor);
+                    editStyle.Toggle.OffColor = StyleColorEditor("Off##tg_off", editStyle.Toggle.OffColor);
+                    editStyle.Toggle.KnobColor = StyleColorEditor("Knob##tg_kn", editStyle.Toggle.KnobColor);
+                    editStyle.Toggle.TextColor = StyleColorEditor("Text##tg_tx", editStyle.Toggle.TextColor);
+                    editStyle.Toggle.TrackWidth = StyleFloatEditor("Track Width##tg_tw", editStyle.Toggle.TrackWidth, 30, 60);
+                    editStyle.Toggle.TrackHeight = StyleFloatEditor("Track Height##tg_th", editStyle.Toggle.TrackHeight, 16, 36);
+                    editStyle.Toggle.KnobSize = StyleFloatEditor("Knob Size##tg_ks", editStyle.Toggle.KnobSize, 12, 32);
                     EndTreeNode();
                 }
 
                 if (BeginTreeNode("Progress Bar"))
                 {
-                    Style.ProgressBar.BackgroundColor = StyleColorEditor("Background##pb_bg", Style.ProgressBar.BackgroundColor);
-                    Style.ProgressBar.FillColor = StyleColorEditor("Fill##pb_fl", Style.ProgressBar.FillColor);
-                    Style.ProgressBar.Height = StyleFloatEditor("Height##pb_h", Style.ProgressBar.Height, 4, 20);
-                    Style.ProgressBar.CornerRadius = StyleFloatEditor("Corner Radius##pb_cr", Style.ProgressBar.CornerRadius, 0, 10);
+                    editStyle.ProgressBar.BackgroundColor = StyleColorEditor("Background##pb_bg", editStyle.ProgressBar.BackgroundColor);
+                    editStyle.ProgressBar.FillColor = StyleColorEditor("Fill##pb_fl", editStyle.ProgressBar.FillColor);
+                    editStyle.ProgressBar.Height = StyleFloatEditor("Height##pb_h", editStyle.ProgressBar.Height, 4, 20);
+                    editStyle.ProgressBar.CornerRadius = StyleFloatEditor("Corner Radius##pb_cr", editStyle.ProgressBar.CornerRadius, 0, 10);
                     EndTreeNode();
                 }
 
                 if (BeginTreeNode("Panel"))
                 {
-                    Style.Panel.BackgroundColor = StyleColorEditor("Background##pn_bg", Style.Panel.BackgroundColor);
-                    Style.Panel.TitleColor = StyleColorEditor("Title##pn_tt", Style.Panel.TitleColor);
-                    Style.Panel.SeparatorColor = StyleColorEditor("Separator##pn_sp", Style.Panel.SeparatorColor);
-                    Style.Panel.ChildGap = StyleUshortEditor("Child Gap##pn_cg", Style.Panel.ChildGap, 0, 24);
-                    Style.Panel.TitleFontSize = StyleUshortEditor("Title Font##pn_tf", Style.Panel.TitleFontSize, 10, 24);
+                    editStyle.Panel.BackgroundColor = StyleColorEditor("Background##pn_bg", editStyle.Panel.BackgroundColor);
+                    editStyle.Panel.TitleColor = StyleColorEditor("Title##pn_tt", editStyle.Panel.TitleColor);
+                    editStyle.Panel.SeparatorColor = StyleColorEditor("Separator##pn_sp", editStyle.Panel.SeparatorColor);
+                    editStyle.Panel.ChildGap = StyleUshortEditor("Child Gap##pn_cg", editStyle.Panel.ChildGap, 0, 24);
+                    editStyle.Panel.TitleFontSize = StyleUshortEditor("Title Font##pn_tf", editStyle.Panel.TitleFontSize, 10, 24);
                     EndTreeNode();
                 }
 
                 if (BeginTreeNode("Window"))
                 {
-                    Style.Window.BackgroundColor = StyleColorEditor("Background##wn_bg", Style.Window.BackgroundColor);
-                    Style.Window.TitleBarColor = StyleColorEditor("Title Bar##wn_tb", Style.Window.TitleBarColor);
-                    Style.Window.TitleColor = StyleColorEditor("Title Text##wn_tt", Style.Window.TitleColor);
-                    Style.Window.ButtonHoverColor = StyleColorEditor("Btn Hover##wn_bh", Style.Window.ButtonHoverColor);
-                    Style.Window.CloseButtonHoverColor = StyleColorEditor("Close Hover##wn_ch", Style.Window.CloseButtonHoverColor);
-                    Style.Window.TitleBarHeight = StyleFloatEditor("Title Bar Height##wn_tbh", Style.Window.TitleBarHeight, 20, 50);
-                    Style.Window.ButtonSize = StyleFloatEditor("Button Size##wn_bs", Style.Window.ButtonSize, 14, 30);
-                    Style.Window.FontSize = StyleUshortEditor("Font Size##wn_fs", Style.Window.FontSize, 10, 24);
+                    editStyle.Window.BackgroundColor = StyleColorEditor("Background##wn_bg", editStyle.Window.BackgroundColor);
+                    editStyle.Window.TitleBarColor = StyleColorEditor("Title Bar##wn_tb", editStyle.Window.TitleBarColor);
+                    editStyle.Window.TitleColor = StyleColorEditor("Title Text##wn_tt", editStyle.Window.TitleColor);
+                    editStyle.Window.ButtonHoverColor = StyleColorEditor("Btn Hover##wn_bh", editStyle.Window.ButtonHoverColor);
+                    editStyle.Window.CloseButtonHoverColor = StyleColorEditor("Close Hover##wn_ch", editStyle.Window.CloseButtonHoverColor);
+                    editStyle.Window.TitleBarHeight = StyleFloatEditor("Title Bar Height##wn_tbh", editStyle.Window.TitleBarHeight, 20, 50);
+                    editStyle.Window.ButtonSize = StyleFloatEditor("Button Size##wn_bs", editStyle.Window.ButtonSize, 14, 30);
+                    editStyle.Window.FontSize = StyleUshortEditor("Font Size##wn_fs", editStyle.Window.FontSize, 10, 24);
                     EndTreeNode();
                 }
 
                 if (BeginTreeNode("Separator"))
                 {
-                    Style.SeparatorColor = StyleColorEditor("Color##sep_cl", Style.SeparatorColor);
+                    editStyle.SeparatorColor = StyleColorEditor("Color##sep_cl", editStyle.SeparatorColor);
                     EndTreeNode();
                 }
 
@@ -3326,6 +3331,9 @@ public static class ClayUI
             }
         }
         EndWindow();
+
+        // Restore user style (with any edits applied)
+        Style = editStyle;
     }
 
     // ============ Color Picker ============

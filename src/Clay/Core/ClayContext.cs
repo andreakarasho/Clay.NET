@@ -951,15 +951,22 @@ public class ClayContext : IDisposable
         float contentHeight = element.Dimensions.Height - layoutConfig.Padding.Top - layoutConfig.Padding.Bottom;
 
         float totalChildrenSize = 0;
+        float maxChildCrossSize = 0;
         for (int i = 0; i < element.Children.Length; i++)
         {
             int childIndex = LayoutElementChildren[element.Children.StartIndex + i];
             ref var child = ref LayoutElements[childIndex];
 
             if (layoutConfig.Direction == LayoutDirection.LeftToRight)
+            {
                 totalChildrenSize += child.Dimensions.Width;
+                maxChildCrossSize = Math.Max(maxChildCrossSize, child.Dimensions.Height);
+            }
             else
+            {
                 totalChildrenSize += child.Dimensions.Height;
+                maxChildCrossSize = Math.Max(maxChildCrossSize, child.Dimensions.Width);
+            }
         }
         totalChildrenSize += Math.Max(0, element.Children.Length - 1) * layoutConfig.ChildGap;
 
@@ -1045,16 +1052,18 @@ public class ClayContext : IDisposable
         // Update scroll container content size and clamp scroll position
         if (scrollContainerIndex >= 0)
         {
-            float contentSizeW = totalChildrenSize + layoutConfig.Padding.Left + layoutConfig.Padding.Right;
-            float contentSizeH = totalChildrenSize + layoutConfig.Padding.Top + layoutConfig.Padding.Bottom;
+            float contentSizeW, contentSizeH;
             if (layoutConfig.Direction == LayoutDirection.LeftToRight)
             {
-                ScrollContainerDatas[scrollContainerIndex].ContentSize = new Dimensions(contentSizeW, element.Dimensions.Height);
+                contentSizeW = totalChildrenSize + layoutConfig.Padding.Left + layoutConfig.Padding.Right;
+                contentSizeH = maxChildCrossSize + layoutConfig.Padding.Top + layoutConfig.Padding.Bottom;
             }
             else
             {
-                ScrollContainerDatas[scrollContainerIndex].ContentSize = new Dimensions(element.Dimensions.Width, contentSizeH);
+                contentSizeW = maxChildCrossSize + layoutConfig.Padding.Left + layoutConfig.Padding.Right;
+                contentSizeH = totalChildrenSize + layoutConfig.Padding.Top + layoutConfig.Padding.Bottom;
             }
+            ScrollContainerDatas[scrollContainerIndex].ContentSize = new Dimensions(contentSizeW, contentSizeH);
 
             // Clamp scroll position to valid range (handles window resize making content fit)
             ref var sd = ref ScrollContainerDatas[scrollContainerIndex];
@@ -1341,7 +1350,7 @@ public class ClayContext : IDisposable
         };
     }
 
-    public void UpdateScrollContainers(bool enableDragScrolling, Vector2 scrollDelta, float deltaTime)
+    public void UpdateScrollContainers(bool enableDragScrolling, Vector2 scrollDelta, float deltaTime, bool shiftHeld = false)
     {
         // Forward scroll delta to text input widgets
         TextInput?.SetScrollDelta(scrollDelta.Y);
@@ -1366,24 +1375,38 @@ public class ClayContext : IDisposable
 
                 ref var scrollConfig = ref ScrollElementConfigs[scrollConfigIndex];
 
+                // Redirect vertical wheel to horizontal when:
+                // 1. Shift is held (explicit user intent), OR
+                // 2. Container only scrolls horizontally, OR
+                // 3. Container has no vertical overflow
+                float effectiveDeltaX = scrollDelta.X;
+                float effectiveDeltaY = scrollDelta.Y;
+
+                if (scrollConfig.Horizontal && scrollDelta.Y != 0)
+                {
+                    bool hasVerticalOverflow = scrollData.ContentSize.Height > scrollData.BoundingBox.Height;
+                    if (shiftHeld || !scrollConfig.Vertical || !hasVerticalOverflow)
+                    {
+                        effectiveDeltaX += effectiveDeltaY;
+                        effectiveDeltaY = 0;
+                    }
+                }
+
                 // Apply scroll delta
-                // Raylib: positive Y = scroll up (wheel toward user), negative Y = scroll down (wheel away)
-                // Traditional scrolling: wheel up reveals content above (scroll position decreases)
-                //                        wheel down reveals content below (scroll position increases)
-                if (scrollConfig.Vertical && scrollDelta.Y != 0)
+                if (scrollConfig.Vertical && effectiveDeltaY != 0)
                 {
                     float maxScroll = Math.Max(0, scrollData.ContentSize.Height - scrollData.BoundingBox.Height);
                     scrollData.ScrollPosition.Y = Math.Clamp(
-                        scrollData.ScrollPosition.Y - scrollDelta.Y * 30,
+                        scrollData.ScrollPosition.Y - effectiveDeltaY * 30,
                         0, maxScroll
                     );
                 }
 
-                if (scrollConfig.Horizontal && scrollDelta.X != 0)
+                if (scrollConfig.Horizontal && effectiveDeltaX != 0)
                 {
                     float maxScroll = Math.Max(0, scrollData.ContentSize.Width - scrollData.BoundingBox.Width);
                     scrollData.ScrollPosition.X = Math.Clamp(
-                        scrollData.ScrollPosition.X - scrollDelta.X * 30,
+                        scrollData.ScrollPosition.X - effectiveDeltaX * 30,
                         0, maxScroll
                     );
                 }

@@ -454,6 +454,336 @@ public class ScrollTests : IDisposable
     }
 
     [Fact]
+    public void VerticalScroll_DetectsHorizontalOverflow()
+    {
+        // A vertical scroll container with a child wider than the container
+        // should report horizontal overflow for horizontal scrollbar support
+        var scrollId = ClayApi.Id("hoverflow-scroll");
+
+        ClayApi.BeginLayout();
+
+        using (ClayApi.Element(new ElementDeclaration
+        {
+            Id = scrollId,
+            Layout = new LayoutConfig
+            {
+                Sizing = Sizing.FixedSize(200, 200),
+                Direction = LayoutDirection.TopToBottom
+            },
+            Scroll = new ScrollConfig { Vertical = true, Horizontal = true }
+        }))
+        {
+            // Child wider than container
+            using (ClayApi.Element(new ElementDeclaration
+            {
+                Layout = new LayoutConfig { Sizing = Sizing.FixedSize(500, 50) }
+            })) { }
+        }
+
+        ClayApi.EndLayout();
+
+        var scrollData = ClayApi.GetScrollContainerData(scrollId);
+        Assert.True(scrollData.Found);
+        Assert.True(scrollData.ContentDimensions.Width > scrollData.ScrollContainerDimensions.Width,
+            $"Content width ({scrollData.ContentDimensions.Width}) should exceed container width ({scrollData.ScrollContainerDimensions.Width})");
+        Assert.True(scrollData.OverflowsX, "Should detect horizontal overflow");
+    }
+
+    [Fact]
+    public void HorizontalScroll_DetectsVerticalOverflow()
+    {
+        // A horizontal scroll container with a child taller than the container
+        var scrollId = ClayApi.Id("voverflow-scroll");
+
+        ClayApi.BeginLayout();
+
+        using (ClayApi.Element(new ElementDeclaration
+        {
+            Id = scrollId,
+            Layout = new LayoutConfig
+            {
+                Sizing = Sizing.FixedSize(200, 200),
+                Direction = LayoutDirection.LeftToRight
+            },
+            Scroll = new ScrollConfig { Vertical = true, Horizontal = true }
+        }))
+        {
+            // Child taller than container
+            using (ClayApi.Element(new ElementDeclaration
+            {
+                Layout = new LayoutConfig { Sizing = Sizing.FixedSize(50, 500) }
+            })) { }
+        }
+
+        ClayApi.EndLayout();
+
+        var scrollData = ClayApi.GetScrollContainerData(scrollId);
+        Assert.True(scrollData.Found);
+        Assert.True(scrollData.ContentDimensions.Height > scrollData.ScrollContainerDimensions.Height,
+            $"Content height ({scrollData.ContentDimensions.Height}) should exceed container height ({scrollData.ScrollContainerDimensions.Height})");
+        Assert.True(scrollData.OverflowsY, "Should detect vertical overflow");
+    }
+
+    [Fact]
+    public void VerticalWheel_RedirectsToHorizontal_WhenOnlyHorizontalScroll()
+    {
+        var scrollId = ClayApi.Id("honly-scroll");
+
+        // Frame 1: build layout
+        ClayApi.SetPointerState(new System.Numerics.Vector2(100, 50), false);
+        ClayApi.BeginLayout();
+
+        using (ClayApi.Element(new ElementDeclaration
+        {
+            Id = scrollId,
+            Layout = new LayoutConfig
+            {
+                Sizing = Sizing.FixedSize(200, 100),
+                Direction = LayoutDirection.LeftToRight
+            },
+            Scroll = ScrollConfig.HorizontalScroll
+        }))
+        {
+            for (int i = 0; i < 10; i++)
+            {
+                using (ClayApi.Element(new ElementDeclaration
+                {
+                    Id = ClayApi.Id("honly-item", (uint)i),
+                    Layout = new LayoutConfig { Sizing = Sizing.FixedSize(50, 80) }
+                })) { }
+            }
+        }
+
+        ClayApi.EndLayout();
+
+        // Frame 2: same layout
+        ClayApi.SetPointerState(new System.Numerics.Vector2(100, 50), false);
+        ClayApi.BeginLayout();
+
+        using (ClayApi.Element(new ElementDeclaration
+        {
+            Id = scrollId,
+            Layout = new LayoutConfig
+            {
+                Sizing = Sizing.FixedSize(200, 100),
+                Direction = LayoutDirection.LeftToRight
+            },
+            Scroll = ScrollConfig.HorizontalScroll
+        }))
+        {
+            for (int i = 0; i < 10; i++)
+            {
+                using (ClayApi.Element(new ElementDeclaration
+                {
+                    Id = ClayApi.Id("honly-item", (uint)i),
+                    Layout = new LayoutConfig { Sizing = Sizing.FixedSize(50, 80) }
+                })) { }
+            }
+        }
+
+        ClayApi.EndLayout();
+
+        // Scroll with vertical wheel (Y delta only, no X delta)
+        ClayApi.UpdateScrollContainers(false, new System.Numerics.Vector2(0, -5), 1f / 60f);
+
+        var data = ClayApi.GetScrollContainerData(scrollId);
+        Assert.True(data.Found);
+        Assert.True(data.ScrollPosition.X > 0,
+            "Vertical wheel should redirect to horizontal when container only scrolls horizontally");
+    }
+
+    [Fact]
+    public void VerticalWheel_RedirectsToHorizontal_WhenNoVerticalOverflow()
+    {
+        var scrollId = ClayApi.Id("novert-scroll");
+
+        // Frame 1: both axes enabled, but content only overflows horizontally
+        ClayApi.SetPointerState(new System.Numerics.Vector2(100, 50), false);
+        ClayApi.BeginLayout();
+
+        using (ClayApi.Element(new ElementDeclaration
+        {
+            Id = scrollId,
+            Layout = new LayoutConfig
+            {
+                Sizing = Sizing.FixedSize(200, 200),
+                Direction = LayoutDirection.TopToBottom
+            },
+            Scroll = new ScrollConfig { Vertical = true, Horizontal = true }
+        }))
+        {
+            // Single child: short but very wide
+            using (ClayApi.Element(new ElementDeclaration
+            {
+                Id = ClayApi.Id("novert-item"),
+                Layout = new LayoutConfig { Sizing = Sizing.FixedSize(600, 50) }
+            })) { }
+        }
+
+        ClayApi.EndLayout();
+
+        // Frame 2
+        ClayApi.SetPointerState(new System.Numerics.Vector2(100, 50), false);
+        ClayApi.BeginLayout();
+
+        using (ClayApi.Element(new ElementDeclaration
+        {
+            Id = scrollId,
+            Layout = new LayoutConfig
+            {
+                Sizing = Sizing.FixedSize(200, 200),
+                Direction = LayoutDirection.TopToBottom
+            },
+            Scroll = new ScrollConfig { Vertical = true, Horizontal = true }
+        }))
+        {
+            using (ClayApi.Element(new ElementDeclaration
+            {
+                Id = ClayApi.Id("novert-item"),
+                Layout = new LayoutConfig { Sizing = Sizing.FixedSize(600, 50) }
+            })) { }
+        }
+
+        ClayApi.EndLayout();
+
+        // Vertical wheel — should redirect to horizontal since no vertical overflow
+        ClayApi.UpdateScrollContainers(false, new System.Numerics.Vector2(0, -5), 1f / 60f);
+
+        var data = ClayApi.GetScrollContainerData(scrollId);
+        Assert.True(data.Found);
+        Assert.True(data.ScrollPosition.X > 0,
+            "Vertical wheel should redirect to horizontal when no vertical overflow exists");
+        Assert.Equal(0f, data.ScrollPosition.Y);
+    }
+
+    [Fact]
+    public void VerticalWheel_NotRedirected_WhenVerticalOverflowExists()
+    {
+        var scrollId = ClayApi.Id("bothover-scroll");
+
+        // Frame 1: both axes enabled, content overflows both directions
+        ClayApi.SetPointerState(new System.Numerics.Vector2(100, 100), false);
+        ClayApi.BeginLayout();
+
+        using (ClayApi.Element(new ElementDeclaration
+        {
+            Id = scrollId,
+            Layout = new LayoutConfig
+            {
+                Sizing = Sizing.FixedSize(200, 200),
+                Direction = LayoutDirection.TopToBottom
+            },
+            Scroll = new ScrollConfig { Vertical = true, Horizontal = true }
+        }))
+        {
+            // Wide AND tall content
+            using (ClayApi.Element(new ElementDeclaration
+            {
+                Id = ClayApi.Id("bothover-item"),
+                Layout = new LayoutConfig { Sizing = Sizing.FixedSize(600, 600) }
+            })) { }
+        }
+
+        ClayApi.EndLayout();
+
+        // Frame 2
+        ClayApi.SetPointerState(new System.Numerics.Vector2(100, 100), false);
+        ClayApi.BeginLayout();
+
+        using (ClayApi.Element(new ElementDeclaration
+        {
+            Id = scrollId,
+            Layout = new LayoutConfig
+            {
+                Sizing = Sizing.FixedSize(200, 200),
+                Direction = LayoutDirection.TopToBottom
+            },
+            Scroll = new ScrollConfig { Vertical = true, Horizontal = true }
+        }))
+        {
+            using (ClayApi.Element(new ElementDeclaration
+            {
+                Id = ClayApi.Id("bothover-item"),
+                Layout = new LayoutConfig { Sizing = Sizing.FixedSize(600, 600) }
+            })) { }
+        }
+
+        ClayApi.EndLayout();
+
+        // Vertical wheel — should scroll vertically since vertical overflow exists
+        ClayApi.UpdateScrollContainers(false, new System.Numerics.Vector2(0, -5), 1f / 60f);
+
+        var data = ClayApi.GetScrollContainerData(scrollId);
+        Assert.True(data.Found);
+        Assert.True(data.ScrollPosition.Y > 0,
+            "Vertical wheel should scroll vertically when vertical overflow exists");
+        Assert.Equal(0f, data.ScrollPosition.X);
+    }
+
+    [Fact]
+    public void ShiftWheel_ForcesHorizontalScroll_EvenWithVerticalOverflow()
+    {
+        var scrollId = ClayApi.Id("shift-scroll");
+
+        // Frame 1: both axes overflow
+        ClayApi.SetPointerState(new System.Numerics.Vector2(100, 100), false);
+        ClayApi.BeginLayout();
+
+        using (ClayApi.Element(new ElementDeclaration
+        {
+            Id = scrollId,
+            Layout = new LayoutConfig
+            {
+                Sizing = Sizing.FixedSize(200, 200),
+                Direction = LayoutDirection.TopToBottom
+            },
+            Scroll = new ScrollConfig { Vertical = true, Horizontal = true }
+        }))
+        {
+            using (ClayApi.Element(new ElementDeclaration
+            {
+                Id = ClayApi.Id("shift-item"),
+                Layout = new LayoutConfig { Sizing = Sizing.FixedSize(600, 600) }
+            })) { }
+        }
+
+        ClayApi.EndLayout();
+
+        // Frame 2
+        ClayApi.SetPointerState(new System.Numerics.Vector2(100, 100), false);
+        ClayApi.BeginLayout();
+
+        using (ClayApi.Element(new ElementDeclaration
+        {
+            Id = scrollId,
+            Layout = new LayoutConfig
+            {
+                Sizing = Sizing.FixedSize(200, 200),
+                Direction = LayoutDirection.TopToBottom
+            },
+            Scroll = new ScrollConfig { Vertical = true, Horizontal = true }
+        }))
+        {
+            using (ClayApi.Element(new ElementDeclaration
+            {
+                Id = ClayApi.Id("shift-item"),
+                Layout = new LayoutConfig { Sizing = Sizing.FixedSize(600, 600) }
+            })) { }
+        }
+
+        ClayApi.EndLayout();
+
+        // Vertical wheel WITH shiftHeld=true — should scroll horizontally
+        ClayApi.UpdateScrollContainers(false, new System.Numerics.Vector2(0, -5), 1f / 60f, shiftHeld: true);
+
+        var data = ClayApi.GetScrollContainerData(scrollId);
+        Assert.True(data.Found);
+        Assert.True(data.ScrollPosition.X > 0,
+            "Shift+Wheel should force horizontal scroll even when vertical overflow exists");
+        Assert.Equal(0f, data.ScrollPosition.Y);
+    }
+
+    [Fact]
     public void HorizontalScroll_Works()
     {
         ClayApi.BeginLayout();
