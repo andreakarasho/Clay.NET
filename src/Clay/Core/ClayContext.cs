@@ -1350,7 +1350,7 @@ public class ClayContext : IDisposable
         };
     }
 
-    public void UpdateScrollContainers(bool enableDragScrolling, Vector2 scrollDelta, float deltaTime, bool shiftHeld = false)
+    public void UpdateScrollContainers(bool enableDragScrolling, Vector2 scrollDelta, float deltaTime)
     {
         // Forward scroll delta to text input widgets
         TextInput?.SetScrollDelta(scrollDelta.Y);
@@ -1375,17 +1375,16 @@ public class ClayContext : IDisposable
 
                 ref var scrollConfig = ref ScrollElementConfigs[scrollConfigIndex];
 
-                // Redirect vertical wheel to horizontal when:
-                // 1. Shift is held (explicit user intent), OR
-                // 2. Container only scrolls horizontally, OR
-                // 3. Container has no vertical overflow
+                // Redirect vertical wheel to horizontal when the container only scrolls
+                // horizontally, or has no vertical overflow. For explicit Shift+Wheel,
+                // the caller should remap scrollDelta before passing it in.
                 float effectiveDeltaX = scrollDelta.X;
                 float effectiveDeltaY = scrollDelta.Y;
 
                 if (scrollConfig.Horizontal && scrollDelta.Y != 0)
                 {
                     bool hasVerticalOverflow = scrollData.ContentSize.Height > scrollData.BoundingBox.Height;
-                    if (shiftHeld || !scrollConfig.Vertical || !hasVerticalOverflow)
+                    if (!scrollConfig.Vertical || !hasVerticalOverflow)
                     {
                         effectiveDeltaX += effectiveDeltaY;
                         effectiveDeltaY = 0;

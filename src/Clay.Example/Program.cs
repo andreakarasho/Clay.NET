@@ -94,13 +94,8 @@ while (!Raylib.WindowShouldClose())
     var mousePos = Raylib.GetMousePosition();
     var mouseWheel = Raylib.GetMouseWheelMoveV();
     bool mouseDown = Raylib.IsMouseButtonDown(0);
-    bool shiftHeld = Raylib.IsKeyDown(KeyboardKey.KEY_LEFT_SHIFT) || Raylib.IsKeyDown(KeyboardKey.KEY_RIGHT_SHIFT);
-    var scrollDelta = shiftHeld
-        ? new Vector2(mouseWheel.Y, 0)
-        : new Vector2(mouseWheel.X, mouseWheel.Y);
+    var scrollDelta = new Vector2(mouseWheel.X, mouseWheel.Y);
     float deltaTime = Raylib.GetFrameTime();
-
-    Clay.Clay.SetLayoutDimensions(new Dimensions(Raylib.GetScreenWidth(), Raylib.GetScreenHeight()));
 
     // Apply deferred theme switch before frame starts
     if (pendingTheme >= 0)
@@ -115,14 +110,13 @@ while (!Raylib.WindowShouldClose())
         pendingTheme = -1;
     }
 
-    ClayUI.BeginFrame(mouseDown, new Vector2(mousePos.X, mousePos.Y), scrollDelta, deltaTime);
+    ClayUI.BeginFrame(new Dimensions(Raylib.GetScreenWidth(), Raylib.GetScreenHeight()),
+        mouseDown, new Vector2(mousePos.X, mousePos.Y), scrollDelta, deltaTime);
 
     if (Raylib.IsKeyPressed(KeyboardKey.KEY_F12))
         ClayUI.ToggleDebugWindow();
 
     ForwardKeyboardInput();
-
-    Clay.Clay.BeginLayout();
 
     // Root container
     using (Clay.Clay.Element(new ElementDeclaration
@@ -179,7 +173,7 @@ while (!Raylib.WindowShouldClose())
             ClayUI.ShowDebugWindow();
     }
 
-    var commands = Clay.Clay.EndLayout();
+    var commands = ClayUI.EndFrame();
 
     Raylib.BeginDrawing();
     Raylib.ClearBackground(Raylib.BLACK);
@@ -453,7 +447,8 @@ void PageTextInput()
             CornerRadius = CornerRadius.All(4),
             Border = new BorderConfig { Width = BorderWidth.All(1), Color = Color.Rgba(80, 80, 90) },
             Padding = Padding.All(8),
-            FontId = 0, FontSize = 16,
+            FontId = 0,
+            FontSize = 16,
             Sizing = new Sizing(SizingAxis.Grow(), SizingAxis.Fixed(120)),
         });
 
@@ -470,7 +465,8 @@ void PageTextInput()
             CornerRadius = CornerRadius.All(4),
             Border = new BorderConfig { Width = BorderWidth.All(1), Color = Color.Rgba(80, 80, 90) },
             Padding = Padding.Symmetric(8, 6),
-            FontId = 0, FontSize = 16,
+            FontId = 0,
+            FontSize = 16,
             Sizing = new Sizing(SizingAxis.Fixed(200), SizingAxis.Default),
             CharFilter = Clay.Widgets.TextInputFilters.NumbersOnly,
         });
@@ -871,6 +867,15 @@ void ForwardKeyboardInput()
         (KeyboardKey.KEY_V, Clay.Widgets.ClayKey.V),
         (KeyboardKey.KEY_X, Clay.Widgets.ClayKey.X),
         (KeyboardKey.KEY_Z, Clay.Widgets.ClayKey.Z),
+        // Modifiers — ClayUI tracks these internally for Shift+Wheel etc.
+        (KeyboardKey.KEY_LEFT_SHIFT, Clay.Widgets.ClayKey.Shift),
+        (KeyboardKey.KEY_RIGHT_SHIFT, Clay.Widgets.ClayKey.Shift),
+        (KeyboardKey.KEY_LEFT_CONTROL, Clay.Widgets.ClayKey.Ctrl),
+        (KeyboardKey.KEY_RIGHT_CONTROL, Clay.Widgets.ClayKey.Ctrl),
+        (KeyboardKey.KEY_LEFT_ALT, Clay.Widgets.ClayKey.Alt),
+        (KeyboardKey.KEY_RIGHT_ALT, Clay.Widgets.ClayKey.Alt),
+        (KeyboardKey.KEY_LEFT_SUPER, Clay.Widgets.ClayKey.Super),
+        (KeyboardKey.KEY_RIGHT_SUPER, Clay.Widgets.ClayKey.Super),
     ];
 
     foreach (var (rayKey, clayKey) in keyMap)

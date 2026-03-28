@@ -327,9 +327,7 @@ public class ScrollTests : IDisposable
         var mousePos = new System.Numerics.Vector2(100, 100);
 
         // Frame 1: open a window that overlaps the scroll area
-        ClayApi.SetPointerState(mousePos, false);
-        ClayUI.BeginFrame(false, mousePos);
-        ClayApi.BeginLayout();
+        ClayUI.BeginFrame(new Dimensions(800, 600), false, mousePos);
 
         using (ClayApi.Element(new ElementDeclaration
         {
@@ -368,12 +366,10 @@ public class ScrollTests : IDisposable
             ClayUI.EndWindow();
         }
 
-        ClayApi.EndLayout();
+        ClayUI.EndFrame();
 
         // Frame 2: do NOT render the window (simulating navigation to a different page)
-        ClayApi.SetPointerState(mousePos, false);
-        ClayUI.BeginFrame(false, mousePos);
-        ClayApi.BeginLayout();
+        ClayUI.BeginFrame(new Dimensions(800, 600), false, mousePos);
 
         using (ClayApi.Element(new ElementDeclaration
         {
@@ -403,20 +399,15 @@ public class ScrollTests : IDisposable
             // No window rendered this frame
         }
 
-        ClayApi.EndLayout();
+        ClayUI.EndFrame();
 
         // Frame 3: still no window. By now stale bounds should be cleared.
-        ClayApi.SetPointerState(mousePos, false);
-        ClayUI.BeginFrame(false, mousePos);
+        // Pass scroll delta so UpdateScrollContainers (inside BeginFrame) processes it.
+        ClayUI.BeginFrame(new Dimensions(800, 600), false, mousePos, scrollDelta: new System.Numerics.Vector2(0, -5));
 
         // IsMouseOverAnyWindow should be false since no window was rendered
         Assert.False(ClayUI.IsMouseOverAnyWindow,
             "Non-rendered windows should not block input");
-
-        // Scroll should work
-        ClayApi.UpdateScrollContainers(false, new System.Numerics.Vector2(0, -5), 1f / 60f);
-
-        ClayApi.BeginLayout();
 
         using (ClayApi.Element(new ElementDeclaration
         {
@@ -445,7 +436,7 @@ public class ScrollTests : IDisposable
             }
         }
 
-        ClayApi.EndLayout();
+        ClayUI.EndFrame();
 
         var scrollData = ClayApi.GetScrollContainerData(scrollId);
         Assert.True(scrollData.Found);

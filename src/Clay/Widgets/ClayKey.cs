@@ -12,6 +12,7 @@ public enum ClayKey
     Delete, Backspace,
     Enter, Tab, Insert,
     A, C, V, X, Z,
+    Shift, Ctrl, Alt, Super,
 }
 
 /// <summary>
@@ -23,4 +24,6 @@ public enum ClayKeyModifiers
     None = 0,
     Shift = 1,
     Ctrl = 2,
+    Alt = 4,
+    Super = 8,
 }

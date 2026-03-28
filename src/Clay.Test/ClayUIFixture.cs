@@ -23,11 +23,7 @@ public sealed class ClayUIFixture : IDisposable
         bool mouseDown = false,
         Vector2 scrollDelta = default)
     {
-        ClayUI.BeginFrame(mouseDown, mousePos, scrollDelta);
-        ClayApi.SetPointerState(mousePos, mouseDown);
-        if (scrollDelta != default)
-            ClayApi.UpdateScrollContainers(false, scrollDelta, 1f / 60f);
-        ClayApi.BeginLayout();
+        ClayUI.BeginFrame(new Dimensions(800, 600), mouseDown, mousePos, scrollDelta);
 
         // Root container so widgets have a parent with known size
         using (ClayApi.Element(new ElementDeclaration
@@ -43,7 +39,7 @@ public sealed class ClayUIFixture : IDisposable
             buildUi();
         }
 
-        return ClayApi.EndLayout();
+        return ClayUI.EndFrame();
     }
 
     /// <summary>

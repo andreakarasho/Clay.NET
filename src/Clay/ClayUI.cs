@@ -97,6 +97,13 @@ internal class ClayUIContext
     // Frame timing
     internal float DeltaTime;
 
+    // Modifier key state (updated by KeyDown, reset each frame)
+    internal bool ShiftHeld;
+    internal bool CtrlHeld;
+    internal bool AltHeld;
+    internal bool SuperHeld;
+    internal bool WasShiftHeld; // Previous frame's Shift state for scroll remapping
+
     // Click consumption - set when window chrome (title bar, close, collapse) handles a click
     internal bool ClickConsumedThisFrame;
 
@@ -107,6 +114,13 @@ internal class ClayUIContext
     {
         PressedThisFrame.Clear();
         HoveredThisFrame.Clear();
+        // Modifier state from previous frame is used for scroll remapping in BeginFrame,
+        // then reset. KeyDown calls during this frame will set them again.
+        WasShiftHeld = ShiftHeld;
+        ShiftHeld = false;
+        CtrlHeld = false;
+        AltHeld = false;
+        SuperHeld = false;
 
         // If no windows rendered last frame, clear stale bounds.
         // Otherwise keep previous frame's bounds so IsPointOverAnyWindow works
@@ -406,15 +420,20 @@ public static class ClayUI
     /// <param name="mousePosition">Current mouse position.</param>
     /// <param name="scrollDelta">Mouse wheel scroll delta (optional, for window scrolling).</param>
     /// <param name="deltaTime">Frame delta time in seconds (for scroll momentum).</param>
-    /// <param name="shiftHeld">Whether Shift is held (redirects vertical wheel to horizontal scroll).</param>
-    public static void BeginFrame(bool mouseDown, Vector2 mousePosition = default, Vector2 scrollDelta = default, float deltaTime = 1f / 60f)
+    /// <param name="layoutDimensions">Layout dimensions (e.g., screen size). If default, dimensions are unchanged.</param>
+    public static void BeginFrame(Dimensions layoutDimensions, bool mouseDown, Vector2 mousePosition = default, Vector2 scrollDelta = default, float deltaTime = 1f / 60f)
     {
-        // Forward pointer state to the layout engine
+        // Forward state to the layout engine
+        Clay.SetLayoutDimensions(layoutDimensions);
         Clay.SetPointerState(mousePosition, mouseDown);
 
         _context.BeginFrame(mouseDown, mousePosition);
         _context.ScrollDelta = scrollDelta;
         _context.DeltaTime = deltaTime;
+
+        // Shift+Wheel: remap vertical scroll to horizontal (uses previous frame's Shift state)
+        if (_context.WasShiftHeld && scrollDelta.Y != 0)
+            scrollDelta = new Vector2(scrollDelta.Y, 0);
 
         // Update scroll containers (blocked by windows and popups)
         if (!IsMouseOverAnyWindow && !IsMouseOverAnyPopup)
@@ -439,6 +458,17 @@ public static class ClayUI
         {
             UpdateActiveWindowResize();
         }
+
+        // Begin layout pass
+        Clay.BeginLayout();
+    }
+
+    /// <summary>
+    /// Ends the current frame. Computes layout and returns render commands.
+    /// </summary>
+    public static ReadOnlySpan<RenderCommand> EndFrame()
+    {
+        return Clay.EndLayout();
     }
 
     /// <summary>
@@ -451,6 +481,15 @@ public static class ClayUI
     /// <param name="modifiers">Active modifier keys (Shift, Ctrl).</param>
     public static void KeyDown(Widgets.ClayKey key, Widgets.ClayKeyModifiers modifiers = Widgets.ClayKeyModifiers.None)
     {
+        // Track modifier key state
+        switch (key)
+        {
+            case Widgets.ClayKey.Shift: _context.ShiftHeld = true; return;
+            case Widgets.ClayKey.Ctrl: _context.CtrlHeld = true; return;
+            case Widgets.ClayKey.Alt: _context.AltHeld = true; return;
+            case Widgets.ClayKey.Super: _context.SuperHeld = true; return;
+        }
+
         if (Clay.TextEditHasFocus)
             Clay.TextEditKeyDown(key, modifiers, _context.DeltaTime);
     }
