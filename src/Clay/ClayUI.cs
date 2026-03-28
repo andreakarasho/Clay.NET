@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using Clay.Widgets;
+using static Clay.Widgets.HsvGradientType;
 
 namespace Clay;
 
@@ -3318,7 +3319,6 @@ public static class ClayUI
 
     // ============ Color Picker ============
 
-    private const int SvGridSize = 12;
     private const float SvPanelSize = 150;
     private const float HueBarWidth = 20;
     private const float HueBarHeight = 150;
@@ -3395,7 +3395,7 @@ public static class ClayUI
 
             BeginHorizontal(gap: 8);
 
-            // === SV Panel ===
+            // === SV Panel (single custom element — renderer draws the gradient) ===
             {
                 var panelId = Id($"cpSV_{label}");
                 var panelData = Clay.GetElementData(panelId);
@@ -3406,44 +3406,10 @@ public static class ClayUI
                     Layout = new LayoutConfig
                     {
                         Sizing = Sizing.FixedSize(SvPanelSize, SvPanelSize),
-                        Direction = LayoutDirection.TopToBottom
                     },
-                    BackgroundColor = Color.Black,
+                    Custom = CustomConfig.Create(new HsvGradientData { Type = SaturationValue, Hue = h }),
                     Border = BorderConfig.Uniform(1, Color.Rgba(60, 60, 60))
-                }))
-                {
-                    float cellW = SvPanelSize / SvGridSize;
-                    float cellH = SvPanelSize / SvGridSize;
-
-                    for (int row = 0; row < SvGridSize; row++)
-                    {
-                        using (Clay.Element(new ElementDeclaration
-                        {
-                            Layout = new LayoutConfig
-                            {
-                                Direction = LayoutDirection.LeftToRight,
-                                Sizing = new Sizing(SizingAxis.Grow(), SizingAxis.Fixed(cellH))
-                            }
-                        }))
-                        {
-                            for (int col = 0; col < SvGridSize; col++)
-                            {
-                                float cs = (col + 0.5f) / SvGridSize;
-                                float cv = 1f - (row + 0.5f) / SvGridSize;
-                                var cellColor = Color.FromHsv(h, cs, cv);
-
-                                using (Clay.Element(new ElementDeclaration
-                                {
-                                    Layout = new LayoutConfig
-                                    {
-                                        Sizing = new Sizing(SizingAxis.Fixed(cellW), SizingAxis.Grow())
-                                    },
-                                    BackgroundColor = cellColor
-                                })) { }
-                            }
-                        }
-                    }
-                }
+                })) { }
 
                 if (panelData.Found && _context.MousePressed)
                 {
@@ -3458,7 +3424,7 @@ public static class ClayUI
                 }
             }
 
-            // === Hue Bar ===
+            // === Hue Bar (single custom element — renderer draws the gradient) ===
             {
                 var hueId = Id($"cpHue_{label}");
                 var hueData = Clay.GetElementData(hueId);
@@ -3469,26 +3435,10 @@ public static class ClayUI
                     Layout = new LayoutConfig
                     {
                         Sizing = Sizing.FixedSize(HueBarWidth, HueBarHeight),
-                        Direction = LayoutDirection.TopToBottom
                     },
+                    Custom = CustomConfig.Create(new HsvGradientData { Type = HueBar }),
                     Border = BorderConfig.Uniform(1, Color.Rgba(60, 60, 60))
-                }))
-                {
-                    int hueSteps = 12;
-                    float stepH = HueBarHeight / hueSteps;
-                    for (int i = 0; i < hueSteps; i++)
-                    {
-                        float hueVal = (i + 0.5f) / hueSteps * 360f;
-                        using (Clay.Element(new ElementDeclaration
-                        {
-                            Layout = new LayoutConfig
-                            {
-                                Sizing = new Sizing(SizingAxis.Grow(), SizingAxis.Fixed(stepH))
-                            },
-                            BackgroundColor = Color.FromHsv(hueVal, 1f, 1f)
-                        })) { }
-                    }
-                }
+                })) { }
 
                 if (hueData.Found && _context.MousePressed)
                 {

@@ -251,10 +251,88 @@ public class RaylibRenderer : IClayRenderer
         Raylib.DrawTextureEx(texture, position, 0, scale, Raylib.WHITE);
     }
 
+    // Cached textures for HSV gradients
+    private Texture _svTexture;
+    private float _svCachedHue = -1;
+    private int _svCachedWidth;
+    private int _svCachedHeight;
+    private Texture _hueBarTexture;
+    private int _hueBarCachedWidth;
+    private int _hueBarCachedHeight;
+
     private void RenderCustom(BoundingBox box, CustomRenderData data)
     {
         if (data.CustomData is TextInputWidget widget)
             RenderTextInput(box, widget);
+        else if (data.CustomData is HsvGradientData gradient)
+            RenderHsvGradient(box, gradient);
+    }
+
+    private unsafe void RenderHsvGradient(BoundingBox box, HsvGradientData gradient)
+    {
+        int w = Math.Max(1, (int)box.Width);
+        int h = Math.Max(1, (int)box.Height);
+
+        if (gradient.Type == HsvGradientType.SaturationValue)
+        {
+            // Regenerate texture when hue or size changes
+            if (Math.Abs(gradient.Hue - _svCachedHue) > 0.01f || w != _svCachedWidth || h != _svCachedHeight)
+            {
+                if (_svCachedWidth > 0)
+                    Raylib.UnloadTexture(_svTexture);
+
+                var img = Raylib.GenImageColor(w, h, Raylib.BLACK);
+                for (int y = 0; y < h; y++)
+                {
+                    float value = 1f - (float)y / h;
+                    for (int x = 0; x < w; x++)
+                    {
+                        float sat = (float)x / w;
+                        var c = Raylib.ColorFromHSV(gradient.Hue, sat, value);
+                        Raylib.ImageDrawPixel(&img, x, y, c);
+                    }
+                }
+                _svTexture = Raylib.LoadTextureFromImage(img);
+                Raylib.UnloadImage(img);
+                _svCachedHue = gradient.Hue;
+                _svCachedWidth = w;
+                _svCachedHeight = h;
+            }
+
+            Raylib.DrawTexturePro(
+                _svTexture,
+                new Rectangle(0, 0, w, h),
+                new Rectangle(box.X, box.Y, box.Width, box.Height),
+                new System.Numerics.Vector2(0, 0), 0, Raylib.WHITE);
+        }
+        else // HueBar
+        {
+            // Regenerate texture only when size changes (hue bar is static)
+            if (w != _hueBarCachedWidth || h != _hueBarCachedHeight)
+            {
+                if (_hueBarCachedWidth > 0)
+                    Raylib.UnloadTexture(_hueBarTexture);
+
+                var img = Raylib.GenImageColor(w, h, Raylib.BLACK);
+                for (int y = 0; y < h; y++)
+                {
+                    float hue = (float)y / h * 360f;
+                    var c = Raylib.ColorFromHSV(hue, 1f, 1f);
+                    for (int x = 0; x < w; x++)
+                        Raylib.ImageDrawPixel(&img, x, y, c);
+                }
+                _hueBarTexture = Raylib.LoadTextureFromImage(img);
+                Raylib.UnloadImage(img);
+                _hueBarCachedWidth = w;
+                _hueBarCachedHeight = h;
+            }
+
+            Raylib.DrawTexturePro(
+                _hueBarTexture,
+                new Rectangle(0, 0, w, h),
+                new Rectangle(box.X, box.Y, box.Width, box.Height),
+                new System.Numerics.Vector2(0, 0), 0, Raylib.WHITE);
+        }
     }
 
     private void RenderTextInput(BoundingBox box, TextInputWidget widget)
