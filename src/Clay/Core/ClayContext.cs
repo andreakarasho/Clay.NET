@@ -1111,13 +1111,23 @@ public class ClayContext : IDisposable
 
         var boundingBox = hashItem.BoundingBox;
 
-        // Culling
+        // Culling against viewport
         if (!CullingDisabled)
         {
             if (boundingBox.Right < 0 || boundingBox.Bottom < 0 ||
                 boundingBox.X > LayoutDimensions.Width || boundingBox.Y > LayoutDimensions.Height)
             {
                 return;
+            }
+
+            // Culling against scroll container clip bounds
+            if (hasClip)
+            {
+                if (boundingBox.Right < clipBounds.X || boundingBox.Bottom < clipBounds.Y ||
+                    boundingBox.X > clipBounds.Right || boundingBox.Y > clipBounds.Bottom)
+                {
+                    return;
+                }
             }
         }
 
@@ -1186,6 +1196,17 @@ public class ClayContext : IDisposable
                 ref var childHashItem = ref LayoutElementsHashMapInternal[childHashIndex];
                 childHashItem.HasClipBounds = childHasClip;
                 childHashItem.ClipBounds = childClip;
+
+                // Cull text elements outside scroll container bounds
+                if (!CullingDisabled && childHasClip)
+                {
+                    var childBox = childHashItem.BoundingBox;
+                    if (childBox.Right < childClip.X || childBox.Bottom < childClip.Y ||
+                        childBox.X > childClip.Right || childBox.Y > childClip.Bottom)
+                    {
+                        continue;
+                    }
+                }
 
                 int textConfigIndex = FindConfigIndex(ref child, ElementConfigType.Text);
                 if (textConfigIndex < 0) continue;
