@@ -459,8 +459,12 @@ public static class ClayUI
             UpdateActiveWindowResize();
         }
 
-        // Begin layout pass
+        // Begin layout pass (this calls TextInput.BeginFrame which resets per-frame state)
         Clay.BeginLayout();
+
+        // Forward scroll delta to text inputs AFTER BeginLayout so it isn't cleared
+        // by TextInput.BeginFrame() which runs inside BeginLayout.
+        Clay.SetTextInputScrollDelta(scrollDelta.Y);
     }
 
     /// <summary>
@@ -501,7 +505,7 @@ public static class ClayUI
     /// <param name="ch">The character to insert.</param>
     public static void CharInput(char ch)
     {
-        if (ch >= 32 && Clay.TextEditHasFocus)
+        if (ch >= 32 && ch != '\r' && Clay.TextEditHasFocus)
             Clay.TextEditProcessChar(ch);
     }
 

@@ -62,6 +62,9 @@ internal sealed class TextInput
     /// <summary>Returns true if any text input currently has focus.</summary>
     public bool HasFocus => _focused != null;
 
+    /// <summary>The element ID of the currently focused text input (0 if none).</summary>
+    public uint FocusedElementId => _focusedId;
+
     /// <summary>
     /// Sets the mouse wheel scroll delta for the current frame.
     /// Positive = scroll up. Applied to hovered multiline text inputs.
@@ -135,8 +138,11 @@ internal sealed class TextInput
             widget.Text = text;
         }
 
-        // Create the Clay element (handles mouse click/drag/focus/scroll)
-        widget.Element(id, style, _scrollDeltaY);
+        // Create the Clay element (handles mouse click/drag/focus/scroll).
+        // Pass scroll delta only to multiline widgets — Element() checks focus/hover
+        // before applying. Single-line inputs don't scroll vertically.
+        float scrollForWidget = widget.SingleLine ? 0 : _scrollDeltaY;
+        widget.Element(id, style, scrollForWidget);
 
         // Sync focus tracking with widget's own focus state
         if (widget.IsFocused)

@@ -132,4 +132,12 @@ public static partial class Clay
 
     /// <summary>The currently focused text edit widget, or null.</summary>
     public static TextInputWidget? TextEditFocusedWidget => _context?.TextInput?.FocusedWidget;
+
+    /// <summary>
+    /// Sets the mouse wheel scroll delta for text input widgets this frame.
+    /// </summary>
+    internal static void SetTextInputScrollDelta(float scrollDeltaY)
+    {
+        _context?.TextInput?.SetScrollDelta(scrollDeltaY);
+    }
 }

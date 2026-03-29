@@ -35,6 +35,7 @@ public sealed class TextInputWidget : ITextEditHandler
     private ushort _fontId, _fontSize, _letterSpacing;
     private float _cachedLineHeight;
     private float _scrollY;
+    private int _lastCursorForScroll = -1;
 
     // ── Construction ──────────────────────────────────────────────────
 
@@ -54,8 +55,11 @@ public sealed class TextInputWidget : ITextEditHandler
         {
             _chars.Clear();
             foreach (char c in value)
-                _chars.Add(c);
-            _textCache = value;
+            {
+                if (c != '\r')
+                    _chars.Add(c);
+            }
+            _textCache = null; // Recalculate since we may have stripped \r
             _editState.Initialize(_editState.SingleLine);
         }
     }
@@ -261,14 +265,20 @@ public sealed class TextInputWidget : ITextEditHandler
         {
             float visibleHeight = sizing.Height.MinMax.Min - style.Padding.Top - style.Padding.Bottom;
 
-            // Mouse wheel scroll (when hovered)
-            if (scrollDeltaY != 0 && Clay.PointerOver(id))
+            // Mouse wheel scroll (only when focused)
+            if (scrollDeltaY != 0 && IsFocused)
             {
                 _scrollY -= scrollDeltaY * _cachedLineHeight * 3;
             }
 
-            // Keep cursor in view
-            EnsureCursorVisible(visibleHeight);
+            // Keep cursor in view when it moves (typing, arrow keys, click),
+            // but not when the user is just scrolling with the mouse wheel
+            int currentCursor = _editState.Cursor;
+            if (currentCursor != _lastCursorForScroll)
+            {
+                EnsureCursorVisible(visibleHeight);
+                _lastCursorForScroll = currentCursor;
+            }
 
             // Clamp scroll
             int lineCount = 1;
@@ -346,9 +356,14 @@ public sealed class TextInputWidget : ITextEditHandler
     bool ITextEditHandler.InsertChars(int index, ReadOnlySpan<char> chars)
     {
         InvalidateTextCache();
-        // Insert in correct order
+        // Insert in correct order, skipping \r characters
+        int inserted = 0;
         for (int i = 0; i < chars.Length; i++)
-            _chars.Insert(index + i, chars[i]);
+        {
+            if (chars[i] == '\r') continue;
+            _chars.Insert(index + inserted, chars[i]);
+            inserted++;
+        }
         return true;
     }
 
@@ -393,7 +408,7 @@ public sealed class TextInputWidget : ITextEditHandler
             if (elementData.Found)
             {
                 float localX = pointer.Position.X - elementData.BoundingBox.X - style.Padding.Left;
-                float localY = pointer.Position.Y - elementData.BoundingBox.Y - style.Padding.Top;
+                float localY = pointer.Position.Y - elementData.BoundingBox.Y - style.Padding.Top + _scrollY;
                 TextEdit.Click(this, _editState, localX, localY);
             }
         }
@@ -404,7 +419,7 @@ public sealed class TextInputWidget : ITextEditHandler
             if (elementData.Found)
             {
                 float localX = pointer.Position.X - elementData.BoundingBox.X - style.Padding.Left;
-                float localY = pointer.Position.Y - elementData.BoundingBox.Y - style.Padding.Top;
+                float localY = pointer.Position.Y - elementData.BoundingBox.Y - style.Padding.Top + _scrollY;
                 TextEdit.Drag(this, _editState, localX, localY);
             }
         }

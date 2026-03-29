@@ -1352,8 +1352,18 @@ public class ClayContext : IDisposable
 
     public void UpdateScrollContainers(bool enableDragScrolling, Vector2 scrollDelta, float deltaTime)
     {
-        // Forward scroll delta to text input widgets
-        TextInput?.SetScrollDelta(scrollDelta.Y);
+        // Note: scroll delta for text inputs is forwarded separately after BeginLayout
+        // (via TextInputScrollDelta) to avoid being cleared by TextInput.BeginFrame().
+
+        // If a focused multiline text input is hovered, it consumes the scroll —
+        // don't pass it to parent scroll containers.
+        if (scrollDelta.Y != 0 && TextInput?.FocusedWidget is { } focused && !focused.SingleLine)
+        {
+            var focusedId = new ElementId { Id = TextInput.FocusedElementId };
+            var data = GetElementData(focusedId);
+            if (data.Found && data.BoundingBox.Contains(PointerInfo.Position))
+                return;
+        }
 
         // Find innermost scroll container under pointer (iterate in reverse so children take priority)
         for (int i = ScrollContainerDatas.Length - 1; i >= 0; i--)
