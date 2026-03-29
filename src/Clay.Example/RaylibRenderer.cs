@@ -374,6 +374,10 @@ public class RaylibRenderer : IClayRenderer
         float textY = box.Y + padding.Top - widget.ScrollY;
         float lineHeight = widget.ComputedLineHeight;
 
+        // Calculate visible row range to skip off-screen lines
+        int firstVisibleRow = Math.Max(0, (int)(widget.ScrollY / lineHeight) - 1);
+        int lastVisibleRow = (int)((widget.ScrollY + box.Height) / lineHeight) + 1;
+
         // Draw selection highlight
         if (widget.IsFocused && widget.HasSelection)
         {
@@ -381,7 +385,7 @@ public class RaylibRenderer : IClayRenderer
             int selEnd = Math.Max(widget.SelectionStart, widget.SelectionEnd);
             var selColor = ToRayColor(style.SelectionColor);
 
-            // For each line that intersects the selection
+            // For each visible line that intersects the selection
             int pos = 0;
             int row = 0;
             string text = widget.Text;
@@ -391,8 +395,9 @@ public class RaylibRenderer : IClayRenderer
                 int lineEnd = text.IndexOf('\n', pos);
                 if (lineEnd < 0) lineEnd = text.Length;
 
-                // Does this line intersect the selection?
-                if (lineEnd > selStart && lineStart < selEnd)
+                // Only process visible rows
+                if (row > lastVisibleRow) break;
+                if (row >= firstVisibleRow && lineEnd > selStart && lineStart < selEnd)
                 {
                     int hlStart = Math.Max(lineStart, selStart);
                     int hlEnd = Math.Min(lineEnd, selEnd);
@@ -416,7 +421,7 @@ public class RaylibRenderer : IClayRenderer
             }
         }
 
-        // Draw text line by line (so line spacing matches cursor positioning exactly)
+        // Draw only visible text lines (skip off-screen rows)
         if (widget.Text.Length > 0 && style.FontId < _fonts.Length)
         {
             var font = _fonts[style.FontId];
@@ -424,7 +429,18 @@ public class RaylibRenderer : IClayRenderer
             string text = widget.Text;
             int lineStart = 0;
             int row = 0;
-            while (lineStart <= text.Length)
+
+            // Skip to first visible row
+            while (row < firstVisibleRow && lineStart <= text.Length)
+            {
+                int lineEnd = text.IndexOf('\n', lineStart);
+                if (lineEnd < 0) { lineStart = text.Length + 1; break; }
+                lineStart = lineEnd + 1;
+                row++;
+            }
+
+            // Render visible rows only
+            while (lineStart <= text.Length && row <= lastVisibleRow)
             {
                 int lineEnd = text.IndexOf('\n', lineStart);
                 if (lineEnd < 0) lineEnd = text.Length;
