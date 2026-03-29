@@ -655,27 +655,15 @@ void PageListBoxAndCombo()
 
 void PageScrollAreas()
 {
-    ClayUI.Label("BeginScrollArea creates a scrollable region with a max height.");
-    ClayUI.Label("Add a VerticalScrollbar sibling for a visible scroll indicator:");
+    ClayUI.Label("BeginScrollArea creates a scrollable region with an automatic scrollbar:");
     ClayUI.Space(8);
 
-    var scrollId = ClayUI.StableId($"ScrollArea_DemoScroll");
+    ClayUI.BeginScrollArea("DemoScroll", maxHeight: 150);
 
-    // Horizontal wrapper: scroll area + scrollbar
-    ClayUI.BeginHorizontal();
+    for (int i = 0; i < 20; i++)
+        ClayUI.Label($"  Scrollable item {i + 1}");
 
-    using (ClayUI.BeginScrollArea("DemoScroll", maxHeight: 150))
-    {
-        for (int i = 0; i < 20; i++)
-            ClayUI.Label($"  Scrollable item {i + 1}");
-    }
-
-    ClayUI.VerticalScrollbar(scrollId);
-
-    ClayUI.EndHorizontal();
-
-    ClayUI.Space(16);
-    ClayUI.Label("The main content area also uses this pattern (ScrollConfig + VerticalScrollbar).");
+    ClayUI.EndScrollArea();
 }
 
 void PageWindows()

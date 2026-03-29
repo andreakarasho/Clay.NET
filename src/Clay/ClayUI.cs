@@ -3010,32 +3010,76 @@ public static class ClayUI
     }
 
     /// <summary>
-    /// Begins a scrollable area.
+    /// Begins a scrollable area with an automatic vertical scrollbar.
+    /// Call <see cref="EndScrollArea"/> when done adding children.
     /// </summary>
-    public static ElementScope BeginScrollArea(string id, float? maxHeight = null, ScrollAreaStyle? style = null)
+    public static void BeginScrollArea(string id, float? maxHeight = null, ScrollAreaStyle? style = null)
     {
         var s = style ?? Style.ScrollArea;
-        var elementId = StableId($"ScrollArea_{id}");
+        var scrollId = StableId($"ScrollArea_{id}");
 
-        return Clay.Element(new ElementDeclaration
+        _context.LayoutScrollInfo.Push(new ClayUIContext.ScrollWrapperInfo(scrollId, IsVertical: true, HasWrapper: true));
+
+        // Wrapper container (horizontal: scroll content + scrollbar)
+        Clay.Element(new ElementDeclaration
         {
-            Id = elementId,
             Layout = new LayoutConfig
             {
-                Direction = LayoutDirection.TopToBottom,
+                Direction = LayoutDirection.LeftToRight,
                 Sizing = new Sizing
                 {
                     Width = SizingAxis.Grow(),
                     Height = maxHeight.HasValue
                         ? SizingAxis.Fit(0, maxHeight.Value)
                         : SizingAxis.Grow()
-                },
-                Padding = s.Padding
+                }
             },
-            Scroll = ScrollConfig.VerticalScroll,
             BackgroundColor = s.BackgroundColor,
             CornerRadius = s.CornerRadius
         });
+        _context.LayoutDepth++;
+
+        // Scroll container inside wrapper
+        Clay.Element(new ElementDeclaration
+        {
+            Id = scrollId,
+            Layout = new LayoutConfig
+            {
+                Direction = LayoutDirection.TopToBottom,
+                Sizing = Sizing.Fill(),
+                Padding = s.Padding
+            },
+            Scroll = ScrollConfig.VerticalScroll
+        });
+        _context.LayoutDepth++;
+    }
+
+    /// <summary>
+    /// Ends a scrollable area started with <see cref="BeginScrollArea"/>.
+    /// Automatically adds a vertical scrollbar.
+    /// </summary>
+    public static void EndScrollArea()
+    {
+        // Close the scroll container
+        if (_context.LayoutDepth > 0)
+        {
+            Clay.CloseElement();
+            _context.LayoutDepth--;
+        }
+
+        // Close the wrapper + add scrollbar
+        if (_context.LayoutDepth > 0)
+        {
+            ClayUIContext.ScrollWrapperInfo? scrollInfo = null;
+            if (_context.LayoutScrollInfo.Count > 0)
+                scrollInfo = _context.LayoutScrollInfo.Pop();
+
+            if (scrollInfo.HasValue && scrollInfo.Value.HasWrapper)
+                VerticalScrollbar(scrollInfo.Value.ScrollId);
+
+            Clay.CloseElement();
+            _context.LayoutDepth--;
+        }
     }
 
     // ============ ListBox ============

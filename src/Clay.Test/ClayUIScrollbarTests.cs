@@ -223,11 +223,10 @@ public class ClayUIScrollbarTests : IDisposable
     {
         _fixture.RunFrame(() =>
         {
-            using (ClayUI.BeginScrollArea("scroll1", maxHeight: 100))
-            {
-                for (int i = 0; i < 10; i++)
-                    ClayUI.Label($"Item {i}");
-            }
+            ClayUI.BeginScrollArea("scroll1", maxHeight: 100);
+            for (int i = 0; i < 10; i++)
+                ClayUI.Label($"Item {i}");
+            ClayUI.EndScrollArea();
         });
     }
 
@@ -236,11 +235,10 @@ public class ClayUIScrollbarTests : IDisposable
     {
         var commands = _fixture.RunFrame(() =>
         {
-            using (ClayUI.BeginScrollArea("scroll2", maxHeight: 100))
-            {
-                for (int i = 0; i < 20; i++)
-                    ClayUI.Label($"Item {i}");
-            }
+            ClayUI.BeginScrollArea("scroll2", maxHeight: 100);
+            for (int i = 0; i < 20; i++)
+                ClayUI.Label($"Item {i}");
+            ClayUI.EndScrollArea();
         });
 
         bool hasScissor = false;
