@@ -107,6 +107,9 @@ internal class ClayUIContext
     // Click consumption - set when window chrome (title bar, close, collapse) handles a click
     internal bool ClickConsumedThisFrame;
 
+    // Disabled region depth (> 0 means currently inside a BeginDisabled/EndDisabled block)
+    internal int DisabledDepth;
+
     /// <summary>
     /// Clears per-frame state. Called at the start of each frame.
     /// </summary>
@@ -114,6 +117,7 @@ internal class ClayUIContext
     {
         PressedThisFrame.Clear();
         HoveredThisFrame.Clear();
+        DisabledDepth = 0;
         // Modifier state from previous frame is used for scroll remapping in BeginFrame,
         // then reset. KeyDown calls during this frame will set them again.
         WasShiftHeld = ShiftHeld;
@@ -730,6 +734,9 @@ public static class ClayUI
         {
             if (!IsMouseJustPressed) return false;
 
+            // Block all interaction in disabled regions
+            if (IsDisabled) return false;
+
             // If a window's chrome (title bar, close, collapse) already handled this click, block it
             if (_context.ClickConsumedThisFrame) return false;
 
@@ -777,7 +784,7 @@ public static class ClayUI
     {
         var s = style ?? Style.Button;
         var id = Id(label);
-        bool isHovered = Clay.PointerOver(id);
+        bool isHovered = IsHovered(id);
         bool isPressed = isHovered && _context.MousePressed;  // Mouse held down on button
         bool clicked = isHovered && ShouldProcessClick;  // Mouse just clicked (blocked by windows if outside)
 
@@ -796,7 +803,7 @@ public static class ClayUI
                 Padding = s.Padding,
                 ChildAlignment = ChildAlignment.Center
             },
-            BackgroundColor = bgColor,
+            BackgroundColor = DisabledColor(bgColor),
             CornerRadius = s.CornerRadius
         }))
         {
@@ -804,7 +811,7 @@ public static class ClayUI
             {
                 FontId = s.FontId,
                 FontSize = s.FontSize,
-                TextColor = s.TextColor
+                TextColor = DisabledColor(s.TextColor)
             });
         }
 
@@ -821,7 +828,7 @@ public static class ClayUI
         {
             FontId = s.FontId,
             FontSize = s.FontSize,
-            TextColor = s.TextColor,
+            TextColor = DisabledColor(s.TextColor),
             LineHeight = s.LineHeight
         });
     }
@@ -877,7 +884,7 @@ public static class ClayUI
     {
         var s = style ?? Style.Image;
         var id = Id("ImageButton");
-        bool isHovered = Clay.PointerOver(id);
+        bool isHovered = IsHovered(id);
         bool isPressed = isHovered && _context.MousePressed;
         bool clicked = isHovered && ShouldProcessClick;
 
@@ -912,7 +919,7 @@ public static class ClayUI
     {
         var s = style ?? Style.Checkbox;
         var id = Id(label);
-        bool isHovered = Clay.PointerOver(id);
+        bool isHovered = IsHovered(id);
         bool isPressed = isHovered && _context.MousePressed;
         bool clicked = isHovered && ShouldProcessClick;
         bool changed = false;
@@ -949,9 +956,9 @@ public static class ClayUI
                     Sizing = Sizing.FixedSize(s.BoxSize, s.BoxSize),
                     ChildAlignment = ChildAlignment.Center
                 },
-                BackgroundColor = value ? s.CheckedColor : s.BoxColor,
+                BackgroundColor = DisabledColor(value ? s.CheckedColor : s.BoxColor),
                 CornerRadius = CornerRadius.All(s.BoxCornerRadius),
-                Border = BorderConfig.Uniform(1, s.BoxBorderColor)
+                Border = BorderConfig.Uniform(1, DisabledColor(s.BoxBorderColor))
             }))
             {
                 if (value)
@@ -963,7 +970,7 @@ public static class ClayUI
                         {
                             Sizing = Sizing.FixedSize(s.BoxSize * 0.5f, s.BoxSize * 0.5f)
                         },
-                        BackgroundColor = s.CheckmarkColor,
+                        BackgroundColor = DisabledColor(s.CheckmarkColor),
                         CornerRadius = CornerRadius.All(2)
                     })) { }
                 }
@@ -974,7 +981,7 @@ public static class ClayUI
             {
                 FontId = s.FontId,
                 FontSize = s.FontSize,
-                TextColor = s.TextColor
+                TextColor = DisabledColor(s.TextColor)
             });
         }
 
@@ -989,7 +996,7 @@ public static class ClayUI
         var s = style ?? Style.Slider;
         var id = Id(label);
         var trackId = ElementId.Hash($"SlTrack_{id.Id}");
-        bool isHovered = Clay.PointerOver(trackId);
+        bool isHovered = IsHovered(trackId);
         bool changed = false;
 
         // Get track bounds for dragging
@@ -1040,7 +1047,7 @@ public static class ClayUI
                 {
                     FontId = s.FontId,
                     FontSize = s.FontSize,
-                    TextColor = s.TextColor
+                    TextColor = DisabledColor(s.TextColor)
                 });
             }
 
@@ -1057,7 +1064,7 @@ public static class ClayUI
                     },
                     ChildAlignment = ChildAlignment.CenterLeft
                 },
-                BackgroundColor = s.TrackColor,
+                BackgroundColor = DisabledColor(s.TrackColor),
                 CornerRadius = CornerRadius.All(s.TrackHeight / 2)
             }))
             {
@@ -1072,7 +1079,7 @@ public static class ClayUI
                             Height = SizingAxis.Fixed(s.TrackHeight)
                         }
                     },
-                    BackgroundColor = s.FillColor,
+                    BackgroundColor = DisabledColor(s.FillColor),
                     CornerRadius = CornerRadius.All(s.TrackHeight / 2)
                 })) { }
             }
@@ -1082,7 +1089,7 @@ public static class ClayUI
             {
                 FontId = s.FontId,
                 FontSize = s.FontSize,
-                TextColor = s.ValueTextColor
+                TextColor = DisabledColor(s.ValueTextColor)
             });
         }
 
@@ -1096,7 +1103,7 @@ public static class ClayUI
     {
         var s = style ?? Style.Toggle;
         var id = Id(label);
-        bool isHovered = Clay.PointerOver(id);
+        bool isHovered = IsHovered(id);
         bool isPressed = isHovered && _context.MousePressed;
         bool clicked = isHovered && ShouldProcessClick;
         bool changed = false;
@@ -1133,7 +1140,7 @@ public static class ClayUI
                     Padding = new Padding { Left = 2, Right = 2 },
                     ChildAlignment = value ? ChildAlignment.CenterRight : ChildAlignment.CenterLeft
                 },
-                BackgroundColor = value ? s.OnColor : s.OffColor,
+                BackgroundColor = DisabledColor(value ? s.OnColor : s.OffColor),
                 CornerRadius = CornerRadius.All(s.TrackHeight / 2)
             }))
             {
@@ -1144,7 +1151,7 @@ public static class ClayUI
                     {
                         Sizing = Sizing.FixedSize(s.KnobSize, s.KnobSize)
                     },
-                    BackgroundColor = s.KnobColor,
+                    BackgroundColor = DisabledColor(s.KnobColor),
                     CornerRadius = CornerRadius.All(s.KnobSize / 2)
                 })) { }
             }
@@ -1156,7 +1163,7 @@ public static class ClayUI
                 {
                     FontId = s.FontId,
                     FontSize = s.FontSize,
-                    TextColor = s.TextColor
+                    TextColor = DisabledColor(s.TextColor)
                 });
             }
         }
@@ -1215,6 +1222,22 @@ public static class ClayUI
     {
         var s = style ?? DefaultTextInputStyle;
         var id = StableId(label);
+
+        if (IsDisabled)
+        {
+            // Render with dimmed colors but don't allow interaction
+            s = s with
+            {
+                BackgroundColor = DisabledColor(s.BackgroundColor),
+                FocusedBackgroundColor = DisabledColor(s.BackgroundColor),
+                TextColor = DisabledColor(s.TextColor),
+                CursorColor = Color.Transparent,
+                SelectionColor = Color.Transparent,
+                Border = new BorderConfig { Width = s.Border.Width, Color = DisabledColor(s.Border.Color) },
+                DisableInteraction = true,
+            };
+        }
+
         return Clay.TextEdit(id, ref text, s, singleLine);
     }
 
@@ -1271,6 +1294,51 @@ public static class ClayUI
             },
             BackgroundColor = c
         })) { }
+    }
+
+    // ============ Disabled Region ============
+
+    /// <summary>
+    /// Returns true if currently inside a BeginDisabled/EndDisabled block.
+    /// When disabled, widgets do not respond to interaction and are rendered with reduced opacity.
+    /// </summary>
+    public static bool IsDisabled => _context.DisabledDepth > 0;
+
+    /// <summary>
+    /// Begins a disabled region. All widgets rendered between BeginDisabled and EndDisabled
+    /// will be non-interactive and visually dimmed. Can be nested.
+    /// </summary>
+    public static void BeginDisabled()
+    {
+        _context.DisabledDepth++;
+    }
+
+    /// <summary>
+    /// Ends a disabled region started by BeginDisabled.
+    /// </summary>
+    public static void EndDisabled()
+    {
+        if (_context.DisabledDepth > 0)
+            _context.DisabledDepth--;
+    }
+
+    /// <summary>
+    /// Applies a disabled dim effect to a color (reduces alpha by ~50%).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static Color DisabledColor(Color color)
+    {
+        return IsDisabled ? new Color(color.R, color.G, color.B, color.A * 0.45f) : color;
+    }
+
+    /// <summary>
+    /// Returns true if the element is hovered and interaction is not disabled.
+    /// Widgets should use this instead of Clay.PointerOver() directly.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool IsHovered(ElementId id)
+    {
+        return !IsDisabled && Clay.PointerOver(id);
     }
 
     /// <summary>
@@ -1773,8 +1841,8 @@ public static class ClayUI
 
         // Use Clay.PointerOver for buttons within the window, but only if we're topmost
         bool isTitleBarHovered = isTopmostAtMouse && isInTitleBarBounds;
-        bool isCollapseHovered = isTopmostAtMouse && Clay.PointerOver(collapseButtonId);
-        bool isCloseHovered = isTopmostAtMouse && Clay.PointerOver(closeButtonId);
+        bool isCollapseHovered = isTopmostAtMouse && IsHovered(collapseButtonId);
+        bool isCloseHovered = isTopmostAtMouse && IsHovered(closeButtonId);
 
         // Bring window to front when clicked anywhere on it (only if topmost at that position, not blocked by popup)
         if (isTopmostAtMouse && IsMouseJustPressed && !IsMouseOverAnyPopup)
@@ -2410,7 +2478,7 @@ public static class ClayUI
     public static bool BeginContextMenu(string id, ElementId triggerId)
     {
         // Check for right-click on trigger element
-        bool rightClicked = Clay.PointerOver(triggerId) && _context.MousePressed && !_context.MouseWasPressed;
+        bool rightClicked = IsHovered(triggerId) && _context.MousePressed && !_context.MouseWasPressed;
 
         // For now, treat any click as potential context menu trigger
         // In a real implementation, you'd check for right-click specifically
@@ -2441,7 +2509,7 @@ public static class ClayUI
     public static bool MenuItem(string label, bool enabled = true)
     {
         var id = StableId($"MenuItem_{label}");
-        bool isHovered = Clay.PointerOver(id) && enabled;
+        bool isHovered = IsHovered(id) && enabled;
         bool clicked = isHovered && ShouldProcessClick;
 
         var s = Style.Popup;
@@ -2528,7 +2596,7 @@ public static class ClayUI
     {
         var s = style ?? Style.TreeNode;
         var id = StableId($"TreeNode_{label}");
-        bool isHovered = Clay.PointerOver(id);
+        bool isHovered = IsHovered(id);
         bool clicked = isHovered && ShouldProcessClick;
 
         // Get/set expanded state
@@ -2662,7 +2730,7 @@ public static class ClayUI
 
         // Use the hit area (or track) for hover detection, but check thumb Y range
         var hoverId = _context.ScrollbarHitAreaId.Id != 0 ? _context.ScrollbarHitAreaId : trackId;
-        bool isHitAreaHovered = Clay.PointerOver(hoverId);
+        bool isHitAreaHovered = IsHovered(hoverId);
         bool isThumbHovered = false;
         bool isActiveScrollbar = _context.ActiveScrollbarId == thumbId.Id;
 
@@ -2828,7 +2896,7 @@ public static class ClayUI
 
         // Use the hit area (or track) for hover detection, but check thumb X range
         var hoverId = _context.ScrollbarHitAreaId.Id != 0 ? _context.ScrollbarHitAreaId : trackId;
-        bool isHitAreaHovered = Clay.PointerOver(hoverId);
+        bool isHitAreaHovered = IsHovered(hoverId);
         bool isThumbHovered = false;
         bool isActiveScrollbar = _context.ActiveScrollbarId == thumbId.Id;
 
@@ -3055,7 +3123,7 @@ public static class ClayUI
     {
         var s = Style.ListBox;
         var itemId = Id($"LBI_{label}");
-        bool isHovered = Clay.PointerOver(itemId);
+        bool isHovered = IsHovered(itemId);
         bool clicked = isHovered && ShouldProcessClick;
 
         var bgColor = isSelected ? s.SelectedColor
@@ -3158,7 +3226,7 @@ public static class ClayUI
             }
 
             // Combo button showing current selection
-            bool isHovered = Clay.PointerOver(buttonId);
+            bool isHovered = IsHovered(buttonId);
             string displayText = selectedIndex >= 0 && selectedIndex < options.Length
                 ? options[selectedIndex]
                 : "";
@@ -3232,7 +3300,7 @@ public static class ClayUI
             for (int i = 0; i < options.Length; i++)
             {
                 var itemId = StableId($"ComboItem_{label}_{i}");
-                bool isItemHovered = Clay.PointerOver(itemId);
+                bool isItemHovered = IsHovered(itemId);
                 bool isItemSelected = i == selectedIndex;
                 bool itemClicked = isItemHovered && ShouldProcessClick;
 
@@ -3313,7 +3381,7 @@ public static class ClayUI
             {
                 var optionId = Id($"Radio_{label}_{i}");
                 bool isSelected = i == selectedIndex;
-                bool isHovered = Clay.PointerOver(optionId);
+                bool isHovered = IsHovered(optionId);
                 bool clicked = isHovered && ShouldProcessClick;
 
                 if (clicked && !isSelected)
@@ -3778,7 +3846,7 @@ public static class ClayUI
         BeginHorizontal(gap: 6);
         Label(ElementId.GetDisplayLabel(label).ToString(), new LabelStyle { FontSize = 12 });
 
-        bool isHovered = Clay.PointerOver(swatchId);
+        bool isHovered = IsHovered(swatchId);
         using (Clay.Element(new ElementDeclaration
         {
             Id = swatchId,

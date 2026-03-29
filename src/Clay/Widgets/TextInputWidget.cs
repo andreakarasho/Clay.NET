@@ -398,6 +398,9 @@ public sealed class TextInputWidget : ITextEditHandler
 
     private void HandlePointerInput(ElementId id, TextInputStyle style)
     {
+        if (style.DisableInteraction)
+            return;
+
         var pointer = Clay.GetPointerState();
         bool isOver = Clay.PointerOver(id);
 

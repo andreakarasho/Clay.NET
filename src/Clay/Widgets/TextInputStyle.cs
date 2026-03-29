@@ -54,6 +54,12 @@ public struct TextInputStyle
     /// </summary>
     public Func<char, bool>? CharFilter;
 
+    /// <summary>
+    /// When true, the text input ignores all pointer interaction (click-to-focus, drag selection).
+    /// Set by ClayUI when inside a disabled region.
+    /// </summary>
+    public bool DisableInteraction;
+
     public static readonly TextInputStyle Default = new()
     {
         BackgroundColor = Color.Rgba(255, 255, 255),
