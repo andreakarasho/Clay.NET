@@ -46,7 +46,7 @@ Clay.Clay.TextEditSetClipboard(new RaylibClipboard());
 // Sidebar
 string[] pages = ["Overview", "Buttons", "Text Input", "Checkboxes & Toggles", "Sliders & Progress",
     "Radio Group", "Tree View", "Layout Helpers", "Text Styles", "Color Picker",
-    "ListBox & Combo", "Scroll Areas", "Windows", "Popups & Context Menus", "Theming"];
+    "ListBox & Combo", "Scroll Areas", "Windows", "Popups & Context Menus", "Theming", "Disabled States"];
 int selectedPage = 0;
 
 // Widget state
@@ -79,6 +79,12 @@ int listBoxSelection = 0;
 string[] listBoxItems = ["Apple", "Banana", "Cherry", "Date", "Elderberry", "Fig", "Grape", "Honeydew", "Kiwi", "Lemon", "Mango", "Nectarine", "Orange", "Papaya"];
 int comboSelection = 0;
 string[] comboItems = ["Small", "Medium", "Large", "Extra Large"];
+
+// Disabled demo state
+bool disabledDemoCheckbox = true;
+bool disabledDemoToggle = false;
+float disabledDemoSlider = 0.6f;
+string disabledDemoText = "Can't edit this";
 
 // Debug
 bool debugWindowOpen = false;
@@ -365,6 +371,7 @@ void RenderContent()
                     case 12: PageWindows(); break;
                     case 13: PagePopups(); break;
                     case 14: PageTheming(); break;
+                    case 15: PageDisabledStates(); break;
                 }
             }
 
@@ -791,6 +798,52 @@ void PageTheming()
     float tempFloat = 0.6f;
     ClayUI.Slider("Sample Slider", ref tempFloat, 0, 1);
     ClayUI.ProgressBar(0.7f);
+}
+
+void PageDisabledStates()
+{
+    ClayUI.Label("BeginDisabled/EndDisabled makes widgets non-interactive and grayed out:");
+    ClayUI.Space(8);
+
+    // Normal widgets for comparison
+    ClayUI.Label("Normal (enabled):");
+    ClayUI.Space(4);
+    ClayUI.BeginHorizontal(gap: 12);
+    ClayUI.Button("Enabled Button");
+    ClayUI.Checkbox("Enabled Checkbox", ref disabledDemoCheckbox);
+    ClayUI.EndHorizontal();
+
+    ClayUI.Space(16);
+    ClayUI.Separator();
+    ClayUI.Space(8);
+
+    // Disabled widgets
+    ClayUI.Label("Disabled:");
+    ClayUI.Space(4);
+    ClayUI.BeginDisabled();
+
+    ClayUI.BeginHorizontal(gap: 12);
+    ClayUI.Button("Disabled Button");
+    ClayUI.Button("Can't Click");
+    ClayUI.EndHorizontal();
+    ClayUI.Space(4);
+
+    ClayUI.Checkbox("Disabled Checkbox", ref disabledDemoCheckbox);
+    ClayUI.Toggle("Disabled Toggle", ref disabledDemoToggle);
+    ClayUI.Slider("Disabled Slider", ref disabledDemoSlider, 0, 1);
+    ClayUI.ProgressBar(0.7f);
+    ClayUI.TextInput("DisabledText", ref disabledDemoText);
+
+    ClayUI.EndDisabled();
+
+    ClayUI.Space(16);
+    ClayUI.Separator();
+    ClayUI.Space(8);
+
+    // Back to normal
+    ClayUI.Label("After EndDisabled, widgets are interactive again:");
+    ClayUI.Space(4);
+    ClayUI.Button("This works!");
 }
 
 // ============ Demo Windows ============
