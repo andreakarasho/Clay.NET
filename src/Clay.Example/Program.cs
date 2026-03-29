@@ -125,59 +125,39 @@ while (!Raylib.WindowShouldClose())
     ForwardKeyboardInput();
 
     // Root container
-    using (Clay.Clay.Element(new ElementDeclaration
+    ClayUI.BeginVertical(gap: 16, style: new LayoutStyle
     {
-        Id = Clay.Clay.Id("Root"),
-        Layout = new LayoutConfig
-        {
-            Sizing = Sizing.Fill(),
-            Direction = LayoutDirection.TopToBottom,
-            Padding = Padding.All(16),
-            ChildGap = 16
-        },
+        Sizing = Sizing.Fill(),
+        Padding = Padding.All(16),
         BackgroundColor = ClayUI.Style.Window.BackgroundColor
-    }))
+    });
+
+    // ===== Header =====
+    RenderHeader();
+
+    // ===== Main Area (Sidebar + Content) =====
+    ClayUI.BeginHorizontal(gap: 16, style: new LayoutStyle
     {
-        // ===== Header =====
-        RenderHeader();
+        Sizing = Sizing.Fill()
+    });
+    RenderSidebar();
+    RenderContent();
+    ClayUI.EndHorizontal();
 
-        // ===== Main Area (Sidebar + Content) =====
-        using (Clay.Clay.Element(new ElementDeclaration
-        {
-            Id = Clay.Clay.Id("MainArea"),
-            Layout = new LayoutConfig
-            {
-                Sizing = new Sizing { Width = SizingAxis.Grow(), Height = SizingAxis.Grow() },
-                Direction = LayoutDirection.LeftToRight,
-                ChildGap = 16
-            }
-        }))
-        {
-            RenderSidebar();
-            RenderContent();
-        }
+    // ===== Footer =====
+    ClayUI.BeginHorizontal(style: new LayoutStyle { Padding = Padding.Symmetric(8, 4) });
+    ClayUI.Label("Pure .NET Clay UI Library - No native dependencies | F12 or Debug button for inspector",
+        new LabelStyle { FontSize = 12 });
+    ClayUI.EndHorizontal();
 
-        // ===== Footer =====
-        using (Clay.Clay.Element(new ElementDeclaration
-        {
-            Layout = new LayoutConfig
-            {
-                Sizing = new Sizing { Width = SizingAxis.Grow(), Height = SizingAxis.Fit() },
-                Padding = Padding.Symmetric(8, 4)
-            }
-        }))
-        {
-            Clay.Clay.Text("Pure .NET Clay UI Library - No native dependencies | F12 or Debug button for inspector",
-                new TextConfig { FontSize = 12, TextColor = ClayUI.Style.Label.TextColor, WrapMode = TextWrapMode.None });
-        }
+    // ===== Windows (rendered at root level) =====
+    if (selectedPage == Array.IndexOf(pages, "Windows"))
+        RenderDemoWindows();
 
-        // ===== Windows (rendered at root level) =====
-        if (selectedPage == Array.IndexOf(pages, "Windows"))
-            RenderDemoWindows();
+    if (debugWindowOpen)
+        ClayUI.ShowDebugWindow();
 
-        if (debugWindowOpen)
-            ClayUI.ShowDebugWindow();
-    }
+    ClayUI.EndVertical();
 
     var commands = ClayUI.EndFrame();
 
@@ -194,80 +174,70 @@ Raylib.CloseWindow();
 
 void RenderHeader()
 {
-    using (Clay.Clay.Element(new ElementDeclaration
+    ClayUI.BeginHorizontal(gap: 12, alignment: ChildAlignment.CenterLeft, style: new LayoutStyle
     {
-        Id = Clay.Clay.Id("Header"),
-        Layout = new LayoutConfig
-        {
-            Sizing = new Sizing { Width = SizingAxis.Grow(), Height = SizingAxis.Fixed(50) },
-            Direction = LayoutDirection.LeftToRight,
-            Padding = Padding.Horizontal(16),
-            ChildGap = 12,
-            ChildAlignment = ChildAlignment.CenterLeft
-        },
+        Sizing = new Sizing(SizingAxis.Grow(), SizingAxis.Fixed(50)),
+        Padding = Padding.Horizontal(16),
         BackgroundColor = ClayUI.Style.Window.TitleBarColor,
         CornerRadius = CornerRadius.All(8)
-    }))
+    });
+
+    ClayUI.Heading("Clay .NET", new HeadingStyle { TextColor = Color.Rgba(100, 180, 255) });
+
+    ClayUI.Spacer();
+
+    // Header menu buttons using ClayUI popups
+    if (ClayUI.Button("File")) ClayUI.OpenPopup("FileMenu");
+    if (ClayUI.Button("Edit")) ClayUI.OpenPopup("EditMenu");
+    if (ClayUI.Button("View")) ClayUI.OpenPopup("ViewMenu");
+    if (ClayUI.Button("Help")) ClayUI.OpenPopup("HelpMenu");
+    if (ClayUI.Button(debugWindowOpen ? "Debug [ON]" : "Debug"))
     {
-        ClayUI.Heading("Clay .NET", new HeadingStyle { TextColor = Color.Rgba(100, 180, 255) });
-
-        // Spacer
-        using (Clay.Clay.Element(new ElementDeclaration
-        {
-            Layout = new LayoutConfig { Sizing = new Sizing { Width = SizingAxis.Grow() } }
-        })) { }
-
-        // Header menu buttons using ClayUI popups
-        if (ClayUI.Button("File")) ClayUI.OpenPopup("FileMenu");
-        if (ClayUI.Button("Edit")) ClayUI.OpenPopup("EditMenu");
-        if (ClayUI.Button("View")) ClayUI.OpenPopup("ViewMenu");
-        if (ClayUI.Button("Help")) ClayUI.OpenPopup("HelpMenu");
-        if (ClayUI.Button(debugWindowOpen ? "Debug [ON]" : "Debug"))
-        {
-            debugWindowOpen = !debugWindowOpen;
-        }
-
-        // File menu popup
-        if (ClayUI.BeginPopup("FileMenu"))
-        {
-            if (ClayUI.MenuItem("New")) Console.WriteLine("File > New");
-            if (ClayUI.MenuItem("Open")) Console.WriteLine("File > Open");
-            if (ClayUI.MenuItem("Save")) Console.WriteLine("File > Save");
-            ClayUI.MenuSeparator();
-            if (ClayUI.MenuItem("Exit")) Environment.Exit(0);
-            ClayUI.EndPopup();
-        }
-
-        // Edit menu popup
-        if (ClayUI.BeginPopup("EditMenu"))
-        {
-            if (ClayUI.MenuItem("Undo")) Console.WriteLine("Edit > Undo");
-            if (ClayUI.MenuItem("Redo")) Console.WriteLine("Edit > Redo");
-            ClayUI.MenuSeparator();
-            if (ClayUI.MenuItem("Cut")) Console.WriteLine("Edit > Cut");
-            if (ClayUI.MenuItem("Copy")) Console.WriteLine("Edit > Copy");
-            if (ClayUI.MenuItem("Paste")) Console.WriteLine("Edit > Paste");
-            ClayUI.EndPopup();
-        }
-
-        // View menu popup
-        if (ClayUI.BeginPopup("ViewMenu"))
-        {
-            if (ClayUI.MenuItem("Zoom In")) Console.WriteLine("View > Zoom In");
-            if (ClayUI.MenuItem("Zoom Out")) Console.WriteLine("View > Zoom Out");
-            ClayUI.MenuSeparator();
-            if (ClayUI.MenuItem("Debug Window (F12)")) ClayUI.ToggleDebugWindow();
-            ClayUI.EndPopup();
-        }
-
-        // Help menu popup
-        if (ClayUI.BeginPopup("HelpMenu"))
-        {
-            if (ClayUI.MenuItem("Documentation")) Console.WriteLine("Help > Docs");
-            if (ClayUI.MenuItem("About")) Console.WriteLine("Help > About");
-            ClayUI.EndPopup();
-        }
+        debugWindowOpen = !debugWindowOpen;
     }
+
+    // File menu popup
+    if (ClayUI.BeginPopup("FileMenu"))
+    {
+        if (ClayUI.MenuItem("New")) Console.WriteLine("File > New");
+        if (ClayUI.MenuItem("Open")) Console.WriteLine("File > Open");
+        if (ClayUI.MenuItem("Save")) Console.WriteLine("File > Save");
+        ClayUI.MenuSeparator();
+        if (ClayUI.MenuItem("Exit")) Environment.Exit(0);
+        ClayUI.EndPopup();
+    }
+
+    // Edit menu popup
+    if (ClayUI.BeginPopup("EditMenu"))
+    {
+        if (ClayUI.MenuItem("Undo")) Console.WriteLine("Edit > Undo");
+        if (ClayUI.MenuItem("Redo")) Console.WriteLine("Edit > Redo");
+        ClayUI.MenuSeparator();
+        if (ClayUI.MenuItem("Cut")) Console.WriteLine("Edit > Cut");
+        if (ClayUI.MenuItem("Copy")) Console.WriteLine("Edit > Copy");
+        if (ClayUI.MenuItem("Paste")) Console.WriteLine("Edit > Paste");
+        ClayUI.EndPopup();
+    }
+
+    // View menu popup
+    if (ClayUI.BeginPopup("ViewMenu"))
+    {
+        if (ClayUI.MenuItem("Zoom In")) Console.WriteLine("View > Zoom In");
+        if (ClayUI.MenuItem("Zoom Out")) Console.WriteLine("View > Zoom Out");
+        ClayUI.MenuSeparator();
+        if (ClayUI.MenuItem("Debug Window (F12)")) ClayUI.ToggleDebugWindow();
+        ClayUI.EndPopup();
+    }
+
+    // Help menu popup
+    if (ClayUI.BeginPopup("HelpMenu"))
+    {
+        if (ClayUI.MenuItem("Documentation")) Console.WriteLine("Help > Docs");
+        if (ClayUI.MenuItem("About")) Console.WriteLine("Help > About");
+        ClayUI.EndPopup();
+    }
+
+    ClayUI.EndHorizontal();
 }
 
 // ============ Sidebar ============
@@ -301,7 +271,7 @@ void RenderSidebar()
         if (ClayUI.Button(pages[i] + $"##page_{i}", btnStyle))
         {
             if (selectedPage != i)
-                Clay.Clay.ResetScrollPosition(Clay.Clay.Id("Content"));
+                Clay.Clay.ResetScrollPosition(ClayUI.StableId("ScrollArea_Content"));
             selectedPage = i;
         }
     }
@@ -313,73 +283,38 @@ void RenderSidebar()
 
 void RenderContent()
 {
-    var contentId = Clay.Clay.Id("Content");
-
-    // Outer wrapper (vertical: [scroll row] + horizontal scrollbar)
-    using (Clay.Clay.Element(new ElementDeclaration
+    ClayUI.BeginScrollArea("Content", horizontal: true, style: new ScrollAreaStyle
     {
-        Layout = new LayoutConfig
-        {
-            Sizing = Sizing.Fill(),
-            Direction = LayoutDirection.TopToBottom
-        },
         BackgroundColor = ClayUI.Style.Panel.BackgroundColor,
+        Padding = Padding.All(20),
         CornerRadius = CornerRadius.All(8)
-    }))
+    });
+
+    ClayUI.Heading(pages[selectedPage]);
+    ClayUI.Separator();
+    ClayUI.Space(8);
+
+    switch (selectedPage)
     {
-        // Inner row (horizontal: scroll container + vertical scrollbar)
-        using (Clay.Clay.Element(new ElementDeclaration
-        {
-            Layout = new LayoutConfig
-            {
-                Sizing = Sizing.Fill(),
-                Direction = LayoutDirection.LeftToRight
-            }
-        }))
-        {
-            using (Clay.Clay.Element(new ElementDeclaration
-            {
-                Id = contentId,
-                Layout = new LayoutConfig
-                {
-                    Sizing = Sizing.Fill(),
-                    Direction = LayoutDirection.TopToBottom,
-                    Padding = Padding.All(20),
-                    ChildGap = 12
-                },
-                Scroll = new ScrollConfig { Vertical = true, Horizontal = true }
-            }))
-            {
-                ClayUI.Heading(pages[selectedPage]);
-                ClayUI.Separator();
-                ClayUI.Space(8);
-
-                switch (selectedPage)
-                {
-                    case 0: PageOverview(); break;
-                    case 1: PageButtons(); break;
-                    case 2: PageTextInput(); break;
-                    case 3: PageCheckboxesAndToggles(); break;
-                    case 4: PageSlidersAndProgress(); break;
-                    case 5: PageRadioGroup(); break;
-                    case 6: PageTreeView(); break;
-                    case 7: PageLayoutHelpers(); break;
-                    case 8: PageTextStyles(); break;
-                    case 9: PageColorPicker(); break;
-                    case 10: PageListBoxAndCombo(); break;
-                    case 11: PageScrollAreas(); break;
-                    case 12: PageWindows(); break;
-                    case 13: PagePopups(); break;
-                    case 14: PageTheming(); break;
-                    case 15: PageDisabledStates(); break;
-                }
-            }
-
-            ClayUI.VerticalScrollbar(contentId);
-        }
-
-        ClayUI.HorizontalScrollbar(contentId);
+        case 0: PageOverview(); break;
+        case 1: PageButtons(); break;
+        case 2: PageTextInput(); break;
+        case 3: PageCheckboxesAndToggles(); break;
+        case 4: PageSlidersAndProgress(); break;
+        case 5: PageRadioGroup(); break;
+        case 6: PageTreeView(); break;
+        case 7: PageLayoutHelpers(); break;
+        case 8: PageTextStyles(); break;
+        case 9: PageColorPicker(); break;
+        case 10: PageListBoxAndCombo(); break;
+        case 11: PageScrollAreas(); break;
+        case 12: PageWindows(); break;
+        case 13: PagePopups(); break;
+        case 14: PageTheming(); break;
+        case 15: PageDisabledStates(); break;
     }
+
+    ClayUI.EndScrollArea();
 }
 
 // ============ Pages ============

@@ -50,7 +50,7 @@ internal class ClayUIContext
     internal int PopupDepth;
 
     // Scroll container info for automatic scrollbar rendering
-    internal record struct ScrollWrapperInfo(ElementId ScrollId, bool IsVertical, bool HasWrapper);
+    internal record struct ScrollWrapperInfo(ElementId ScrollId, bool IsVertical, bool HasWrapper, bool HasBothAxes = false);
     internal record struct WindowFrameInfo(ElementId ScrollId, bool ShowScrollbar, bool ShowResize, bool HasRightColumn);
     internal readonly Stack<ScrollWrapperInfo?> PanelScrollInfo = new();
     internal readonly Stack<ScrollWrapperInfo?> LayoutScrollInfo = new();
@@ -1296,6 +1296,25 @@ public static class ClayUI
         })) { }
     }
 
+    /// <summary>
+    /// Adds a flexible spacer that grows to fill available space along the parent's layout direction.
+    /// Use inside horizontal layouts to push siblings apart, or in vertical layouts for vertical spacing.
+    /// </summary>
+    public static void Spacer()
+    {
+        using (Clay.Element(new ElementDeclaration
+        {
+            Layout = new LayoutConfig
+            {
+                Sizing = new Sizing
+                {
+                    Width = SizingAxis.Grow(),
+                    Height = SizingAxis.Grow()
+                }
+            }
+        })) { }
+    }
+
     // ============ Disabled Region ============
 
     /// <summary>
@@ -1348,8 +1367,14 @@ public static class ClayUI
     /// <param name="alignment">Child alignment.</param>
     /// <param name="scroll">Enable horizontal scrolling with automatic scrollbar.</param>
     /// <param name="maxWidth">Maximum width before scrolling (only used when scroll=true).</param>
-    public static void BeginHorizontal(ushort gap = 8, ChildAlignment alignment = default, bool scroll = false, float? maxWidth = null)
+    /// <param name="style">Optional visual style (background, border, corner radius, padding, sizing).</param>
+    public static void BeginHorizontal(ushort gap = 8, ChildAlignment alignment = default, bool scroll = false, float? maxWidth = null, LayoutStyle? style = null)
     {
+        var hasStyle = style.HasValue;
+        var s = style.GetValueOrDefault();
+        var hasSizingW = hasStyle && s.Sizing.Width.MinMax.Max != 0;
+        var hasSizingH = hasStyle && s.Sizing.Height.MinMax.Max != 0;
+
         if (scroll)
         {
             var scrollId = Id("HLayout");
@@ -1361,12 +1386,16 @@ public static class ClayUI
                 Layout = new LayoutConfig
                 {
                     Direction = LayoutDirection.TopToBottom,
+                    Padding = hasStyle ? s.Padding : default,
                     Sizing = new Sizing
                     {
-                        Width = maxWidth.HasValue ? SizingAxis.Fit(0, maxWidth.Value) : SizingAxis.Grow(),
-                        Height = SizingAxis.Fit()
+                        Width = maxWidth.HasValue ? SizingAxis.Fit(0, maxWidth.Value) : hasSizingW ? s.Sizing.Width : SizingAxis.Grow(),
+                        Height = hasSizingH ? s.Sizing.Height : SizingAxis.Fit()
                     }
-                }
+                },
+                BackgroundColor = hasStyle ? s.BackgroundColor : default,
+                CornerRadius = hasStyle ? s.CornerRadius : default,
+                Border = hasStyle ? s.Border : default
             });
             _context.LayoutDepth++;
 
@@ -1400,12 +1429,16 @@ public static class ClayUI
                     Direction = LayoutDirection.LeftToRight,
                     ChildGap = gap,
                     ChildAlignment = alignment,
+                    Padding = hasStyle ? s.Padding : default,
                     Sizing = new Sizing
                     {
-                        Width = SizingAxis.Grow(),
-                        Height = SizingAxis.Fit()
+                        Width = hasSizingW ? s.Sizing.Width : SizingAxis.Grow(),
+                        Height = hasSizingH ? s.Sizing.Height : SizingAxis.Fit()
                     }
-                }
+                },
+                BackgroundColor = hasStyle ? s.BackgroundColor : default,
+                CornerRadius = hasStyle ? s.CornerRadius : default,
+                Border = hasStyle ? s.Border : default
             });
             _context.LayoutDepth++;
         }
@@ -1447,8 +1480,14 @@ public static class ClayUI
     /// <param name="alignment">Child alignment.</param>
     /// <param name="scroll">Enable vertical scrolling with automatic scrollbar.</param>
     /// <param name="maxHeight">Maximum height before scrolling (only used when scroll=true).</param>
-    public static void BeginVertical(ushort gap = 8, ChildAlignment alignment = default, bool scroll = false, float? maxHeight = null)
+    /// <param name="style">Optional visual style (background, border, corner radius, padding, sizing).</param>
+    public static void BeginVertical(ushort gap = 8, ChildAlignment alignment = default, bool scroll = false, float? maxHeight = null, LayoutStyle? style = null)
     {
+        var hasStyle = style.HasValue;
+        var s = style.GetValueOrDefault();
+        var hasSizingW = hasStyle && s.Sizing.Width.MinMax.Max != 0;
+        var hasSizingH = hasStyle && s.Sizing.Height.MinMax.Max != 0;
+
         if (scroll)
         {
             var scrollId = Id("VLayout");
@@ -1460,12 +1499,16 @@ public static class ClayUI
                 Layout = new LayoutConfig
                 {
                     Direction = LayoutDirection.LeftToRight,
+                    Padding = hasStyle ? s.Padding : default,
                     Sizing = new Sizing
                     {
-                        Width = SizingAxis.Grow(),
-                        Height = maxHeight.HasValue ? SizingAxis.Fit(0, maxHeight.Value) : SizingAxis.Fit()
+                        Width = hasSizingW ? s.Sizing.Width : SizingAxis.Grow(),
+                        Height = maxHeight.HasValue ? SizingAxis.Fit(0, maxHeight.Value) : hasSizingH ? s.Sizing.Height : SizingAxis.Fit()
                     }
-                }
+                },
+                BackgroundColor = hasStyle ? s.BackgroundColor : default,
+                CornerRadius = hasStyle ? s.CornerRadius : default,
+                Border = hasStyle ? s.Border : default
             });
             _context.LayoutDepth++;
 
@@ -1499,12 +1542,16 @@ public static class ClayUI
                     Direction = LayoutDirection.TopToBottom,
                     ChildGap = gap,
                     ChildAlignment = alignment,
+                    Padding = hasStyle ? s.Padding : default,
                     Sizing = new Sizing
                     {
-                        Width = SizingAxis.Grow(),
-                        Height = SizingAxis.Fit()
+                        Width = hasSizingW ? s.Sizing.Width : SizingAxis.Grow(),
+                        Height = hasSizingH ? s.Sizing.Height : SizingAxis.Fit()
                     }
-                }
+                },
+                BackgroundColor = hasStyle ? s.BackgroundColor : default,
+                CornerRadius = hasStyle ? s.CornerRadius : default,
+                Border = hasStyle ? s.Border : default
             });
             _context.LayoutDepth++;
         }
@@ -3010,53 +3057,112 @@ public static class ClayUI
     }
 
     /// <summary>
-    /// Begins a scrollable area with an automatic vertical scrollbar.
+    /// Begins a scrollable area with automatic scrollbars.
     /// Call <see cref="EndScrollArea"/> when done adding children.
     /// </summary>
-    public static void BeginScrollArea(string id, float? maxHeight = null, ScrollAreaStyle? style = null)
+    /// <param name="id">Unique identifier for the scroll area.</param>
+    /// <param name="maxHeight">Maximum height before vertical scrolling kicks in.</param>
+    /// <param name="horizontal">Enable horizontal scrolling in addition to vertical.</param>
+    /// <param name="style">Optional visual style.</param>
+    public static void BeginScrollArea(string id, float? maxHeight = null, bool horizontal = false, ScrollAreaStyle? style = null)
     {
         var s = style ?? Style.ScrollArea;
         var scrollId = StableId($"ScrollArea_{id}");
 
-        _context.LayoutScrollInfo.Push(new ClayUIContext.ScrollWrapperInfo(scrollId, IsVertical: true, HasWrapper: true));
+        var scrollConfig = horizontal
+            ? new ScrollConfig { Vertical = true, Horizontal = true }
+            : ScrollConfig.VerticalScroll;
 
-        // Wrapper container (horizontal: scroll content + scrollbar)
-        Clay.Element(new ElementDeclaration
+        if (horizontal)
         {
-            Layout = new LayoutConfig
+            _context.LayoutScrollInfo.Push(new ClayUIContext.ScrollWrapperInfo(scrollId, IsVertical: true, HasWrapper: true, HasBothAxes: true));
+
+            // Outer wrapper (vertical: [row] + horizontal scrollbar)
+            Clay.Element(new ElementDeclaration
             {
-                Direction = LayoutDirection.LeftToRight,
-                Sizing = new Sizing
+                Layout = new LayoutConfig
                 {
-                    Width = SizingAxis.Grow(),
-                    Height = maxHeight.HasValue
-                        ? SizingAxis.Fit(0, maxHeight.Value)
-                        : SizingAxis.Grow()
-                }
-            },
-            BackgroundColor = s.BackgroundColor,
-            CornerRadius = s.CornerRadius
-        });
-        _context.LayoutDepth++;
+                    Direction = LayoutDirection.TopToBottom,
+                    Sizing = new Sizing
+                    {
+                        Width = SizingAxis.Grow(),
+                        Height = maxHeight.HasValue
+                            ? SizingAxis.Fit(0, maxHeight.Value)
+                            : SizingAxis.Grow()
+                    }
+                },
+                BackgroundColor = s.BackgroundColor,
+                CornerRadius = s.CornerRadius
+            });
+            _context.LayoutDepth++;
 
-        // Scroll container inside wrapper
-        Clay.Element(new ElementDeclaration
-        {
-            Id = scrollId,
-            Layout = new LayoutConfig
+            // Inner row (horizontal: scroll container + vertical scrollbar)
+            Clay.Element(new ElementDeclaration
             {
-                Direction = LayoutDirection.TopToBottom,
-                Sizing = Sizing.Fill(),
-                Padding = s.Padding
-            },
-            Scroll = ScrollConfig.VerticalScroll
-        });
-        _context.LayoutDepth++;
+                Layout = new LayoutConfig
+                {
+                    Direction = LayoutDirection.LeftToRight,
+                    Sizing = Sizing.Fill()
+                }
+            });
+            _context.LayoutDepth++;
+
+            // Scroll container
+            Clay.Element(new ElementDeclaration
+            {
+                Id = scrollId,
+                Layout = new LayoutConfig
+                {
+                    Direction = LayoutDirection.TopToBottom,
+                    Sizing = Sizing.Fill(),
+                    Padding = s.Padding
+                },
+                Scroll = scrollConfig
+            });
+            _context.LayoutDepth++;
+        }
+        else
+        {
+            _context.LayoutScrollInfo.Push(new ClayUIContext.ScrollWrapperInfo(scrollId, IsVertical: true, HasWrapper: true));
+
+            // Wrapper container (horizontal: scroll content + vertical scrollbar)
+            Clay.Element(new ElementDeclaration
+            {
+                Layout = new LayoutConfig
+                {
+                    Direction = LayoutDirection.LeftToRight,
+                    Sizing = new Sizing
+                    {
+                        Width = SizingAxis.Grow(),
+                        Height = maxHeight.HasValue
+                            ? SizingAxis.Fit(0, maxHeight.Value)
+                            : SizingAxis.Grow()
+                    }
+                },
+                BackgroundColor = s.BackgroundColor,
+                CornerRadius = s.CornerRadius
+            });
+            _context.LayoutDepth++;
+
+            // Scroll container inside wrapper
+            Clay.Element(new ElementDeclaration
+            {
+                Id = scrollId,
+                Layout = new LayoutConfig
+                {
+                    Direction = LayoutDirection.TopToBottom,
+                    Sizing = Sizing.Fill(),
+                    Padding = s.Padding
+                },
+                Scroll = scrollConfig
+            });
+            _context.LayoutDepth++;
+        }
     }
 
     /// <summary>
     /// Ends a scrollable area started with <see cref="BeginScrollArea"/>.
-    /// Automatically adds a vertical scrollbar.
+    /// Automatically adds scrollbars.
     /// </summary>
     public static void EndScrollArea()
     {
@@ -3067,18 +3173,43 @@ public static class ClayUI
             _context.LayoutDepth--;
         }
 
-        // Close the wrapper + add scrollbar
-        if (_context.LayoutDepth > 0)
-        {
-            ClayUIContext.ScrollWrapperInfo? scrollInfo = null;
-            if (_context.LayoutScrollInfo.Count > 0)
-                scrollInfo = _context.LayoutScrollInfo.Pop();
+        ClayUIContext.ScrollWrapperInfo? scrollInfo = null;
+        if (_context.LayoutScrollInfo.Count > 0)
+            scrollInfo = _context.LayoutScrollInfo.Pop();
 
-            if (scrollInfo.HasValue && scrollInfo.Value.HasWrapper)
+        if (scrollInfo.HasValue && scrollInfo.Value.HasBothAxes)
+        {
+            // Dual-axis: close inner row (add v-scrollbar), then close outer (add h-scrollbar)
+            if (scrollInfo.Value.HasWrapper)
                 VerticalScrollbar(scrollInfo.Value.ScrollId);
 
-            Clay.CloseElement();
-            _context.LayoutDepth--;
+            // Close inner row
+            if (_context.LayoutDepth > 0)
+            {
+                Clay.CloseElement();
+                _context.LayoutDepth--;
+            }
+
+            // Add horizontal scrollbar + close outer
+            HorizontalScrollbar(scrollInfo.Value.ScrollId);
+
+            if (_context.LayoutDepth > 0)
+            {
+                Clay.CloseElement();
+                _context.LayoutDepth--;
+            }
+        }
+        else
+        {
+            // Vertical-only: close wrapper + add v-scrollbar
+            if (_context.LayoutDepth > 0)
+            {
+                if (scrollInfo.HasValue && scrollInfo.Value.HasWrapper)
+                    VerticalScrollbar(scrollInfo.Value.ScrollId);
+
+                Clay.CloseElement();
+                _context.LayoutDepth--;
+            }
         }
     }
 
@@ -4431,6 +4562,19 @@ public struct TreeNodeStyle
     public bool DefaultExpanded { get; set; } = false;
     public ushort FontId { get; set; } = 0;
     public ushort FontSize { get; set; } = 14;
+}
+
+/// <summary>
+/// Optional visual style for BeginHorizontal/BeginVertical layout containers.
+/// </summary>
+public struct LayoutStyle
+{
+    public LayoutStyle() { }
+    public Color BackgroundColor { get; set; } = Color.Transparent;
+    public CornerRadius CornerRadius { get; set; } = default;
+    public BorderConfig Border { get; set; } = default;
+    public Padding Padding { get; set; } = default;
+    public Sizing Sizing { get; set; } = default;
 }
 
 public struct ScrollAreaStyle
