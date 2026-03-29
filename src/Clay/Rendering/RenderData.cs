@@ -78,6 +78,12 @@ public struct ImageRenderData
     /// The image data.
     /// </summary>
     public object? ImageData;
+
+    /// <summary>
+    /// 9-slice border insets. When HasSlice is true, the renderer should draw
+    /// the image as a 9-patch instead of a simple stretch.
+    /// </summary>
+    public NineSlice Slice;
 }
 
 /// <summary>

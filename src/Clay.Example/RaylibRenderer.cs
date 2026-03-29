@@ -241,14 +241,67 @@ public class RaylibRenderer : IClayRenderer
         if (data.ImageData is not Texture texture)
             return;
 
-        var position = new System.Numerics.Vector2(box.X, box.Y);
+        var tint = data.BackgroundColor.A > 0 ? ToRayColor(data.BackgroundColor) : Raylib.WHITE;
 
-        // Calculate scale to fit bounding box
-        float scaleX = box.Width / texture.width;
-        float scaleY = box.Height / texture.height;
-        float scale = Math.Min(scaleX, scaleY);
+        if (data.Slice.HasSlice)
+        {
+            RenderNineSlice(box, texture, data.Slice, tint);
+        }
+        else
+        {
+            // Stretch to fill the bounding box
+            var source = new Rectangle(0, 0, texture.width, texture.height);
+            var dest = new Rectangle(box.X, box.Y, box.Width, box.Height);
+            Raylib.DrawTexturePro(texture, source, dest,
+                new System.Numerics.Vector2(0, 0), 0, tint);
+        }
+    }
 
-        Raylib.DrawTextureEx(texture, position, 0, scale, Raylib.WHITE);
+    private static void RenderNineSlice(BoundingBox box, Texture texture, NineSlice slice, RayColor tint)
+    {
+        float srcW = texture.width;
+        float srcH = texture.height;
+        float sl = slice.Left, sr = slice.Right, st = slice.Top, sb = slice.Bottom;
+
+        // Destination insets — clamp so corners never exceed the dest size
+        float dl = Math.Min(sl, box.Width * 0.5f);
+        float dr = Math.Min(sr, box.Width * 0.5f);
+        float dt = Math.Min(st, box.Height * 0.5f);
+        float db = Math.Min(sb, box.Height * 0.5f);
+
+        float midSrcW = srcW - sl - sr;
+        float midSrcH = srcH - st - sb;
+        float midDstW = box.Width - dl - dr;
+        float midDstH = box.Height - dt - db;
+
+        var origin = new System.Numerics.Vector2(0, 0);
+
+        // Helper to draw one patch
+        void Patch(float sx, float sy, float sw, float sh, float dx, float dy, float dw, float dh)
+        {
+            if (sw <= 0 || sh <= 0 || dw <= 0 || dh <= 0) return;
+            Raylib.DrawTexturePro(texture,
+                new Rectangle(sx, sy, sw, sh),
+                new Rectangle(dx, dy, dw, dh),
+                origin, 0, tint);
+        }
+
+        float x = box.X, y = box.Y;
+
+        // Top row
+        Patch(0, 0, sl, st, x, y, dl, dt);                               // top-left
+        Patch(sl, 0, midSrcW, st, x + dl, y, midDstW, dt);               // top-center
+        Patch(srcW - sr, 0, sr, st, x + dl + midDstW, y, dr, dt);        // top-right
+
+        // Middle row
+        Patch(0, st, sl, midSrcH, x, y + dt, dl, midDstH);              // mid-left
+        Patch(sl, st, midSrcW, midSrcH, x + dl, y + dt, midDstW, midDstH); // center
+        Patch(srcW - sr, st, sr, midSrcH, x + dl + midDstW, y + dt, dr, midDstH); // mid-right
+
+        // Bottom row
+        Patch(0, srcH - sb, sl, sb, x, y + dt + midDstH, dl, db);       // bot-left
+        Patch(sl, srcH - sb, midSrcW, sb, x + dl, y + dt + midDstH, midDstW, db); // bot-center
+        Patch(srcW - sr, srcH - sb, sr, sb, x + dl + midDstW, y + dt + midDstH, dr, db); // bot-right
     }
 
     // Cached textures for HSV gradients

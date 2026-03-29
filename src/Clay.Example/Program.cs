@@ -41,12 +41,15 @@ Clay.Clay.Initialize(
 );
 Clay.Clay.TextEditSetClipboard(new RaylibClipboard());
 
+// Load RPG skin assets
+RpgSkin.Load();
+
 // ============ Application State ============
 
 // Sidebar
 string[] pages = ["Overview", "Buttons", "Text Input", "Checkboxes & Toggles", "Sliders & Progress",
     "Radio Group", "Tree View", "Layout Helpers", "Text Styles", "Color Picker",
-    "ListBox & Combo", "Scroll Areas", "Windows", "Popups & Context Menus", "Theming", "Disabled States"];
+    "ListBox & Combo", "Scroll Areas", "Windows", "Popups & Context Menus", "Theming", "Disabled States", "RPG Skin"];
 int selectedPage = 0;
 
 // Widget state
@@ -85,6 +88,15 @@ bool disabledDemoCheckbox = true;
 bool disabledDemoToggle = false;
 float disabledDemoSlider = 0.6f;
 string disabledDemoText = "Can't edit this";
+
+// RPG Skin demo state
+bool rpgSkinCheckbox = false;
+bool rpgSkinToggle = true;
+float rpgSkinSlider = 0.4f;
+float rpgSkinProgress = 0.65f;
+int rpgSkinRadio = 0;
+string[] rpgRadioOptions = ["Warrior", "Mage", "Ranger"];
+ClayUISkin? rpgSkin = null;
 
 // Debug
 bool debugWindowOpen = false;
@@ -167,6 +179,7 @@ while (!Raylib.WindowShouldClose())
     Raylib.EndDrawing();
 }
 
+RpgSkin.Unload();
 Clay.Clay.Shutdown();
 Raylib.CloseWindow();
 
@@ -312,6 +325,7 @@ void RenderContent()
         case 13: PagePopups(); break;
         case 14: PageTheming(); break;
         case 15: PageDisabledStates(); break;
+        case 16: PageRpgSkin(); break;
     }
 
     ClayUI.EndScrollArea();
@@ -767,6 +781,152 @@ void PageDisabledStates()
     ClayUI.Label("After EndDisabled, widgets are interactive again:");
     ClayUI.Space(4);
     ClayUI.Button("This works!");
+}
+
+void PageRpgSkin()
+{
+    // Lazily create the skin on first use
+    rpgSkin ??= RpgSkin.CreateSkin();
+
+    ClayUI.Label("Custom skin using RPG GUI sprites (CC-BY 3.0, by Lamoot).");
+    ClayUI.Label("Widgets below use image textures instead of solid-color rectangles.");
+    ClayUI.Label("The same widgets, same API -- just with ClayUI.Skin set.");
+    ClayUI.Space(12);
+
+    // Apply the RPG skin for the rest of this page
+    var previousSkin = ClayUI.Skin;
+    ClayUI.Skin = rpgSkin;
+
+    // Style overrides sized for the ornate RPG sprites
+    var rpgButton = new ButtonStyle
+    {
+        Padding = Padding.Symmetric(52, 14),
+        TextColor = Color.Rgba(230, 215, 180),
+        FontSize = 16
+    };
+    var rpgCheckbox = new CheckboxStyle
+    {
+        BoxSize = 28,
+        BoxCornerRadius = 0,
+        TextColor = Color.Rgba(220, 210, 180),
+        FontSize = 15
+    };
+    var rpgToggle = new ToggleStyle
+    {
+        TrackWidth = 60,
+        TrackHeight = 30,
+        KnobSize = 26,
+        TextColor = Color.Rgba(220, 210, 180),
+        FontSize = 15
+    };
+    var rpgSlider = new SliderStyle
+    {
+        TrackHeight = 20,
+        TextColor = Color.Rgba(220, 210, 180),
+        ValueTextColor = Color.Rgba(200, 190, 160),
+        FontSize = 15
+    };
+    var rpgProgress = new ProgressBarStyle
+    {
+        Height = 20,
+        CornerRadius = 0
+    };
+    var rpgPanel = new PanelStyle
+    {
+        TitleColor = Color.Rgba(80, 60, 30),
+        TitleFontSize = 18,
+        Padding = Padding.All(20),
+        ChildGap = 8
+    };
+    var rpgLabel = new LabelStyle
+    {
+        TextColor = Color.Rgba(60, 45, 20),
+        FontSize = 15
+    };
+
+    // --- Buttons ---
+    ClayUI.Label("Buttons:");
+    ClayUI.Space(4);
+    ClayUI.BeginHorizontal(gap: 16);
+    ClayUI.Button("Attack", rpgButton);
+    ClayUI.Button("Defend", rpgButton);
+    ClayUI.Button("Magic", rpgButton);
+    ClayUI.EndHorizontal();
+    ClayUI.Space(4);
+    ClayUI.Button("Inventory", rpgButton);
+
+    ClayUI.Space(16);
+    ClayUI.Separator();
+    ClayUI.Space(8);
+
+    // --- Checkboxes ---
+    ClayUI.Label("Checkboxes:");
+    ClayUI.Space(4);
+    ClayUI.Checkbox("Show minimap", ref rpgSkinCheckbox, rpgCheckbox);
+    bool tempCb = true;
+    ClayUI.Checkbox("Enable sound", ref tempCb, rpgCheckbox);
+
+    ClayUI.Space(16);
+    ClayUI.Separator();
+    ClayUI.Space(8);
+
+    // --- Radio Group ---
+    ClayUI.Label("Radio Group:");
+    ClayUI.Space(4);
+    var rpgRadio = new RadioGroupStyle
+    {
+        CircleSize = 24,
+        DotSize = 14,
+        TextColor = Color.Rgba(220, 210, 180),
+        LabelColor = Color.Rgba(180, 170, 140),
+        FontSize = 15
+    };
+    ClayUI.RadioGroup("Class", ref rpgSkinRadio, rpgRadioOptions, rpgRadio);
+
+    ClayUI.Space(16);
+    ClayUI.Separator();
+    ClayUI.Space(8);
+
+    // --- Toggle ---
+    ClayUI.Label("Toggle:");
+    ClayUI.Space(4);
+    ClayUI.Toggle("Fullscreen", ref rpgSkinToggle, rpgToggle);
+
+    ClayUI.Space(16);
+    ClayUI.Separator();
+    ClayUI.Space(8);
+
+    // --- Slider ---
+    ClayUI.Label("Slider:");
+    ClayUI.Space(4);
+    ClayUI.Slider("Volume", ref rpgSkinSlider, 0, 1, rpgSlider);
+
+    ClayUI.Space(16);
+    ClayUI.Separator();
+    ClayUI.Space(8);
+
+    // --- Progress Bar ---
+    ClayUI.Label("Progress Bar:");
+    ClayUI.Space(4);
+    rpgSkinProgress += Raylib.GetFrameTime() * 0.05f;
+    if (rpgSkinProgress > 1f) rpgSkinProgress = 0f;
+    ClayUI.ProgressBar(rpgSkinProgress, style: rpgProgress);
+
+    ClayUI.Space(16);
+    ClayUI.Separator();
+    ClayUI.Space(8);
+
+    // --- Panel ---
+    ClayUI.Label("Panel:");
+    ClayUI.Space(4);
+    ClayUI.BeginPanel("Quest Log", rpgPanel);
+    ClayUI.Label("- Defeat the dragon", rpgLabel);
+    ClayUI.Label("- Find the lost sword", rpgLabel);
+    ClayUI.Label("- Return to the village", rpgLabel);
+    ClayUI.EndPanel();
+
+    // Restore previous skin
+    ClayUI.Skin = previousSkin;
 }
 
 // ============ Demo Windows ============

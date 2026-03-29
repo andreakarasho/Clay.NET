@@ -1287,8 +1287,9 @@ public class ClayContext : IDisposable
                 {
                     ImageData = imageConfig.ImageData,
                     SourceDimensions = imageConfig.SourceDimensions,
-                    BackgroundColor = sharedConfig.BackgroundColor,
-                    CornerRadius = sharedConfig.CornerRadius
+                    BackgroundColor = imageConfig.Tint.A > 0 ? imageConfig.Tint : sharedConfig.BackgroundColor,
+                    CornerRadius = sharedConfig.CornerRadius,
+                    Slice = imageConfig.Slice
                 }
             });
         }

@@ -16,6 +16,18 @@ public struct ImageConfig
     public Dimensions SourceDimensions;
 
     /// <summary>
+    /// 9-slice border insets for stretchable image rendering.
+    /// When set, the renderer draws the image as a 9-patch.
+    /// </summary>
+    public NineSlice Slice;
+
+    /// <summary>
+    /// Tint color applied to the image. Default (0,0,0,0) means no tint.
+    /// Set to Color.White for a neutral tint when using skin images.
+    /// </summary>
+    public Color Tint;
+
+    /// <summary>
     /// Creates an image config with the specified data and dimensions.
     /// </summary>
     public static ImageConfig Create(object? imageData, float width, float height)

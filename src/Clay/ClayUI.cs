@@ -414,6 +414,12 @@ public static class ClayUI
     /// </summary>
     public static ClayUIStyle Style { get; set; } = ClayUIStyle.Default;
 
+    /// <summary>
+    /// Current skin for applying custom images/textures to widgets.
+    /// When null, widgets render with their default color-based styles.
+    /// </summary>
+    public static ClayUISkin? Skin { get; set; }
+
     // ============ Frame Management ============
 
     /// <summary>
@@ -780,9 +786,10 @@ public static class ClayUI
     /// <summary>
     /// Renders a clickable button. Returns true when clicked.
     /// </summary>
-    public static bool Button(string label, ButtonStyle? style = null)
+    public static bool Button(string label, ButtonStyle? style = null, ButtonSkin? skin = null)
     {
         var s = style ?? Style.Button;
+        var sk = skin ?? Skin?.Button ?? default;
         var id = Id(label);
         bool isHovered = IsHovered(id);
         bool isPressed = isHovered && _context.MousePressed;  // Mouse held down on button
@@ -795,6 +802,8 @@ public static class ClayUI
             : isHovered ? s.HoverColor
             : s.BackgroundColor;
 
+        var skinImg = sk.Background.HasImages ? sk.Background.ForState(isPressed, isHovered) : default;
+
         using (Clay.Element(new ElementDeclaration
         {
             Id = id,
@@ -803,8 +812,9 @@ public static class ClayUI
                 Padding = s.Padding,
                 ChildAlignment = ChildAlignment.Center
             },
-            BackgroundColor = DisabledColor(bgColor),
-            CornerRadius = s.CornerRadius
+            BackgroundColor = skinImg.HasImage ? Color.Transparent : DisabledColor(bgColor),
+            CornerRadius = skinImg.HasImage ? CornerRadius.Zero : s.CornerRadius,
+            Image = skinImg.HasImage ? SkinToImageConfig(skinImg) : default
         }))
         {
             Clay.Text(ElementId.GetDisplayLabel(label), new TextConfig
@@ -915,9 +925,10 @@ public static class ClayUI
     /// <summary>
     /// Renders a checkbox. Returns true when the state changes.
     /// </summary>
-    public static bool Checkbox(string label, ref bool value, CheckboxStyle? style = null)
+    public static bool Checkbox(string label, ref bool value, CheckboxStyle? style = null, CheckboxSkin? skin = null)
     {
         var s = style ?? Style.Checkbox;
+        var sk = skin ?? Skin?.Checkbox ?? default;
         var id = Id(label);
         bool isHovered = IsHovered(id);
         bool isPressed = isHovered && _context.MousePressed;
@@ -949,6 +960,12 @@ public static class ClayUI
         }))
         {
             // Checkbox box
+            var boxSkin = sk.Box.HasImages ? sk.Box.ForState(isPressed, isHovered) : default;
+            var checkedBoxSkin = value && sk.CheckedBox.HasImage ? sk.CheckedBox
+                : value && boxSkin.HasImage ? boxSkin
+                : default;
+            var activeBoxSkin = value ? checkedBoxSkin : boxSkin;
+
             using (Clay.Element(new ElementDeclaration
             {
                 Layout = new LayoutConfig
@@ -956,23 +973,38 @@ public static class ClayUI
                     Sizing = Sizing.FixedSize(s.BoxSize, s.BoxSize),
                     ChildAlignment = ChildAlignment.Center
                 },
-                BackgroundColor = DisabledColor(value ? s.CheckedColor : s.BoxColor),
-                CornerRadius = CornerRadius.All(s.BoxCornerRadius),
-                Border = BorderConfig.Uniform(1, DisabledColor(s.BoxBorderColor))
+                BackgroundColor = activeBoxSkin.HasImage ? Color.Transparent : DisabledColor(value ? s.CheckedColor : s.BoxColor),
+                CornerRadius = activeBoxSkin.HasImage ? CornerRadius.Zero : CornerRadius.All(s.BoxCornerRadius),
+                Border = activeBoxSkin.HasImage ? default : BorderConfig.Uniform(1, DisabledColor(s.BoxBorderColor)),
+                Image = activeBoxSkin.HasImage ? SkinToImageConfig(activeBoxSkin) : default
             }))
             {
                 if (value)
                 {
-                    // Checkmark (simple square for now)
-                    using (Clay.Element(new ElementDeclaration
+                    if (sk.Checkmark.HasImage)
                     {
-                        Layout = new LayoutConfig
+                        using (Clay.Element(new ElementDeclaration
                         {
-                            Sizing = Sizing.FixedSize(s.BoxSize * 0.5f, s.BoxSize * 0.5f)
-                        },
-                        BackgroundColor = DisabledColor(s.CheckmarkColor),
-                        CornerRadius = CornerRadius.All(2)
-                    })) { }
+                            Layout = new LayoutConfig
+                            {
+                                Sizing = Sizing.FixedSize(s.BoxSize * 0.5f, s.BoxSize * 0.5f)
+                            },
+                            Image = SkinToImageConfig(sk.Checkmark)
+                        })) { }
+                    }
+                    else
+                    {
+                        // Checkmark (simple square for now)
+                        using (Clay.Element(new ElementDeclaration
+                        {
+                            Layout = new LayoutConfig
+                            {
+                                Sizing = Sizing.FixedSize(s.BoxSize * 0.5f, s.BoxSize * 0.5f)
+                            },
+                            BackgroundColor = DisabledColor(s.CheckmarkColor),
+                            CornerRadius = CornerRadius.All(2)
+                        })) { }
+                    }
                 }
             }
 
@@ -991,9 +1023,10 @@ public static class ClayUI
     /// <summary>
     /// Renders a horizontal slider. Returns true when the value changes.
     /// </summary>
-    public static bool Slider(string label, ref float value, float min = 0f, float max = 1f, SliderStyle? style = null)
+    public static bool Slider(string label, ref float value, float min = 0f, float max = 1f, SliderStyle? style = null, SliderSkin? skin = null)
     {
         var s = style ?? Style.Slider;
+        var sk = skin ?? Skin?.Slider ?? default;
         var id = Id(label);
         var trackId = ElementId.Hash($"SlTrack_{id.Id}");
         bool isHovered = IsHovered(trackId);
@@ -1064,8 +1097,9 @@ public static class ClayUI
                     },
                     ChildAlignment = ChildAlignment.CenterLeft
                 },
-                BackgroundColor = DisabledColor(s.TrackColor),
-                CornerRadius = CornerRadius.All(s.TrackHeight / 2)
+                BackgroundColor = sk.Track.HasImage ? Color.Transparent : DisabledColor(s.TrackColor),
+                CornerRadius = sk.Track.HasImage ? CornerRadius.Zero : CornerRadius.All(s.TrackHeight / 2),
+                Image = sk.Track.HasImage ? SkinToImageConfig(sk.Track) : default
             }))
             {
                 // Fill
@@ -1079,8 +1113,9 @@ public static class ClayUI
                             Height = SizingAxis.Fixed(s.TrackHeight)
                         }
                     },
-                    BackgroundColor = DisabledColor(s.FillColor),
-                    CornerRadius = CornerRadius.All(s.TrackHeight / 2)
+                    BackgroundColor = sk.Fill.HasImage ? Color.Transparent : DisabledColor(s.FillColor),
+                    CornerRadius = sk.Fill.HasImage ? CornerRadius.Zero : CornerRadius.All(s.TrackHeight / 2),
+                    Image = sk.Fill.HasImage ? SkinToImageConfig(sk.Fill) : default
                 })) { }
             }
 
@@ -1099,9 +1134,10 @@ public static class ClayUI
     /// <summary>
     /// Renders a toggle switch. Returns true when the state changes.
     /// </summary>
-    public static bool Toggle(string label, ref bool value, ToggleStyle? style = null)
+    public static bool Toggle(string label, ref bool value, ToggleStyle? style = null, ToggleSkin? skin = null)
     {
         var s = style ?? Style.Toggle;
+        var sk = skin ?? Skin?.Toggle ?? default;
         var id = Id(label);
         bool isHovered = IsHovered(id);
         bool isPressed = isHovered && _context.MousePressed;
@@ -1132,6 +1168,9 @@ public static class ClayUI
         }))
         {
             // Toggle track
+            var trackSkinImg = value && sk.TrackOn.HasImage ? sk.TrackOn
+                : !value && sk.TrackOff.HasImage ? sk.TrackOff
+                : default;
             using (Clay.Element(new ElementDeclaration
             {
                 Layout = new LayoutConfig
@@ -1140,8 +1179,9 @@ public static class ClayUI
                     Padding = new Padding { Left = 2, Right = 2 },
                     ChildAlignment = value ? ChildAlignment.CenterRight : ChildAlignment.CenterLeft
                 },
-                BackgroundColor = DisabledColor(value ? s.OnColor : s.OffColor),
-                CornerRadius = CornerRadius.All(s.TrackHeight / 2)
+                BackgroundColor = trackSkinImg.HasImage ? Color.Transparent : DisabledColor(value ? s.OnColor : s.OffColor),
+                CornerRadius = trackSkinImg.HasImage ? CornerRadius.Zero : CornerRadius.All(s.TrackHeight / 2),
+                Image = trackSkinImg.HasImage ? SkinToImageConfig(trackSkinImg) : default
             }))
             {
                 // Toggle knob
@@ -1151,8 +1191,9 @@ public static class ClayUI
                     {
                         Sizing = Sizing.FixedSize(s.KnobSize, s.KnobSize)
                     },
-                    BackgroundColor = DisabledColor(s.KnobColor),
-                    CornerRadius = CornerRadius.All(s.KnobSize / 2)
+                    BackgroundColor = sk.Knob.HasImage ? Color.Transparent : DisabledColor(s.KnobColor),
+                    CornerRadius = sk.Knob.HasImage ? CornerRadius.Zero : CornerRadius.All(s.KnobSize / 2),
+                    Image = sk.Knob.HasImage ? SkinToImageConfig(sk.Knob) : default
                 })) { }
             }
 
@@ -1174,9 +1215,10 @@ public static class ClayUI
     /// <summary>
     /// Renders a progress bar.
     /// </summary>
-    public static void ProgressBar(float value, float min = 0f, float max = 1f, ProgressBarStyle? style = null)
+    public static void ProgressBar(float value, float min = 0f, float max = 1f, ProgressBarStyle? style = null, ProgressBarSkin? skin = null)
     {
         var s = style ?? Style.ProgressBar;
+        var sk = skin ?? Skin?.ProgressBar ?? default;
         float fillPercent = Math.Clamp((value - min) / (max - min), 0f, 1f);
 
         using (Clay.Element(new ElementDeclaration
@@ -1189,8 +1231,9 @@ public static class ClayUI
                     Height = SizingAxis.Fixed(s.Height)
                 }
             },
-            BackgroundColor = s.BackgroundColor,
-            CornerRadius = CornerRadius.All(s.CornerRadius)
+            BackgroundColor = sk.Track.HasImage ? Color.Transparent : s.BackgroundColor,
+            CornerRadius = sk.Track.HasImage ? CornerRadius.Zero : CornerRadius.All(s.CornerRadius),
+            Image = sk.Track.HasImage ? SkinToImageConfig(sk.Track) : default
         }))
         {
             using (Clay.Element(new ElementDeclaration
@@ -1203,8 +1246,9 @@ public static class ClayUI
                         Height = SizingAxis.Fixed(s.Height)
                     }
                 },
-                BackgroundColor = s.FillColor,
-                CornerRadius = CornerRadius.All(s.CornerRadius)
+                BackgroundColor = sk.Fill.HasImage ? Color.Transparent : s.FillColor,
+                CornerRadius = sk.Fill.HasImage ? CornerRadius.Zero : CornerRadius.All(s.CornerRadius),
+                Image = sk.Fill.HasImage ? SkinToImageConfig(sk.Fill) : default
             })) { }
         }
     }
@@ -1349,6 +1393,20 @@ public static class ClayUI
     {
         return IsDisabled ? new Color(color.R, color.G, color.B, color.A * 0.45f) : color;
     }
+
+    /// <summary>
+    /// Converts a SkinImage to an ImageConfig for use in ElementDeclaration.
+    /// </summary>
+    private static ImageConfig SkinToImageConfig(SkinImage img)
+        => new()
+        {
+            ImageData = img.ImageData,
+            SourceDimensions = img.SourceDimensions,
+            Slice = img.Slice,
+            Tint = IsDisabled
+                ? new Color(img.Tint.R, img.Tint.G, img.Tint.B, img.Tint.A * 0.45f)
+                : img.Tint
+        };
 
     /// <summary>
     /// Returns true if the element is hovered and interaction is not disabled.
@@ -1595,9 +1653,10 @@ public static class ClayUI
     /// <param name="style">Optional panel style.</param>
     /// <param name="scroll">Enable vertical scrolling with automatic scrollbar.</param>
     /// <param name="maxHeight">Maximum height before scrolling (only used when scroll=true).</param>
-    public static void BeginPanel(string title, PanelStyle? style = null, bool scroll = false, float? maxHeight = null)
+    public static void BeginPanel(string title, PanelStyle? style = null, bool scroll = false, float? maxHeight = null, PanelSkin? skin = null)
     {
         var s = style ?? Style.Panel;
+        var sk = skin ?? Skin?.Panel ?? default;
         var panelId = StableId($"Panel_{title}");
 
         if (scroll)
@@ -1620,9 +1679,10 @@ public static class ClayUI
                         Height = maxHeight.HasValue ? SizingAxis.Fit(0, maxHeight.Value) : SizingAxis.Grow()
                     }
                 },
-                BackgroundColor = s.BackgroundColor,
-                CornerRadius = s.CornerRadius,
-                Border = s.Border
+                BackgroundColor = sk.Background.HasImage ? Color.Transparent : s.BackgroundColor,
+                CornerRadius = sk.Background.HasImage ? CornerRadius.Zero : s.CornerRadius,
+                Border = sk.Background.HasImage ? default : s.Border,
+                Image = sk.Background.HasImage ? SkinToImageConfig(sk.Background) : default
             });
             _context.PanelDepth++;
 
@@ -1712,9 +1772,10 @@ public static class ClayUI
                         Height = SizingAxis.Fit()
                     }
                 },
-                BackgroundColor = s.BackgroundColor,
-                CornerRadius = s.CornerRadius,
-                Border = s.Border
+                BackgroundColor = sk.Background.HasImage ? Color.Transparent : s.BackgroundColor,
+                CornerRadius = sk.Background.HasImage ? CornerRadius.Zero : s.CornerRadius,
+                Border = sk.Background.HasImage ? default : s.Border,
+                Image = sk.Background.HasImage ? SkinToImageConfig(sk.Background) : default
             });
             _context.PanelDepth++;
 
@@ -1793,7 +1854,7 @@ public static class ClayUI
     /// <returns>True if window content should be rendered (window is open and not collapsed).</returns>
     public static bool BeginWindow(string title, ref bool open, WindowStyle? style = null,
         Vector2? defaultPosition = null, Vector2? defaultSize = null, WindowFlags flags = WindowFlags.None,
-        bool topmost = false)
+        bool topmost = false, WindowSkin? skin = null)
     {
         if (!open)
         {
@@ -1802,6 +1863,7 @@ public static class ClayUI
         }
 
         var s = style ?? Style.Window;
+        var sk = skin ?? Skin?.Window ?? default;
         var id = StableId($"Window_{title}");
 
         // Get or create window state
@@ -2011,9 +2073,10 @@ public static class ClayUI
                 Offset = state.Position,
                 ZIndex = zIndex
             },
-            BackgroundColor = s.BackgroundColor,
-            CornerRadius = s.CornerRadius,
-            Border = s.Border
+            BackgroundColor = sk.Body.HasImage ? Color.Transparent : s.BackgroundColor,
+            CornerRadius = sk.Body.HasImage ? CornerRadius.Zero : s.CornerRadius,
+            Border = sk.Body.HasImage ? default : s.Border,
+            Image = sk.Body.HasImage ? SkinToImageConfig(sk.Body) : default
         });
 
         // Title bar
@@ -2028,8 +2091,9 @@ public static class ClayUI
                 ChildAlignment = ChildAlignment.CenterLeft,
                 ChildGap = 8
             },
-            BackgroundColor = isBeingDragged ? s.TitleBarDragColor : s.TitleBarColor,
-            CornerRadius = new CornerRadius { TopLeft = s.CornerRadius.TopLeft, TopRight = s.CornerRadius.TopRight }
+            BackgroundColor = sk.TitleBar.HasImage ? Color.Transparent : (isBeingDragged ? s.TitleBarDragColor : s.TitleBarColor),
+            CornerRadius = sk.TitleBar.HasImage ? CornerRadius.Zero : new CornerRadius { TopLeft = s.CornerRadius.TopLeft, TopRight = s.CornerRadius.TopRight },
+            Image = sk.TitleBar.HasImage ? SkinToImageConfig(sk.TitleBar) : default
         }))
         {
             // Collapse button (if enabled)
@@ -2731,9 +2795,10 @@ public static class ClayUI
     /// </summary>
     /// <param name="scrollContainerId">The ElementId of the scroll container.</param>
     /// <param name="style">Optional scrollbar style.</param>
-    public static void VerticalScrollbar(ElementId scrollContainerId, ScrollbarStyle? style = null)
+    public static void VerticalScrollbar(ElementId scrollContainerId, ScrollbarStyle? style = null, ScrollbarSkin? skin = null)
     {
         var s = style ?? Style.Scrollbar;
+        var sk = skin ?? Skin?.Scrollbar ?? default;
         var scrollData = Clay.GetScrollContainerData(scrollContainerId);
 
         // Only render if content actually overflows
@@ -2857,8 +2922,9 @@ public static class ClayUI
                     Bottom = (ushort)s.TrackPadding
                 }
             },
-            BackgroundColor = s.TrackColor,
-            CornerRadius = s.CornerRadius
+            BackgroundColor = sk.Track.HasImage ? Color.Transparent : s.TrackColor,
+            CornerRadius = sk.Track.HasImage ? CornerRadius.Zero : s.CornerRadius,
+            Image = sk.Track.HasImage ? SkinToImageConfig(sk.Track) : default
         }))
         {
             // Top spacer — positions the thumb
@@ -2875,6 +2941,9 @@ public static class ClayUI
             })) { }
 
             // Thumb
+            var thumbSkinImg = sk.Thumb.HasImages
+                ? sk.Thumb.ForState(isActiveScrollbar, isThumbHovered)
+                : default;
             using (Clay.Element(new ElementDeclaration
             {
                 Id = thumbId,
@@ -2886,8 +2955,9 @@ public static class ClayUI
                         Height = SizingAxis.Fixed(thumbHeight)
                     }
                 },
-                BackgroundColor = thumbColor,
-                CornerRadius = s.CornerRadius
+                BackgroundColor = thumbSkinImg.HasImage ? Color.Transparent : thumbColor,
+                CornerRadius = thumbSkinImg.HasImage ? CornerRadius.Zero : s.CornerRadius,
+                Image = thumbSkinImg.HasImage ? SkinToImageConfig(thumbSkinImg) : default
             })) { }
         }
     }
@@ -2899,9 +2969,10 @@ public static class ClayUI
     /// </summary>
     /// <param name="scrollContainerId">The ElementId of the scroll container.</param>
     /// <param name="style">Optional scrollbar style.</param>
-    public static void HorizontalScrollbar(ElementId scrollContainerId, ScrollbarStyle? style = null)
+    public static void HorizontalScrollbar(ElementId scrollContainerId, ScrollbarStyle? style = null, ScrollbarSkin? skin = null)
     {
         var s = style ?? Style.Scrollbar;
+        var sk = skin ?? Skin?.Scrollbar ?? default;
         var scrollData = Clay.GetScrollContainerData(scrollContainerId);
 
         // Only render if content actually overflows
@@ -3021,8 +3092,9 @@ public static class ClayUI
                     Right = (ushort)s.TrackPadding
                 }
             },
-            BackgroundColor = s.TrackColor,
-            CornerRadius = s.CornerRadius
+            BackgroundColor = sk.Track.HasImage ? Color.Transparent : s.TrackColor,
+            CornerRadius = sk.Track.HasImage ? CornerRadius.Zero : s.CornerRadius,
+            Image = sk.Track.HasImage ? SkinToImageConfig(sk.Track) : default
         }))
         {
             // Left spacer — positions the thumb
@@ -3039,6 +3111,9 @@ public static class ClayUI
             })) { }
 
             // Thumb
+            var thumbSkinImg = sk.Thumb.HasImages
+                ? sk.Thumb.ForState(isActiveScrollbar, isThumbHovered)
+                : default;
             using (Clay.Element(new ElementDeclaration
             {
                 Id = thumbId,
@@ -3050,8 +3125,9 @@ public static class ClayUI
                         Height = SizingAxis.Grow()
                     }
                 },
-                BackgroundColor = thumbColor,
-                CornerRadius = s.CornerRadius
+                BackgroundColor = thumbSkinImg.HasImage ? Color.Transparent : thumbColor,
+                CornerRadius = thumbSkinImg.HasImage ? CornerRadius.Zero : s.CornerRadius,
+                Image = thumbSkinImg.HasImage ? SkinToImageConfig(thumbSkinImg) : default
             })) { }
         }
     }
@@ -3526,9 +3602,10 @@ public static class ClayUI
     /// <param name="selectedIndex">Index of the currently selected option.</param>
     /// <param name="options">Display labels for each option.</param>
     /// <param name="style">Optional style.</param>
-    public static bool RadioGroup(string label, ref int selectedIndex, string[] options, RadioGroupStyle? style = null)
+    public static bool RadioGroup(string label, ref int selectedIndex, string[] options, RadioGroupStyle? style = null, RadioGroupSkin? skin = null)
     {
         var s = style ?? Style.RadioGroup;
+        var sk = skin ?? Skin?.RadioGroup ?? default;
         bool changed = false;
 
         using (Clay.Element(new ElementDeclaration
@@ -3579,6 +3656,10 @@ public static class ClayUI
                 }))
                 {
                     // Radio circle
+                    var circleSkin = isSelected && sk.SelectedCircle.HasImage
+                        ? sk.SelectedCircle
+                        : sk.Circle.HasImages ? sk.Circle.ForState(false, isHovered) : default;
+
                     using (Clay.Element(new ElementDeclaration
                     {
                         Layout = new LayoutConfig
@@ -3586,12 +3667,13 @@ public static class ClayUI
                             Sizing = Sizing.FixedSize(s.CircleSize, s.CircleSize),
                             ChildAlignment = ChildAlignment.Center
                         },
-                        BackgroundColor = s.CircleColor,
-                        CornerRadius = CornerRadius.All(s.CircleSize / 2),
-                        Border = BorderConfig.Uniform(1, s.CircleBorderColor)
+                        BackgroundColor = circleSkin.HasImage ? Color.Transparent : s.CircleColor,
+                        CornerRadius = circleSkin.HasImage ? CornerRadius.Zero : CornerRadius.All(s.CircleSize / 2),
+                        Border = circleSkin.HasImage ? default : BorderConfig.Uniform(1, s.CircleBorderColor),
+                        Image = circleSkin.HasImage ? SkinToImageConfig(circleSkin) : default
                     }))
                     {
-                        if (isSelected)
+                        if (isSelected && !circleSkin.HasImage)
                         {
                             using (Clay.Element(new ElementDeclaration
                             {
