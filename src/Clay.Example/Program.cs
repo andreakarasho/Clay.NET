@@ -722,6 +722,34 @@ void PagePopups()
 
     ClayUI.Label("Context menus open on right-click (not yet wired in this demo — requires right-click input).");
     ClayUI.Label("API: ClayUI.BeginContextMenu(id, triggerId) / ClayUI.EndContextMenu()");
+
+    ClayUI.Space(16);
+    ClayUI.Separator();
+    ClayUI.Space(8);
+
+    ClayUI.Label("Modal popups block all input behind them with a dimming overlay:");
+    ClayUI.Space(8);
+    if (ClayUI.Button("Show Modal")) ClayUI.OpenPopup("DemoModal");
+
+    if (ClayUI.BeginPopupModal("DemoModal"))
+    {
+        ClayUI.Label("This is a modal dialog.");
+        ClayUI.Label("You cannot interact with anything behind it.");
+        ClayUI.Space(8);
+        ClayUI.BeginHorizontal(gap: 8);
+        if (ClayUI.Button("OK"))
+        {
+            Console.WriteLine("Modal: OK");
+            ClayUI.CloseAllPopups();
+        }
+        if (ClayUI.Button("Cancel"))
+        {
+            Console.WriteLine("Modal: Cancel");
+            ClayUI.CloseAllPopups();
+        }
+        ClayUI.EndHorizontal();
+        ClayUI.EndPopupModal();
+    }
 }
 
 void PageTheming()

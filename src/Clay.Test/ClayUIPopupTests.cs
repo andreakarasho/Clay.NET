@@ -816,4 +816,176 @@ public class ClayUIPopupTests : IDisposable
         Assert.True(ClayUI.IsPopupOpen("SubMenu_Level1"));
         Assert.True(ClayUI.IsPopupOpen("SubMenu_Level2"));
     }
+
+    // ============ BeginPopupModal ============
+
+    [Fact]
+    public void BeginPopupModal_WhenClosed_ReturnsFalse()
+    {
+        bool opened = true;
+        _fixture.RunFrame(() =>
+        {
+            opened = ClayUI.BeginPopupModal("notOpenModal");
+            if (opened) ClayUI.EndPopupModal();
+        });
+
+        Assert.False(opened);
+    }
+
+    [Fact]
+    public void BeginPopupModal_WhenOpened_ReturnsTrue()
+    {
+        bool opened = false;
+        _fixture.RunFrame(() =>
+        {
+            ClayUI.OpenPopup("modal1");
+            opened = ClayUI.BeginPopupModal("modal1");
+            if (opened) ClayUI.EndPopupModal();
+        });
+
+        Assert.True(opened);
+        Assert.True(ClayUI.IsPopupOpen("modal1"));
+    }
+
+    [Fact]
+    public void BeginPopupModal_ClickOutside_DoesNotClose()
+    {
+        // Frame 1: open modal
+        _fixture.RunFrame(() =>
+        {
+            ClayUI.OpenPopup("modalStay");
+            if (ClayUI.BeginPopupModal("modalStay"))
+            {
+                ClayUI.Label("Modal content");
+                ClayUI.EndPopupModal();
+            }
+        });
+        Assert.True(ClayUI.IsPopupOpen("modalStay"));
+
+        // Frame 2: establish layout
+        _fixture.RunFrame(() =>
+        {
+            if (ClayUI.BeginPopupModal("modalStay"))
+            {
+                ClayUI.Label("Modal content");
+                ClayUI.EndPopupModal();
+            }
+        });
+
+        // Frame 3: click far outside — modal should NOT close
+        _fixture.RunFrame(() =>
+        {
+            if (ClayUI.BeginPopupModal("modalStay"))
+            {
+                ClayUI.Label("Modal content");
+                ClayUI.EndPopupModal();
+            }
+        }, mousePos: new Vector2(700, 700), mouseDown: true);
+
+        Assert.True(ClayUI.IsPopupOpen("modalStay"), "Modal should not close on click outside");
+    }
+
+    [Fact]
+    public void BeginPopupModal_ExplicitClose_Works()
+    {
+        // Open modal
+        _fixture.RunFrame(() =>
+        {
+            ClayUI.OpenPopup("modalClose");
+            if (ClayUI.BeginPopupModal("modalClose"))
+            {
+                ClayUI.Label("Content");
+                ClayUI.EndPopupModal();
+            }
+        });
+        Assert.True(ClayUI.IsPopupOpen("modalClose"));
+
+        // Explicitly close
+        ClayUI.ClosePopup("modalClose");
+        Assert.False(ClayUI.IsPopupOpen("modalClose"));
+    }
+
+    [Fact]
+    public void BeginPopupModal_CloseAllPopups_ClosesModal()
+    {
+        _fixture.RunFrame(() =>
+        {
+            ClayUI.OpenPopup("modalAll");
+            if (ClayUI.BeginPopupModal("modalAll"))
+            {
+                ClayUI.Label("Content");
+                ClayUI.EndPopupModal();
+            }
+        });
+        Assert.True(ClayUI.IsPopupOpen("modalAll"));
+
+        ClayUI.CloseAllPopups();
+        Assert.False(ClayUI.IsPopupOpen("modalAll"));
+    }
+
+    [Fact]
+    public void BeginPopupModal_BlocksButtonBehind()
+    {
+        bool buttonClicked = false;
+
+        // Frame 1: open modal with button behind
+        _fixture.RunFrame(() =>
+        {
+            buttonClicked = ClayUI.Button("Behind");
+            ClayUI.OpenPopup("modalBlock");
+            if (ClayUI.BeginPopupModal("modalBlock"))
+            {
+                ClayUI.Label("Modal");
+                ClayUI.EndPopupModal();
+            }
+        });
+
+        // Frame 2: establish layout
+        _fixture.RunFrame(() =>
+        {
+            buttonClicked = ClayUI.Button("Behind");
+            if (ClayUI.BeginPopupModal("modalBlock"))
+            {
+                ClayUI.Label("Modal");
+                ClayUI.EndPopupModal();
+            }
+        });
+
+        // Frame 3: click where button is — should be blocked by modal
+        _fixture.RunFrame(() =>
+        {
+            buttonClicked = ClayUI.Button("Behind");
+            if (ClayUI.BeginPopupModal("modalBlock"))
+            {
+                ClayUI.Label("Modal");
+                ClayUI.EndPopupModal();
+            }
+        }, mousePos: new Vector2(5, 5), mouseDown: true);
+
+        Assert.True(ClayUI.IsPopupOpen("modalBlock"), "Modal should stay open");
+        Assert.False(buttonClicked, "Button behind modal should not receive click");
+    }
+
+    [Fact]
+    public void BeginPopupModal_GeneratesRenderCommands()
+    {
+        var commands = _fixture.RunFrame(() =>
+        {
+            ClayUI.OpenPopup("modalRender");
+            if (ClayUI.BeginPopupModal("modalRender"))
+            {
+                ClayUI.Label("Modal content");
+                ClayUI.EndPopupModal();
+            }
+        });
+
+        // Should have at least the dim overlay rectangle + modal container + title bar + content
+        int rectCount = 0;
+        foreach (var cmd in commands)
+        {
+            if (cmd.CommandType == RenderCommandType.Rectangle)
+                rectCount++;
+        }
+        Assert.True(rectCount >= 3, $"Modal should generate multiple rectangles, got {rectCount}");
+    }
 }

@@ -29,6 +29,7 @@ internal class ClayUIContext
     internal uint PopupToOpen; // Popup to open this frame (set by OpenPopup)
     internal Vector2 PopupOpenPosition; // Position for the popup to open at
     internal uint PopupOpenParentId; // Parent element for the popup
+    internal readonly HashSet<uint> ModalPopups = new(); // Popups that are modal (no click-outside-close)
 
     // Window focus order (last element = topmost/focused window)
     internal readonly List<uint> WindowFocusOrder = new();
@@ -158,19 +159,21 @@ internal class ClayUIContext
 
         // If any popup is open and a click just happened outside all popups,
         // close them all immediately and consume the click so widgets behind don't fire.
+        // However, if any modal popup is open, don't auto-close — modals require explicit close.
         bool justPressed = mouseDown && !MouseWasPressed;
+        bool hasModalOpen = false;
+        foreach (var pid in OpenPopupStack)
+        {
+            if (ModalPopups.Contains(pid)) { hasModalOpen = true; break; }
+        }
         if (justPressed && OpenPopupStack.Count > 0 && !IsPointOverAnyPopup(mousePosition))
         {
             ClickConsumedThisFrame = true;
-            // Close all popups now - don't defer to BeginPopup which may not run for all of them
-            for (int i = OpenPopupStack.Count - 1; i >= 0; i--)
+            if (!hasModalOpen)
             {
-                uint closeId = OpenPopupStack[i];
-                if (PopupStates.TryGetValue(closeId, out var state))
-                    PopupStates[closeId] = state with { Open = false };
+                ClayUI.CloseAllPopups();
+                OpenPopupBounds.Clear();
             }
-            OpenPopupStack.Clear();
-            OpenPopupBounds.Clear();
         }
 
         // Release active slider/scrollbar/window/resize when mouse is released
@@ -203,6 +206,7 @@ internal class ClayUIContext
         WindowFocusOrder.Clear();
         PopupStates.Clear();
         OpenPopupStack.Clear();
+        ModalPopups.Clear();
     }
 
     /// <summary>
@@ -2399,7 +2403,6 @@ public static class ClayUI
         _context.PopupToOpen = popupId.Id;
         _context.PopupOpenPosition = _context.MousePosition;
         _context.PopupOpenParentId = 0;
-        Console.WriteLine($">>> OpenPopup: id='{id}', hash={popupId.Id}, pos={_context.MousePosition}");
     }
 
     /// <summary>
@@ -2426,6 +2429,7 @@ public static class ClayUI
         {
             _context.PopupStates[popupId.Id] = state with { Open = false };
             _context.OpenPopupStack.Remove(popupId.Id);
+            _context.ModalPopups.Remove(popupId.Id);
         }
     }
 
@@ -2442,6 +2446,7 @@ public static class ClayUI
             }
         }
         _context.OpenPopupStack.Clear();
+        _context.ModalPopups.Clear();
     }
 
     /// <summary>
@@ -2467,16 +2472,9 @@ public static class ClayUI
 
         bool justOpened = false;
 
-        // Debug: only log when there's something to open
-        if (_context.PopupToOpen != 0)
-        {
-            Console.WriteLine($">>> BeginPopup: id='{id}', hash={popupId.Id}, PopupToOpen={_context.PopupToOpen}, match={_context.PopupToOpen == popupId.Id}");
-        }
-
         // Check if this popup was requested to open this frame
         if (_context.PopupToOpen == popupId.Id)
         {
-            Console.WriteLine($">>> BeginPopup: OPENING popup '{id}'");
             // Open the popup
             var newState = new ClayUIContext.PopupState(
                 Position: _context.PopupOpenPosition + s.Offset,
@@ -2501,13 +2499,10 @@ public static class ClayUI
             return false;
         }
 
-        // Handle click-outside-to-close (but not on the frame the popup was just opened).
-        // Note: ClickConsumedThisFrame may already be set by BeginFrame's pre-consumption
-        // for clicks outside popups, so we don't check it here.
-        if (!justOpened && IsMouseJustPressed && !_context.IsPointOverAnyPopup(_context.MousePosition))
+        // Handle click-outside-to-close (but not for modal popups or on the frame just opened).
+        bool isModal = _context.ModalPopups.Contains(popupId.Id);
+        if (!isModal && !justOpened && IsMouseJustPressed && !_context.IsPointOverAnyPopup(_context.MousePosition))
         {
-            Console.WriteLine($">>> BeginPopup: CLOSING popup '{id}' - click outside detected");
-            // Click was outside all popups, close this one and any nested popups
             _context.ClosePopupsOutsidePoint(_context.MousePosition);
 
             // Re-check if this popup is still open
@@ -2577,7 +2572,6 @@ public static class ClayUI
         if (!boundsUpdated)
             _context.OpenPopupBounds.Add((popupId.Id, estimatedBounds));
 
-        Console.WriteLine($">>> BeginPopup: RENDERING popup '{id}' at ({state.Position.X}, {state.Position.Y}), z={zIndex}");
         _context.PopupDepth++;
         return true;
     }
@@ -2706,9 +2700,10 @@ public static class ClayUI
     /// <returns>True if the submenu is open.</returns>
     public static bool BeginMenu(string label, bool enabled = true)
     {
-        var itemId = StableId($"SubMenu_{label}");
-        string popupId = $"SubMenu_{label}";
+        string menuKey = $"SubMenu_{label}";
+        var itemId = StableId(menuKey);
         bool isHovered = IsHovered(itemId) && enabled;
+        bool isOpen = IsPopupOpen(menuKey);
 
         // Track hover time for this menu item
         if (isHovered)
@@ -2725,8 +2720,7 @@ public static class ClayUI
         }
         else if (_context.HoveredMenuItemId == itemId.Id)
         {
-            // Mouse left this item - only reset if submenu isn't open
-            if (!IsPopupOpen(popupId))
+            if (!isOpen)
             {
                 _context.HoveredMenuItemId = 0;
                 _context.HoveredMenuItemTime = 0;
@@ -2734,19 +2728,17 @@ public static class ClayUI
         }
 
         // Open submenu after hover delay
-        bool isOpen = IsPopupOpen(popupId);
         if (isHovered && !isOpen && enabled && _context.HoveredMenuItemTime >= ClayUIContext.SubmenuOpenDelay)
         {
-            // Position to the right of this item
             var itemData = Clay.GetElementData(itemId);
             if (itemData.Found)
             {
                 var bounds = itemData.BoundingBox;
-                OpenPopupAt(popupId, new Vector2(bounds.X + bounds.Width, bounds.Y));
+                OpenPopupAt(menuKey, new Vector2(bounds.X + bounds.Width, bounds.Y));
             }
             else
             {
-                OpenPopup(popupId);
+                OpenPopup(menuKey);
             }
         }
 
@@ -2754,14 +2746,12 @@ public static class ClayUI
         if (isOpen && !isHovered && _context.HoveredMenuItemId != itemId.Id && _context.HoveredMenuItemId != 0)
         {
             // Check if mouse is over this submenu popup or any of its descendant popups.
-            // Find the index of this submenu in the popup stack and check all popups from that point onwards.
-            var subPopupId = StableId($"Popup_{popupId}");
+            var subPopupId = StableId($"Popup_{menuKey}");
             int stackIdx = _context.OpenPopupStack.IndexOf(subPopupId.Id);
             bool overSubmenuOrDescendant = false;
 
             if (stackIdx >= 0)
             {
-                // Check this popup and all popups opened after it (descendants)
                 for (int si = stackIdx; si < _context.OpenPopupStack.Count; si++)
                 {
                     uint checkId = _context.OpenPopupStack[si];
@@ -2779,7 +2769,7 @@ public static class ClayUI
 
             if (!overSubmenuOrDescendant)
             {
-                ClosePopup(popupId);
+                ClosePopup(menuKey);
             }
         }
 
@@ -2802,7 +2792,6 @@ public static class ClayUI
             CornerRadius = CornerRadius.All(2)
         }))
         {
-            // Label (grows to push arrow right)
             using (Clay.Element(new ElementDeclaration
             {
                 Layout = new LayoutConfig
@@ -2819,7 +2808,6 @@ public static class ClayUI
                 });
             }
 
-            // ">" arrow
             Clay.Text(">", new TextConfig
             {
                 FontId = s.FontId,
@@ -2828,20 +2816,7 @@ public static class ClayUI
             });
         }
 
-        // Begin the submenu popup
-        return BeginPopup(popupId, new PopupStyle
-        {
-            BackgroundColor = s.BackgroundColor,
-            CornerRadius = s.CornerRadius,
-            Border = s.Border,
-            Padding = s.Padding,
-            ContentGap = s.ContentGap,
-            MinWidth = s.MinWidth,
-            MaxWidth = s.MaxWidth,
-            FontId = s.FontId,
-            FontSize = s.FontSize,
-            Offset = default // Position is set by OpenPopupAt
-        });
+        return BeginPopup(menuKey, s with { Offset = default });
     }
 
     /// <summary>
@@ -2867,6 +2842,202 @@ public static class ClayUI
         float y = anchorBounds.Y + anchorBounds.Height;
 
         OpenPopupAt(id, new Vector2(x, y));
+    }
+
+    // ============ Modal Popup ============
+
+    /// <summary>
+    /// Begins a modal popup. Modal popups block all input behind them with a dimming overlay
+    /// and cannot be closed by clicking outside — you must explicitly call ClosePopup or CloseAllPopups.
+    /// Use OpenPopup to open a modal, same as regular popups.
+    /// Returns true if the modal is open and content should be rendered.
+    /// Call EndPopup() when done (only if this returns true).
+    /// </summary>
+    /// <param name="id">Unique popup identifier (same as used in OpenPopup).</param>
+    /// <param name="style">Optional modal style.</param>
+    /// <returns>True if modal is open and content should be rendered.</returns>
+    public static bool BeginPopupModal(string id, ModalStyle? style = null)
+    {
+        var popupId = StableId($"Popup_{id}");
+        var s = style ?? Style.Modal;
+
+        bool justOpened = false;
+
+        // Check if this popup was requested to open this frame
+        if (_context.PopupToOpen == popupId.Id)
+        {
+            // Center the modal on screen
+            var layoutDims = Clay.GetLayoutDimensions();
+            var prevData = Clay.GetElementData(popupId);
+            float modalWidth = prevData.Found ? prevData.BoundingBox.Width : s.MinWidth;
+            float modalHeight = prevData.Found ? prevData.BoundingBox.Height : 100;
+
+            var centeredPos = new Vector2(
+                (layoutDims.Width - modalWidth) / 2,
+                (layoutDims.Height - modalHeight) / 2
+            );
+
+            var newState = new ClayUIContext.PopupState(
+                Position: centeredPos,
+                ParentId: _context.PopupOpenParentId,
+                Open: true
+            );
+            _context.PopupStates[popupId.Id] = newState;
+
+            if (!_context.OpenPopupStack.Contains(popupId.Id))
+                _context.OpenPopupStack.Add(popupId.Id);
+
+            // Mark as modal so click-outside doesn't close it
+            _context.ModalPopups.Add(popupId.Id);
+
+            _context.PopupToOpen = 0;
+            justOpened = true;
+        }
+
+        // Check if popup is open
+        if (!_context.PopupStates.TryGetValue(popupId.Id, out var state) || !state.Open)
+            return false;
+
+        // Re-center each frame using previous frame's actual size
+        if (!justOpened)
+        {
+            var layoutDims = Clay.GetLayoutDimensions();
+            var prevData = Clay.GetElementData(popupId);
+            if (prevData.Found)
+            {
+                float w = prevData.BoundingBox.Width;
+                float h = prevData.BoundingBox.Height;
+                state = state with { Position = new Vector2((layoutDims.Width - w) / 2, (layoutDims.Height - h) / 2) };
+                _context.PopupStates[popupId.Id] = state;
+            }
+        }
+
+        short zIndex = _context.GetPopupZIndex(popupId.Id);
+
+        // Render fullscreen dimming overlay (one z-level below the modal)
+        Clay.Element(new ElementDeclaration
+        {
+            Layout = new LayoutConfig
+            {
+                Sizing = new Sizing
+                {
+                    Width = SizingAxis.Fixed(Clay.GetLayoutDimensions().Width),
+                    Height = SizingAxis.Fixed(Clay.GetLayoutDimensions().Height)
+                }
+            },
+            BackgroundColor = s.DimColor,
+            Floating = new FloatingConfig
+            {
+                AttachTo = FloatingAttachTo.Root,
+                Offset = default,
+                ZIndex = (short)(zIndex - 1)
+            }
+        });
+        Clay.CloseElement();
+
+        // Render modal container
+        Clay.Element(new ElementDeclaration
+        {
+            Id = popupId,
+            Layout = new LayoutConfig
+            {
+                Direction = LayoutDirection.TopToBottom,
+                Sizing = new Sizing
+                {
+                    Width = SizingAxis.Fit(s.MinWidth, s.MaxWidth),
+                    Height = SizingAxis.Fit()
+                }
+            },
+            BackgroundColor = s.BackgroundColor,
+            CornerRadius = s.CornerRadius,
+            Border = s.Border,
+            Floating = new FloatingConfig
+            {
+                AttachTo = FloatingAttachTo.Root,
+                Offset = state.Position,
+                ZIndex = zIndex
+            }
+        });
+
+        // Title bar
+        var titleBarId = StableId($"ModalTitle_{id}");
+        using (Clay.Element(new ElementDeclaration
+        {
+            Id = titleBarId,
+            Layout = new LayoutConfig
+            {
+                Direction = LayoutDirection.LeftToRight,
+                Sizing = new Sizing { Width = SizingAxis.Grow(), Height = SizingAxis.Fixed(s.TitleBarHeight) },
+                Padding = Padding.Symmetric(s.Padding.Left, 0),
+                ChildAlignment = new ChildAlignment { Y = AlignY.Center }
+            },
+            BackgroundColor = s.TitleBarColor
+        }))
+        {
+            // Title text
+            using (Clay.Element(new ElementDeclaration
+            {
+                Layout = new LayoutConfig
+                {
+                    Sizing = new Sizing { Width = SizingAxis.Grow(), Height = SizingAxis.Fit() }
+                }
+            }))
+            {
+                Clay.Text(id, new TextConfig
+                {
+                    FontId = s.FontId,
+                    FontSize = s.TitleFontSize,
+                    TextColor = s.TitleColor
+                });
+            }
+        }
+
+        // Content area with padding
+        Clay.Element(new ElementDeclaration
+        {
+            Layout = new LayoutConfig
+            {
+                Direction = LayoutDirection.TopToBottom,
+                Padding = s.Padding,
+                ChildGap = s.ContentGap,
+                Sizing = new Sizing { Width = SizingAxis.Grow(), Height = SizingAxis.Fit() }
+            }
+        });
+
+        // Update popup bounds
+        var layoutDims2 = Clay.GetLayoutDimensions();
+        var prevData2 = Clay.GetElementData(popupId);
+        float popupWidth = prevData2.Found ? prevData2.BoundingBox.Width : s.MinWidth;
+        float popupHeight = prevData2.Found ? prevData2.BoundingBox.Height : 100;
+        var estimatedBounds = new BoundingBox(state.Position.X, state.Position.Y, popupWidth, popupHeight);
+
+        bool boundsUpdated = false;
+        for (int i = 0; i < _context.OpenPopupBounds.Count; i++)
+        {
+            if (_context.OpenPopupBounds[i].PopupId == popupId.Id)
+            {
+                _context.OpenPopupBounds[i] = (popupId.Id, estimatedBounds);
+                boundsUpdated = true;
+                break;
+            }
+        }
+        if (!boundsUpdated)
+            _context.OpenPopupBounds.Add((popupId.Id, estimatedBounds));
+
+        _context.PopupDepth++;
+        return true;
+    }
+
+    /// <summary>
+    /// Ends a modal popup. Must be called if BeginPopupModal returned true.
+    /// Closes the content area and the modal container.
+    /// </summary>
+    public static void EndPopupModal()
+    {
+        if (_context.PopupDepth > 0)
+            _context.PopupDepth--;
+        Clay.CloseElement(); // content area
+        Clay.CloseElement(); // modal container
     }
 
     /// <summary>
@@ -4546,6 +4717,7 @@ public class ClayUIStyle
     public ComboStyle Combo = new();
     public WindowStyle Window = new();
     public PopupStyle Popup = new();
+    public ModalStyle Modal = new();
     public Color SeparatorColor = Color.Rgba(60, 60, 65);
 
     public static ClayUIStyle Default => new();
@@ -4686,6 +4858,15 @@ public class ClayUIStyle
             BackgroundColor = Color.Rgba(250, 250, 255),
             CornerRadius = CornerRadius.All(4),
             Border = BorderConfig.Uniform(1, Color.Rgba(200, 200, 205))
+        },
+        Modal = new ModalStyle
+        {
+            BackgroundColor = Color.Rgba(250, 250, 255),
+            CornerRadius = CornerRadius.All(6),
+            Border = BorderConfig.Uniform(1, Color.Rgba(200, 200, 205)),
+            DimColor = Color.Rgba(0, 0, 0, 100),
+            TitleBarColor = Color.Rgba(230, 230, 238),
+            TitleColor = Color.Rgba(30, 30, 35)
         },
         SeparatorColor = Color.Rgba(200, 200, 205)
     };
@@ -4973,6 +5154,28 @@ public struct PopupStyle
     public ushort FontId { get; set; } = 0;
 
     /// <summary>Font size for text in popup.</summary>
+    public ushort FontSize { get; set; } = 14;
+}
+
+/// <summary>
+/// Style configuration for modal popup widgets.
+/// </summary>
+public struct ModalStyle
+{
+    public ModalStyle() { }
+    public Color BackgroundColor { get; set; } = Color.Rgba(40, 40, 45);
+    public CornerRadius CornerRadius { get; set; } = CornerRadius.All(6);
+    public BorderConfig Border { get; set; } = BorderConfig.Uniform(1, Color.Rgba(70, 70, 80));
+    public Padding Padding { get; set; } = Padding.All(12);
+    public ushort ContentGap { get; set; } = 8;
+    public float MinWidth { get; set; } = 300;
+    public float MaxWidth { get; set; } = 500;
+    public Color DimColor { get; set; } = Color.Rgba(0, 0, 0, 128);
+    public Color TitleBarColor { get; set; } = Color.Rgba(50, 50, 58);
+    public Color TitleColor { get; set; } = Color.White;
+    public float TitleBarHeight { get; set; } = 32;
+    public ushort TitleFontSize { get; set; } = 16;
+    public ushort FontId { get; set; } = 0;
     public ushort FontSize { get; set; } = 14;
 }
 
