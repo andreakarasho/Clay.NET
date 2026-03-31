@@ -49,7 +49,7 @@ RpgSkin.Load();
 // Sidebar
 string[] pages = ["Overview", "Buttons", "Text Input", "Checkboxes & Toggles", "Sliders & Progress",
     "Radio Group", "Tree View", "Layout Helpers", "Text Styles", "Color Picker",
-    "ListBox & Combo", "Scroll Areas", "Windows", "Popups & Context Menus", "Theming", "Disabled States", "RPG Skin"];
+    "ListBox & Combo", "Scroll Areas", "Windows", "Docking", "Popups & Context Menus", "Theming", "Disabled States", "RPG Skin"];
 int selectedPage = 0;
 
 // Widget state
@@ -97,6 +97,22 @@ float rpgSkinProgress = 0.65f;
 int rpgSkinRadio = 0;
 string[] rpgRadioOptions = ["Warrior", "Mage", "Ranger"];
 ClayUISkin? rpgSkin = null;
+
+// Docking demo state
+bool dockPanel1Open = true;
+bool dockPanel2Open = true;
+bool dockPanel3Open = true;
+bool dockPanel4Open = true;
+bool dockFloatingOpen = true;
+int dockDemoCounter = 0;
+bool dockDemoCheckbox = false;
+float dockDemoSlider = 0.5f;
+string[] dockLogMessages = [
+    "Application started",
+    "Loaded 3 panels",
+    "Dock layout initialized",
+    "Ready for interaction"
+];
 
 // Debug
 bool debugWindowOpen = false;
@@ -165,6 +181,10 @@ while (!Raylib.WindowShouldClose())
     // ===== Windows (rendered at root level) =====
     if (selectedPage == Array.IndexOf(pages, "Windows"))
         RenderDemoWindows();
+
+    // ===== Docking demo windows (rendered at root level) =====
+    if (selectedPage == Array.IndexOf(pages, "Docking"))
+        RenderDockingDemoWindows();
 
     if (debugWindowOpen)
         ClayUI.ShowDebugWindow();
@@ -322,10 +342,11 @@ void RenderContent()
         case 10: PageListBoxAndCombo(); break;
         case 11: PageScrollAreas(); break;
         case 12: PageWindows(); break;
-        case 13: PagePopups(); break;
-        case 14: PageTheming(); break;
-        case 15: PageDisabledStates(); break;
-        case 16: PageRpgSkin(); break;
+        case 13: PageDocking(); break;
+        case 14: PagePopups(); break;
+        case 15: PageTheming(); break;
+        case 16: PageDisabledStates(); break;
+        case 17: PageRpgSkin(); break;
     }
 
     ClayUI.EndScrollArea();
@@ -997,6 +1018,133 @@ void PageRpgSkin()
 }
 
 // ============ Demo Windows ============
+
+void PageDocking()
+{
+    ClayUI.Label("DockSpace provides an ImGui-style docking system where windows can be:");
+    ClayUI.Space(4);
+    ClayUI.Label("  - Arranged in a split layout with resizable splitters");
+    ClayUI.Label("  - Shown as tabs when multiple windows share the same slot");
+    ClayUI.Label("  - Undocked by dragging a tab out of the dock");
+    ClayUI.Label("  - Re-docked by dragging a floating window over a dock zone");
+    ClayUI.Space(12);
+
+    ClayUI.Label("The dock space below demonstrates these features. Try:");
+    ClayUI.Space(4);
+    ClayUI.Label("  1. Click tabs to switch between docked panels");
+    ClayUI.Label("  2. Drag a tab to undock it into a floating window");
+    ClayUI.Label("  3. Drag the floating window back over a panel to re-dock it");
+    ClayUI.Label("  4. Drag splitters between panels to resize them");
+
+    ClayUI.Space(12);
+    ClayUI.BeginHorizontal(gap: 8);
+    if (ClayUI.Button("Reset Layout"))
+    {
+        ClayUI.ClearDockSpace("DemoDock");
+        dockPanel1Open = true;
+        dockPanel2Open = true;
+        dockPanel3Open = true;
+        dockPanel4Open = true;
+        dockFloatingOpen = true;
+    }
+    if (ClayUI.Button("Show All")) { dockPanel1Open = true; dockPanel2Open = true; dockPanel3Open = true; dockPanel4Open = true; dockFloatingOpen = true; }
+    ClayUI.EndHorizontal();
+
+    ClayUI.Space(4);
+    ClayUI.Label($"Panel 1: {(dockPanel1Open ? "open" : "closed")}, Panel 2: {(dockPanel2Open ? "open" : "closed")}, "
+        + $"Panel 3: {(dockPanel3Open ? "open" : "closed")}, Panel 4: {(dockPanel4Open ? "open" : "closed")}");
+    ClayUI.Label($"Floating: {(dockFloatingOpen ? "open" : "closed")}");
+
+    ClayUI.Space(12);
+    ClayUI.Separator();
+    ClayUI.Space(8);
+
+    ClayUI.Label("Usage — windows auto-dock when placed inside a dock space:");
+    ClayUI.Space(4);
+    ClayUI.Label("  ClayUI.BeginDockSpace(\"MyDock\");");
+    ClayUI.Label("  if (ClayUI.BeginWindow(\"Panel A\", ref open)) { ... }");
+    ClayUI.Label("  ClayUI.EndWindow();");
+    ClayUI.Label("  if (ClayUI.BeginWindow(\"Panel B\", ref open)) { ... }");
+    ClayUI.Label("  ClayUI.EndWindow();");
+    ClayUI.Label("  ClayUI.EndDockSpace();");
+}
+
+void RenderDockingDemoWindows()
+{
+    if (ClayUI.BeginWindow("Dock Demo", ref dockFloatingOpen,
+        defaultPosition: new Vector2(350, 100),
+        defaultSize: new Vector2(700, 450),
+        flags: WindowFlags.NoDocking | WindowFlags.NoScroll))
+    {
+        ClayUI.BeginDockSpace("DemoDock");
+
+        // Panel 1: Properties
+        if (ClayUI.BeginWindow("Properties", ref dockPanel1Open, flags: WindowFlags.NoCollapse))
+        {
+            ClayUI.Label("Entity Properties", new LabelStyle { FontSize = 14 });
+            ClayUI.Space(8);
+            ClayUI.Checkbox("Active", ref dockDemoCheckbox);
+            ClayUI.Slider("Scale", ref dockDemoSlider, 0.1f, 3.0f);
+            ClayUI.Space(8);
+            ClayUI.Label($"Scale: {dockDemoSlider:F2}");
+        }
+        ClayUI.EndWindow();
+
+        // Panel 2: Log
+        if (ClayUI.BeginWindow("Log", ref dockPanel2Open, flags: WindowFlags.NoCollapse))
+        {
+            foreach (var msg in dockLogMessages)
+                ClayUI.Label($"> {msg}", new LabelStyle { FontSize = 12 });
+            ClayUI.Space(4);
+            if (ClayUI.Button("Add Log"))
+            {
+                dockLogMessages = [..dockLogMessages, $"Event #{dockDemoCounter++}"];
+            }
+        }
+        ClayUI.EndWindow();
+
+        // Panel 3: Viewport (shares tab with Scene Graph)
+        if (ClayUI.BeginWindow("Viewport", ref dockPanel3Open, flags: WindowFlags.NoCollapse))
+        {
+            ClayUI.Spacer();
+            ClayUI.BeginHorizontal(alignment: ChildAlignment.Center, style: new LayoutStyle
+            {
+                Sizing = new Sizing(SizingAxis.Grow(), SizingAxis.Fit())
+            });
+            ClayUI.BeginVertical(gap: 4, alignment: ChildAlignment.Center);
+            ClayUI.Label("3D Viewport", new LabelStyle { FontSize = 16 });
+            ClayUI.Label("(drag this tab to undock)", new LabelStyle { FontSize = 12 });
+            ClayUI.EndVertical();
+            ClayUI.EndHorizontal();
+            ClayUI.Spacer();
+        }
+        ClayUI.EndWindow();
+
+        // Panel 4: Scene Graph (tab alongside Viewport)
+        if (ClayUI.BeginWindow("Scene Graph", ref dockPanel4Open, flags: WindowFlags.NoCollapse))
+        {
+            ClayUI.Label("Scene Hierarchy", new LabelStyle { FontSize = 14 });
+            ClayUI.Space(4);
+            if (ClayUI.BeginTreeNode("Root"))
+            {
+                if (ClayUI.BeginTreeNode("Camera")) ClayUI.EndTreeNode();
+                if (ClayUI.BeginTreeNode("Light")) ClayUI.EndTreeNode();
+                if (ClayUI.BeginTreeNode("Player"))
+                {
+                    if (ClayUI.BeginTreeNode("Mesh")) ClayUI.EndTreeNode();
+                    if (ClayUI.BeginTreeNode("Collider")) ClayUI.EndTreeNode();
+                    ClayUI.EndTreeNode();
+                }
+                if (ClayUI.BeginTreeNode("Ground")) ClayUI.EndTreeNode();
+                ClayUI.EndTreeNode();
+            }
+        }
+        ClayUI.EndWindow();
+
+        ClayUI.EndDockSpace();
+    }
+    ClayUI.EndWindow();
+}
 
 void RenderDemoWindows()
 {

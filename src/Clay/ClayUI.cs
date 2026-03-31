@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using Clay.Widgets;
 using static Clay.Widgets.HsvGradientType;
 
@@ -128,6 +129,44 @@ internal class ClayUIContext
     internal const float TooltipDelay = 0.5f; // Delay before tooltip appears
     internal bool TooltipShownThisFrame;   // Whether a tooltip was rendered this frame
 
+    // Dock space persistent state
+    internal readonly Dictionary<uint, DockSpaceState> DockSpaceStates = new();
+    internal readonly Dictionary<uint, string> DockedWindowTitles = new(); // windowId -> title
+
+    // Dock space stack (for BeginDockSpace/EndDockSpace)
+    internal readonly Stack<uint> DockSpaceStack = new();
+
+    // Per-frame dock tracking
+    internal readonly HashSet<uint> DockableWindowsThisFrame = new();
+    internal readonly List<(uint NodeId, BoundingBox Bounds, uint SpaceId)> DockLeafBounds = new();
+
+    // Active dock splitter drag (same pattern as ActiveSplitterId)
+    internal uint ActiveDockSplitterId;
+    internal float DockSplitterDragStartMouse;
+    internal float DockSplitterDragStartRatio;
+    internal DockNode? ActiveDockSplitterNode; // Reference to the node being split
+
+    // Active dock tab drag / undocking
+    internal uint ActiveDockTabDragWindowId;
+    internal uint ActiveDockTabSourceSpaceId;
+    internal Vector2 DockTabDragStartPos;
+    internal bool DockTabDragUndocked;
+
+    // Dock drop preview
+    internal uint DockDropTargetNodeId;
+    internal DockDropZone DockDropZone;
+    internal uint DockDropTargetSpaceId;
+
+    // Pending dock operation (set in BeginFrame when drag ends over a dock zone)
+    internal uint PendingDockWindowId;
+    internal uint PendingDockTargetNodeId;
+    internal DockDropZone PendingDockDropZone;
+    internal uint PendingDockSpaceId;
+
+    // Pending undock operation (deferred to avoid modifying tree during traversal)
+    internal uint PendingUndockWindowId;
+    internal uint PendingUndockSpaceId;
+
     /// <summary>
     /// Clears per-frame state. Called at the start of each frame.
     /// </summary>
@@ -190,6 +229,25 @@ internal class ClayUIContext
             }
         }
 
+        // Capture pending dock operation BEFORE clearing dock state
+        PendingDockWindowId = 0;
+        if (!mouseDown && MouseWasPressed && ActiveDragWindowId != 0 &&
+            DockDropTargetNodeId != 0 && DockDropZone != DockDropZone.None)
+        {
+            // Mouse was just released while dragging a window over a dock zone
+            PendingDockWindowId = ActiveDragWindowId;
+            PendingDockTargetNodeId = DockDropTargetNodeId;
+            PendingDockDropZone = DockDropZone;
+            PendingDockSpaceId = DockDropTargetSpaceId;
+        }
+
+        // Reset dock per-frame state (after capturing pending operation)
+        DockDropTargetNodeId = 0;
+        DockDropZone = DockDropZone.None;
+        DockableWindowsThisFrame.Clear();
+        DockLeafBounds.Clear();
+        PendingUndockWindowId = 0;
+
         // Release active slider/scrollbar/window/resize when mouse is released
         if (!mouseDown)
         {
@@ -199,6 +257,10 @@ internal class ClayUIContext
             ActiveDragWindowId = 0;
             ActiveResizeWindowId = 0;
             ActiveResizeDirection = ResizeDirection.None;
+            ActiveDockSplitterId = 0;
+            ActiveDockSplitterNode = null;
+            ActiveDockTabDragWindowId = 0;
+            DockTabDragUndocked = false;
         }
 
         // Reset popup opening state
@@ -222,6 +284,8 @@ internal class ClayUIContext
         PopupStates.Clear();
         OpenPopupStack.Clear();
         ModalPopups.Clear();
+        DockSpaceStates.Clear();
+        DockedWindowTitles.Clear();
     }
 
     /// <summary>
@@ -757,6 +821,14 @@ public static class ClayUI
         {
             if (!IsInsideWindow) return false;
             uint currentWindowId = _context.WindowStack.Peek();
+
+            // Docked windows don't overlap — always process clicks
+            foreach (var (_, dockSpace) in _context.DockSpaceStates)
+            {
+                if (dockSpace.WindowToNode.ContainsKey(currentWindowId))
+                    return true;
+            }
+
             return _context.IsWindowTopmostAtMouse(currentWindowId, Style.Window.TitleBarHeight);
         }
     }
@@ -1985,6 +2057,9 @@ public static class ClayUI
         var sk = skin ?? Skin?.Window ?? default;
         var id = StableId($"Window_{title}");
 
+        // Track window title for dock system (needed when window gets docked via drag)
+        _context.DockedWindowTitles[id.Id] = title;
+
         // Get or create window state
         if (!_context.WindowStates.TryGetValue(id.Id, out var state))
         {
@@ -2004,6 +2079,93 @@ public static class ClayUI
             {
                 state = state with { Open = true, Topmost = topmost };
                 _context.WindowStates[id.Id] = state;
+            }
+        }
+
+        // Check if this window is docked in the active dock space
+        if (_context.DockSpaceStack.Count > 0 && !flags.HasFlag(WindowFlags.NoDocking))
+        {
+            var spaceId = _context.DockSpaceStack.Peek();
+            if (_context.DockSpaceStates.TryGetValue(spaceId, out var dockSpace))
+            {
+                // Auto-dock: if the window isn't already in the dock tree, add it
+                // Skip windows being actively dragged (they were just undocked)
+                bool isDragging = _context.ActiveDragWindowId == id.Id;
+                if (!dockSpace.WindowToNode.ContainsKey(id.Id) && !isDragging)
+                {
+                    AutoDockWindow(dockSpace, id.Id, title);
+                }
+            }
+
+            if (_context.DockSpaceStates.TryGetValue(spaceId, out dockSpace) &&
+                dockSpace.WindowToNode.TryGetValue(id.Id, out var leafNode))
+            {
+                // Track this window title for tab bar display
+                _context.DockedWindowTitles[id.Id] = title;
+                _context.DockableWindowsThisFrame.Add(id.Id);
+
+                _context.WindowStack.Push(id.Id);
+                _context.WindowDepth++;
+
+                // Is this the active tab?
+                bool isActiveTab = leafNode.ActiveTabIndex >= 0 &&
+                    leafNode.ActiveTabIndex < leafNode.DockedWindowIds.Count &&
+                    leafNode.DockedWindowIds[leafNode.ActiveTabIndex] == id.Id;
+
+                if (!isActiveTab)
+                {
+                    _context.WindowScrollInfo.Push(null);
+                    return false;
+                }
+
+                // Get the leaf content area bounds from previous frame
+                var leafContentId = ElementId.Hash($"DockLeafArea_{leafNode.Id}");
+                var leafData = Clay.GetElementData(leafContentId);
+
+                if (!leafData.Found)
+                {
+                    // First frame — content area not laid out yet, skip rendering
+                    _context.WindowScrollInfo.Push(null);
+                    return false;
+                }
+
+                var ds = Style.DockSpace;
+                var scrollId = ElementId.Hash($"DockWinScroll_{id.Id}");
+
+                // Open content as a floating element positioned at the leaf content area
+                Clay.Element(new ElementDeclaration
+                {
+                    Id = id,
+                    Layout = new LayoutConfig
+                    {
+                        Direction = LayoutDirection.TopToBottom,
+                        Sizing = Sizing.FixedSize(leafData.BoundingBox.Width, leafData.BoundingBox.Height)
+                    },
+                    Floating = new FloatingConfig
+                    {
+                        AttachTo = FloatingAttachTo.Root,
+                        Offset = new Vector2(leafData.BoundingBox.X, leafData.BoundingBox.Y),
+                        ZIndex = 1
+                    }
+                });
+
+                // Scroll container for content
+                var ws = style ?? Style.Window;
+                Clay.Element(new ElementDeclaration
+                {
+                    Id = scrollId,
+                    Layout = new LayoutConfig
+                    {
+                        Direction = LayoutDirection.TopToBottom,
+                        Sizing = Sizing.Fill(),
+                        Padding = ws.ContentPadding,
+                        ChildGap = ws.ContentGap
+                    },
+                    Scroll = ScrollConfig.VerticalScroll
+                });
+
+                _context.WindowScrollInfo.Push(new ClayUIContext.WindowFrameInfo(scrollId, false, false, false));
+                return true;
             }
         }
 
@@ -2353,6 +2515,31 @@ public static class ClayUI
 
             if (windowId != 0 && _context.WindowDepth > 0)
             {
+                // Check if window is docked
+                bool isDocked = false;
+                foreach (var (_, dockSpace) in _context.DockSpaceStates)
+                {
+                    if (dockSpace.WindowToNode.ContainsKey(windowId))
+                    {
+                        isDocked = true;
+                        break;
+                    }
+                }
+
+                if (isDocked)
+                {
+                    // Docked window: close scroll container + window container (2 elements)
+                    // Only if frameInfo indicates content was rendered (active tab)
+                    if (frameInfo.HasValue)
+                    {
+                        Clay.CloseElement(); // scroll container
+                        Clay.CloseElement(); // window container
+                    }
+                    _context.WindowDepth--;
+                    _context.WindowStack.Pop();
+                    return;
+                }
+
                 // Check if window was collapsed
                 if (_context.WindowStates.TryGetValue(windowId, out var state) && !state.Collapsed)
                 {
@@ -2490,6 +2677,736 @@ public static class ClayUI
         var id = StableId($"Window_{title}");
         if (_context.WindowStates.TryGetValue(id.Id, out var state))
             _context.WindowStates[id.Id] = state with { Topmost = topmost };
+    }
+
+    // ============ Docking ============
+
+    /// <summary>
+    /// Gets the dock space state for a given ID, or null if not found.
+    /// </summary>
+    internal static DockSpaceState? GetDockSpaceState(uint id)
+    {
+        _context.DockSpaceStates.TryGetValue(id, out var space);
+        return space;
+    }
+
+    /// <summary>
+    /// Gets or creates a dock space state for a given ID.
+    /// </summary>
+    internal static DockSpaceState GetOrCreateDockSpaceState(uint id)
+    {
+        if (!_context.DockSpaceStates.TryGetValue(id, out var space))
+        {
+            space = new DockSpaceState { Id = id };
+            _context.DockSpaceStates[id] = space;
+        }
+        return space;
+    }
+
+    /// <summary>
+    /// Finds a dock node by ID across all dock spaces.
+    /// </summary>
+    internal static (DockSpaceState? space, DockNode? node) FindDockNode(uint nodeId)
+    {
+        foreach (var (_, space) in _context.DockSpaceStates)
+        {
+            var node = space.RootNode?.FindNode(nodeId);
+            if (node != null)
+                return (space, node);
+        }
+        return (null, null);
+    }
+
+    /// <summary>
+    /// Sets the title for a docked window (used by DockBuilder).
+    /// </summary>
+    internal static void SetDockedWindowTitle(uint windowId, string title)
+    {
+        _context.DockedWindowTitles[windowId] = title;
+    }
+
+    internal static string? GetDockedWindowTitle(uint windowId)
+    {
+        return _context.DockedWindowTitles.TryGetValue(windowId, out var title) ? title : null;
+    }
+
+    /// <summary>
+    /// Clears a dock space layout, causing all windows to be auto-docked again on next frame.
+    /// </summary>
+    public static void ClearDockSpace(string label)
+    {
+        var id = StableId(label);
+        if (_context.DockSpaceStates.TryGetValue(id.Id, out var space))
+        {
+            space.NextNodeId = 0;
+            space.RootNode = new DockNode { Id = space.GenerateNodeId() };
+            space.WindowToNode.Clear();
+        }
+    }
+
+    /// <summary>
+    /// Checks if a window is currently docked in any dock space.
+    /// </summary>
+    public static bool IsWindowDocked(string title)
+    {
+        var id = StableId($"Window_{title}");
+        foreach (var (_, space) in _context.DockSpaceStates)
+        {
+            if (space.WindowToNode.ContainsKey(id.Id))
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Begins a dock space that fills its parent element. Dockable windows rendered
+    /// between BeginDockSpace/EndDockSpace will have their content placed into dock
+    /// nodes instead of rendering as floating windows.
+    /// </summary>
+    /// <summary>
+    /// Begins a dock space with an optional setup callback that defines the default layout.
+    /// The setup callback only runs once — when the dock space has no existing layout.
+    /// </summary>
+    /// <example>
+    /// ClayUI.BeginDockSpace("Editor", setup: dock => {
+    ///     var (main, bottom) = dock.Split(DockSplitDirection.Vertical, 0.7f);
+    ///     var (left, right) = dock.Split(main, DockSplitDirection.Horizontal, 0.3f);
+    ///     dock.Window(left, "Hierarchy");
+    ///     dock.Window(right, "Viewport");
+    ///     dock.Window(bottom, "Console");
+    /// });
+    /// </example>
+    public static void BeginDockSpace(string label, Action<DockLayout>? setup = null, DockSpaceStyle? style = null)
+    {
+        var s = style ?? Style.DockSpace;
+        var id = StableId(label);
+
+        // Get or create dock space state
+        var space = GetOrCreateDockSpaceState(id.Id);
+        if (space.RootNode == null)
+        {
+            space.RootNode = new DockNode { Id = space.GenerateNodeId() };
+        }
+
+        // Run setup callback once if layout is empty
+        if (setup != null && space.RootNode.IsEmpty && space.RootNode.IsLeaf)
+        {
+            var layout = new DockLayout(space);
+            setup(layout);
+        }
+
+        // Push onto dock space stack
+        _context.DockSpaceStack.Push(id.Id);
+        _context.DockableWindowsThisFrame.Clear();
+
+        // Rebuild the WindowToNode lookup
+        space.WindowToNode.Clear();
+        space.RootNode.RebuildWindowToNodeMap(space.WindowToNode);
+
+        // Open the dock space container element
+        Clay.Element(new ElementDeclaration
+        {
+            Id = id,
+            Layout = new LayoutConfig
+            {
+                Sizing = Sizing.Fill(),
+                Direction = LayoutDirection.LeftToRight
+            }
+        });
+
+        // Recursively emit the dock tree layout
+        if (!space.RootNode.IsEmpty || !space.RootNode.IsLeaf)
+        {
+            EmitDockNode(space.RootNode, space, s);
+        }
+    }
+
+    /// <summary>
+    /// Ends the dock space started with BeginDockSpace.
+    /// </summary>
+    public static void EndDockSpace()
+    {
+        // Close dock space container
+        Clay.CloseElement();
+
+        if (_context.DockSpaceStack.Count > 0)
+        {
+            var spaceId = _context.DockSpaceStack.Pop();
+
+            // Handle drag-to-dock: detect window being dragged over dock leaves
+            if (_context.ActiveDragWindowId != 0 && _context.DockSpaceStates.TryGetValue(spaceId, out var space))
+            {
+                UpdateDockDropPreview(space);
+            }
+
+            // Execute pending dock operation (from previous frame's drag release)
+            if (_context.PendingDockWindowId != 0 && _context.PendingDockSpaceId == spaceId &&
+                _context.DockSpaceStates.TryGetValue(spaceId, out var pendingSpace))
+            {
+                ExecuteDockOperation(pendingSpace);
+                _context.PendingDockWindowId = 0;
+            }
+
+            // Execute pending undock operation (deferred from tab drag)
+            if (_context.PendingUndockWindowId != 0 && _context.PendingUndockSpaceId == spaceId &&
+                _context.DockSpaceStates.TryGetValue(spaceId, out var undockSpace))
+            {
+                var undockWindowId = _context.PendingUndockWindowId;
+                if (undockSpace.WindowToNode.TryGetValue(undockWindowId, out var undockLeaf))
+                {
+                    UndockWindow(undockWindowId, undockLeaf, undockSpace);
+                }
+                _context.PendingUndockWindowId = 0;
+            }
+
+            // Render drop preview overlay
+            RenderDockDropPreview();
+        }
+    }
+
+    /// <summary>
+    /// Gets the ID of the currently active dock space, or 0 if not inside one.
+    /// </summary>
+    public static uint ActiveDockSpaceId => _context.DockSpaceStack.Count > 0 ? _context.DockSpaceStack.Peek() : 0;
+
+    private static void EmitDockNode(DockNode node, DockSpaceState space, DockSpaceStyle s)
+    {
+        if (node == null) return;
+
+        if (node.IsLeaf)
+        {
+            EmitDockLeaf(node, space, s);
+            return;
+        }
+
+        if (node.ChildA == null || node.ChildB == null) return;
+
+        // Internal split node: container with two children and a splitter
+        bool isHorizontal = node.SplitDirection == DockSplitDirection.Horizontal;
+        var dir = isHorizontal ? LayoutDirection.LeftToRight : LayoutDirection.TopToBottom;
+        var nodeId = ElementId.Hash($"DockSplit_{node.Id}");
+
+        using (Clay.Element(new ElementDeclaration
+        {
+            Id = nodeId,
+            Layout = new LayoutConfig
+            {
+                Direction = dir,
+                Sizing = Sizing.Fill()
+            }
+        }))
+        {
+            // ChildA container
+            var childAId = ElementId.Hash($"DockChild_{node.ChildA!.Id}");
+            using (Clay.Element(new ElementDeclaration
+            {
+                Id = childAId,
+                Layout = new LayoutConfig
+                {
+                    Direction = LayoutDirection.TopToBottom,
+                    Sizing = isHorizontal
+                        ? new Sizing(SizingAxis.PercentOf(node.SplitRatio), SizingAxis.Grow())
+                        : new Sizing(SizingAxis.Grow(), SizingAxis.PercentOf(node.SplitRatio))
+                }
+            }))
+            {
+                EmitDockNode(node.ChildA, space, s);
+            }
+
+            // Splitter between children
+            EmitDockSplitter(node, s);
+
+            // ChildB container
+            var childBId = ElementId.Hash($"DockChild_{node.ChildB!.Id}");
+            float ratioB = 1.0f - node.SplitRatio;
+            using (Clay.Element(new ElementDeclaration
+            {
+                Id = childBId,
+                Layout = new LayoutConfig
+                {
+                    Direction = LayoutDirection.TopToBottom,
+                    Sizing = isHorizontal
+                        ? new Sizing(SizingAxis.PercentOf(ratioB), SizingAxis.Grow())
+                        : new Sizing(SizingAxis.Grow(), SizingAxis.PercentOf(ratioB))
+                }
+            }))
+            {
+                EmitDockNode(node.ChildB, space, s);
+            }
+        }
+    }
+
+    private static void EmitDockLeaf(DockNode leaf, DockSpaceState space, DockSpaceStyle s)
+    {
+        var leafId = ElementId.Hash($"DockLeaf_{leaf.Id}");
+
+        // Vertical container: tab bar on top, content area below
+        using (Clay.Element(new ElementDeclaration
+        {
+            Id = leafId,
+            Layout = new LayoutConfig
+            {
+                Direction = LayoutDirection.TopToBottom,
+                Sizing = Sizing.Fill()
+            }
+        }))
+        {
+            // Tab bar
+            RenderDockLeafTabBar(leaf, space, s);
+
+            // Content area placeholder (active tab's BeginWindow will fill this via floating element)
+            var contentId = ElementId.Hash($"DockLeafArea_{leaf.Id}");
+            using (Clay.Element(new ElementDeclaration
+            {
+                Id = contentId,
+                Layout = new LayoutConfig
+                {
+                    Direction = LayoutDirection.TopToBottom,
+                    Sizing = Sizing.Fill()
+                },
+                BackgroundColor = s.ContentBackgroundColor
+            })) { }
+
+            // Track leaf bounds for drop zone hit testing
+            var leafData = Clay.GetElementData(leafId);
+            if (leafData.Found)
+            {
+                _context.DockLeafBounds.Add((leaf.Id, leafData.BoundingBox, space.Id));
+            }
+        }
+    }
+
+    private static void RenderDockLeafTabBar(DockNode leaf, DockSpaceState space, DockSpaceStyle s)
+    {
+        var tabBarId = ElementId.Hash($"DockTabBar_{leaf.Id}");
+
+        using (Clay.Element(new ElementDeclaration
+        {
+            Id = tabBarId,
+            Layout = new LayoutConfig
+            {
+                Direction = LayoutDirection.LeftToRight,
+                Sizing = new Sizing(SizingAxis.Grow(), SizingAxis.Fixed(s.TabBarHeight)),
+                ChildAlignment = ChildAlignment.BottomLeft
+            },
+            BackgroundColor = s.TabBarColor
+        }))
+        {
+            for (int i = 0; i < leaf.DockedWindowIds.Count; i++)
+            {
+                var windowId = leaf.DockedWindowIds[i];
+                string windowTitle = _context.DockedWindowTitles.TryGetValue(windowId, out var title) ? title : "?";
+                bool isActive = i == leaf.ActiveTabIndex;
+
+                var tabId = ElementId.Hash($"DockTab_{leaf.Id}_{i}");
+                bool isHovered = !IsDisabled && Clay.PointerOver(tabId);
+
+                // Handle tab click / drag start
+                if (isHovered && ShouldProcessClick)
+                {
+                    leaf.ActiveTabIndex = i;
+                    isActive = true;
+
+                    // Start tab drag tracking (for undocking)
+                    _context.ActiveDockTabDragWindowId = windowId;
+                    _context.ActiveDockTabSourceSpaceId = space.Id;
+                    _context.DockTabDragStartPos = _context.MousePosition;
+                    _context.DockTabDragUndocked = false;
+                }
+
+                // Handle tab drag → undock (deferred to avoid modifying tree during traversal)
+                if (_context.ActiveDockTabDragWindowId == windowId && !_context.DockTabDragUndocked &&
+                    _context.MousePressed)
+                {
+                    float dx = _context.MousePosition.X - _context.DockTabDragStartPos.X;
+                    float dy = _context.MousePosition.Y - _context.DockTabDragStartPos.Y;
+                    float dist = MathF.Sqrt(dx * dx + dy * dy);
+
+                    if (dist > s.UndockThreshold)
+                    {
+                        // Defer the undock to EndDockSpace (after tree traversal is done)
+                        _context.PendingUndockWindowId = windowId;
+                        _context.PendingUndockSpaceId = space.Id;
+                        _context.DockTabDragUndocked = true;
+
+                        // Transfer to normal window drag
+                        _context.ActiveDragWindowId = windowId;
+                        _context.WindowDragOffset = new Vector2(s.TabMinWidth / 2, s.TabBarHeight / 2);
+                        _context.ActiveDockTabDragWindowId = 0;
+                    }
+                }
+
+                Color tabColor = isActive ? s.TabActiveColor
+                    : isHovered ? s.TabHoverColor
+                    : s.TabInactiveColor;
+
+                using (Clay.Element(new ElementDeclaration
+                {
+                    Id = tabId,
+                    Layout = new LayoutConfig
+                    {
+                        Sizing = new Sizing(
+                            SizingAxis.Fit(s.TabMinWidth, s.TabMaxWidth),
+                            SizingAxis.Grow()),
+                        Padding = Padding.Horizontal((ushort)s.TabPadding),
+                        ChildAlignment = ChildAlignment.CenterLeft
+                    },
+                    BackgroundColor = tabColor
+                }))
+                {
+                    Clay.Text(windowTitle, new TextConfig
+                    {
+                        FontId = s.FontId,
+                        FontSize = s.FontSize,
+                        TextColor = isActive ? s.TabActiveTextColor : s.TabTextColor
+                    });
+                }
+            }
+        }
+    }
+
+    private static void UpdateDockDropPreview(DockSpaceState space)
+    {
+        var mouse = _context.MousePosition;
+        _context.DockDropTargetNodeId = 0;
+        _context.DockDropZone = DockDropZone.None;
+        _context.DockDropTargetSpaceId = 0;
+
+        // Check if the dragged window has NoDocking — can't determine this easily without flags,
+        // so we skip windows that are already docked
+        var dragWindowId = _context.ActiveDragWindowId;
+        if (space.WindowToNode.ContainsKey(dragWindowId))
+            return;
+
+        // Hit-test dock leaf bounds (from previous frame)
+        foreach (var (nodeId, bounds, leafSpaceId) in _context.DockLeafBounds)
+        {
+            if (leafSpaceId != space.Id) continue;
+            if (mouse.X < bounds.X || mouse.X > bounds.X + bounds.Width ||
+                mouse.Y < bounds.Y || mouse.Y > bounds.Y + bounds.Height)
+                continue;
+
+            _context.DockDropTargetNodeId = nodeId;
+            _context.DockDropTargetSpaceId = space.Id;
+
+            // Determine drop zone based on position within the leaf
+            float relX = (mouse.X - bounds.X) / bounds.Width;
+            float relY = (mouse.Y - bounds.Y) / bounds.Height;
+
+            const float edgeSize = 0.2f;
+
+            if (relX < edgeSize) _context.DockDropZone = DockDropZone.Left;
+            else if (relX > 1f - edgeSize) _context.DockDropZone = DockDropZone.Right;
+            else if (relY < edgeSize) _context.DockDropZone = DockDropZone.Top;
+            else if (relY > 1f - edgeSize) _context.DockDropZone = DockDropZone.Bottom;
+            else _context.DockDropZone = DockDropZone.Center;
+
+            break; // Found the target leaf
+        }
+    }
+
+    private static void ExecuteDockOperation(DockSpaceState space)
+    {
+        var targetNode = space.RootNode.FindNode(_context.PendingDockTargetNodeId);
+        if (targetNode == null || !targetNode.IsLeaf) return;
+
+        var windowId = _context.PendingDockWindowId;
+        var zone = _context.PendingDockDropZone;
+
+        if (zone == DockDropZone.Center)
+        {
+            // Add as a new tab in the target leaf
+            if (!targetNode.DockedWindowIds.Contains(windowId))
+            {
+                targetNode.DockedWindowIds.Add(windowId);
+                targetNode.ActiveTabIndex = targetNode.DockedWindowIds.Count - 1;
+            }
+        }
+        else
+        {
+            // Split the target node
+            var direction = (zone == DockDropZone.Left || zone == DockDropZone.Right)
+                ? DockSplitDirection.Horizontal
+                : DockSplitDirection.Vertical;
+
+            bool newNodeIsFirst = (zone == DockDropZone.Left || zone == DockDropZone.Top);
+
+            var idA = space.GenerateNodeId();
+            var idB = space.GenerateNodeId();
+
+            var existingChild = new DockNode
+            {
+                Id = newNodeIsFirst ? idB : idA,
+                DockedWindowIds = targetNode.DockedWindowIds,
+                ActiveTabIndex = targetNode.ActiveTabIndex
+            };
+            var newChild = new DockNode
+            {
+                Id = newNodeIsFirst ? idA : idB,
+                DockedWindowIds = new List<uint> { windowId },
+                ActiveTabIndex = 0
+            };
+
+            targetNode.SplitDirection = direction;
+            targetNode.ChildA = newNodeIsFirst ? newChild : existingChild;
+            targetNode.ChildB = newNodeIsFirst ? existingChild : newChild;
+            targetNode.SplitRatio = 0.5f;
+            targetNode.DockedWindowIds = new List<uint>();
+            targetNode.ActiveTabIndex = 0;
+        }
+
+        // Reset drop state — window will render as docked next frame
+        _context.DockDropTargetNodeId = 0;
+        _context.DockDropZone = DockDropZone.None;
+    }
+
+    private static void RenderDockDropPreview()
+    {
+        if (_context.DockDropZone == DockDropZone.None || _context.DockDropTargetNodeId == 0)
+            return;
+
+        // Find the target leaf's bounds
+        BoundingBox targetBounds = default;
+        bool found = false;
+        foreach (var (nodeId, bounds, _) in _context.DockLeafBounds)
+        {
+            if (nodeId == _context.DockDropTargetNodeId)
+            {
+                targetBounds = bounds;
+                found = true;
+                break;
+            }
+        }
+        if (!found) return;
+
+        // Compute preview rectangle based on drop zone
+        float previewX = targetBounds.X;
+        float previewY = targetBounds.Y;
+        float previewW = targetBounds.Width;
+        float previewH = targetBounds.Height;
+
+        switch (_context.DockDropZone)
+        {
+            case DockDropZone.Left:
+                previewW *= 0.5f;
+                break;
+            case DockDropZone.Right:
+                previewX += previewW * 0.5f;
+                previewW *= 0.5f;
+                break;
+            case DockDropZone.Top:
+                previewH *= 0.5f;
+                break;
+            case DockDropZone.Bottom:
+                previewY += previewH * 0.5f;
+                previewH *= 0.5f;
+                break;
+            case DockDropZone.Center:
+                // Full area highlight
+                break;
+        }
+
+        var ds = Style.DockSpace;
+        using (Clay.Element(new ElementDeclaration
+        {
+            Id = StableId("DockDropPreview"),
+            Layout = new LayoutConfig
+            {
+                Sizing = Sizing.FixedSize(previewW, previewH)
+            },
+            Floating = new FloatingConfig
+            {
+                AttachTo = FloatingAttachTo.Root,
+                Offset = new Vector2(previewX, previewY),
+                ZIndex = 2000,
+                PointerCaptureMode = PointerCaptureMode.Passthrough
+            },
+            BackgroundColor = ds.DropPreviewColor
+        })) { }
+    }
+
+    /// <summary>
+    /// Automatically docks a window into the dock space.
+    /// Each window gets its own leaf by splitting the largest existing leaf,
+    /// alternating horizontal/vertical splits for a balanced tiled layout.
+    /// </summary>
+    private static void AutoDockWindow(DockSpaceState space, uint windowId, string title)
+    {
+        _context.DockedWindowTitles[windowId] = title;
+
+        if (space.RootNode == null)
+            space.RootNode = new DockNode { Id = space.GenerateNodeId() };
+
+        // If root is an empty leaf, just dock here
+        if (space.RootNode.IsEmpty)
+        {
+            space.RootNode.DockedWindowIds.Add(windowId);
+            space.WindowToNode[windowId] = space.RootNode;
+            return;
+        }
+
+        // Find the leaf with the fewest windows to split
+        var target = FindLargestLeaf(space.RootNode);
+        if (target == null) return;
+
+        // Pick split direction: alternate based on tree depth at the target
+        int depth = GetNodeDepth(space.RootNode, target.Id);
+        var dir = (depth % 2 == 0) ? DockSplitDirection.Horizontal : DockSplitDirection.Vertical;
+
+        // Split the target: existing windows stay in childA, new window in childB
+        var idA = space.GenerateNodeId();
+        var idB = space.GenerateNodeId();
+
+        target.SplitDirection = dir;
+        target.ChildA = new DockNode
+        {
+            Id = idA,
+            DockedWindowIds = target.DockedWindowIds,
+            ActiveTabIndex = target.ActiveTabIndex
+        };
+        target.ChildB = new DockNode
+        {
+            Id = idB,
+            DockedWindowIds = new List<uint> { windowId },
+            ActiveTabIndex = 0
+        };
+        target.SplitRatio = 0.5f;
+        target.DockedWindowIds = new List<uint>();
+        target.ActiveTabIndex = 0;
+
+        space.WindowToNode.Clear();
+        space.RootNode.RebuildWindowToNodeMap(space.WindowToNode);
+    }
+
+    private static DockNode? FindLargestLeaf(DockNode node)
+    {
+        if (node.IsLeaf) return node;
+        var left = node.ChildA != null ? FindLargestLeaf(node.ChildA) : null;
+        var right = node.ChildB != null ? FindLargestLeaf(node.ChildB) : null;
+        if (left == null) return right;
+        if (right == null) return left;
+        // Prefer the leaf with more windows (it's "larger" / more splittable)
+        return left.DockedWindowIds.Count >= right.DockedWindowIds.Count ? left : right;
+    }
+
+    private static int GetNodeDepth(DockNode root, uint targetId, int depth = 0)
+    {
+        if (root.Id == targetId) return depth;
+        if (root.IsLeaf) return -1;
+        int d = root.ChildA != null ? GetNodeDepth(root.ChildA, targetId, depth + 1) : -1;
+        if (d >= 0) return d;
+        return root.ChildB != null ? GetNodeDepth(root.ChildB, targetId, depth + 1) : -1;
+    }
+
+    private static void UndockWindow(uint windowId, DockNode leaf, DockSpaceState space)
+    {
+        // Remove from leaf
+        int idx = leaf.DockedWindowIds.IndexOf(windowId);
+        if (idx >= 0)
+        {
+            leaf.DockedWindowIds.RemoveAt(idx);
+            if (leaf.ActiveTabIndex >= leaf.DockedWindowIds.Count)
+                leaf.ActiveTabIndex = Math.Max(0, leaf.DockedWindowIds.Count - 1);
+        }
+
+        // Create/restore floating window state at mouse position
+        if (!_context.WindowStates.ContainsKey(windowId))
+        {
+            _context.WindowStates[windowId] = new ClayUIContext.WindowState(
+                Position: _context.MousePosition - new Vector2(100, 15),
+                Size: new Vector2(300, 200),
+                Collapsed: false,
+                Open: true,
+                Topmost: false
+            );
+        }
+        else
+        {
+            var state = _context.WindowStates[windowId];
+            _context.WindowStates[windowId] = state with
+            {
+                Position = _context.MousePosition - new Vector2(100, 15),
+                Open = true
+            };
+        }
+
+        // Prune empty leaf if no more windows
+        if (leaf.IsEmpty)
+        {
+            PruneEmptyLeaf(leaf, space);
+        }
+    }
+
+    private static void PruneEmptyLeaf(DockNode emptyLeaf, DockSpaceState space)
+    {
+        // Find parent of this empty leaf
+        var parent = space.RootNode.FindParent(emptyLeaf.Id);
+        if (parent == null) return; // Root leaf, leave it
+
+        // Replace parent with the surviving sibling
+        var survivor = parent.ChildA?.Id == emptyLeaf.Id ? parent.ChildB! : parent.ChildA!;
+
+        // Copy survivor's properties into parent (replaces the split with the survivor)
+        parent.SplitDirection = survivor.SplitDirection;
+        parent.ChildA = survivor.ChildA;
+        parent.ChildB = survivor.ChildB;
+        parent.SplitRatio = survivor.SplitRatio;
+        parent.DockedWindowIds = survivor.DockedWindowIds;
+        parent.ActiveTabIndex = survivor.ActiveTabIndex;
+    }
+
+    private static void EmitDockSplitter(DockNode parentNode, DockSpaceStyle s)
+    {
+        bool isHorizontal = parentNode.SplitDirection == DockSplitDirection.Horizontal;
+        var splitterId = ElementId.Hash($"DockSplitter_{parentNode.Id}");
+
+        bool isHovered = !IsDisabled && Clay.PointerOver(splitterId);
+        bool justPressed = isHovered && ShouldProcessClick;
+
+        if (justPressed)
+        {
+            _context.ActiveDockSplitterId = splitterId.Id;
+            _context.DockSplitterDragStartMouse = isHorizontal
+                ? _context.MousePosition.X : _context.MousePosition.Y;
+            _context.DockSplitterDragStartRatio = parentNode.SplitRatio;
+            _context.ActiveDockSplitterNode = parentNode;
+        }
+
+        bool isActive = _context.ActiveDockSplitterId == splitterId.Id;
+
+        // Handle drag
+        if (isActive && _context.MousePressed && _context.ActiveDockSplitterNode == parentNode)
+        {
+            var parentElementId = ElementId.Hash($"DockSplit_{parentNode.Id}");
+            var parentData = Clay.GetElementData(parentElementId);
+            if (parentData.Found)
+            {
+                float totalSize = isHorizontal ? parentData.BoundingBox.Width : parentData.BoundingBox.Height;
+                float mousePos = isHorizontal ? _context.MousePosition.X : _context.MousePosition.Y;
+                float delta = mousePos - _context.DockSplitterDragStartMouse;
+                float ratioDelta = totalSize > 0 ? delta / totalSize : 0;
+
+                parentNode.SplitRatio = Math.Clamp(
+                    _context.DockSplitterDragStartRatio + ratioDelta,
+                    0.1f, 0.9f);
+            }
+        }
+
+        Color bgColor = isActive ? s.SplitterDragColor
+            : isHovered ? s.SplitterHoverColor
+            : s.SplitterColor;
+
+        using (Clay.Element(new ElementDeclaration
+        {
+            Id = splitterId,
+            Layout = new LayoutConfig
+            {
+                Sizing = isHorizontal
+                    ? new Sizing(SizingAxis.Fixed(s.SplitterThickness), SizingAxis.Grow())
+                    : new Sizing(SizingAxis.Grow(), SizingAxis.Fixed(s.SplitterThickness))
+            },
+            BackgroundColor = bgColor
+        })) { }
     }
 
     // ============ Tooltip ============
@@ -5005,6 +5922,7 @@ public class ClayUIStyle
     public ModalStyle Modal = new();
     public TooltipStyle Tooltip = new();
     public SplitterStyle Splitter = new();
+    public DockSpaceStyle DockSpace = new();
     public Color SeparatorColor = Color.Rgba(60, 60, 65);
 
     public static ClayUIStyle Default => new();
@@ -5146,6 +6064,20 @@ public class ClayUIStyle
             TextColor = Color.Rgba(210, 210, 210),
             Border = BorderConfig.Uniform(1, Color.Rgba(72, 72, 72))
         },
+        DockSpace = new DockSpaceStyle
+        {
+            TabActiveColor = Color.Rgba(56, 56, 56),
+            TabInactiveColor = Color.Rgba(40, 40, 40),
+            TabHoverColor = Color.Rgba(64, 64, 64),
+            TabTextColor = Color.Rgba(190, 190, 190),
+            TabActiveTextColor = Color.Rgba(230, 230, 230),
+            TabBarColor = Color.Rgba(36, 36, 36),
+            SplitterColor = Color.Rgba(28, 28, 28),
+            SplitterHoverColor = Color.Rgba(100, 150, 200),
+            SplitterDragColor = Color.Rgba(100, 150, 200),
+            ContentBackgroundColor = Color.Rgba(48, 48, 48),
+            DropPreviewColor = Color.Rgba(100, 150, 200, 80)
+        },
         SeparatorColor = Color.Rgba(72, 72, 72)
     };
 
@@ -5284,6 +6216,20 @@ public class ClayUIStyle
             BackgroundColor = Color.Rgba(50, 50, 55),
             TextColor = Color.Rgba(240, 240, 245),
             Border = BorderConfig.Uniform(1, Color.Rgba(80, 80, 90))
+        },
+        DockSpace = new DockSpaceStyle
+        {
+            TabActiveColor = Color.Rgba(255, 255, 255),
+            TabInactiveColor = Color.Rgba(235, 235, 240),
+            TabHoverColor = Color.Rgba(245, 245, 250),
+            TabTextColor = Color.Rgba(80, 80, 85),
+            TabActiveTextColor = Color.Rgba(30, 30, 35),
+            TabBarColor = Color.Rgba(225, 225, 230),
+            SplitterColor = Color.Rgba(210, 210, 215),
+            SplitterHoverColor = Color.Rgba(100, 150, 200),
+            SplitterDragColor = Color.Rgba(100, 150, 200),
+            ContentBackgroundColor = Color.Rgba(250, 250, 255),
+            DropPreviewColor = Color.Rgba(100, 150, 200, 60)
         },
         SeparatorColor = Color.Rgba(200, 200, 205)
     };
@@ -5492,7 +6438,9 @@ public enum WindowFlags
     /// <summary>Disable window dragging.</summary>
     NoMove = 1 << 3,
     /// <summary>Disable window resizing.</summary>
-    NoResize = 1 << 4
+    NoResize = 1 << 4,
+    /// <summary>Prevent this window from being docked.</summary>
+    NoDocking = 1 << 5
 }
 
 /// <summary>
@@ -5667,4 +6615,393 @@ public struct ComboStyle
     public float MaxWidth { get; set; } = 300;
     public ushort FontId { get; set; } = 0;
     public ushort FontSize { get; set; } = 14;
+}
+
+// ============ Docking System ============
+
+/// <summary>
+/// Split direction for dock nodes.
+/// </summary>
+public enum DockSplitDirection : byte
+{
+    /// <summary>Leaf node (holds tabs, no split).</summary>
+    None = 0,
+    /// <summary>Children split left/right.</summary>
+    Horizontal = 1,
+    /// <summary>Children split top/bottom.</summary>
+    Vertical = 2
+}
+
+/// <summary>
+/// Drop zone when dragging a window over a dock node.
+/// </summary>
+public enum DockDropZone : byte
+{
+    None = 0,
+    Left = 1,
+    Right = 2,
+    Top = 3,
+    Bottom = 4,
+    Center = 5
+}
+
+/// <summary>
+/// A node in the dock tree. Internal nodes split space between two children.
+/// Leaf nodes hold one or more docked windows displayed as tabs.
+/// </summary>
+public class DockNode
+{
+    public uint Id;
+    public DockSplitDirection SplitDirection;
+
+    // Internal node fields (valid when SplitDirection != None)
+    public DockNode? ChildA;       // Left or Top child
+    public DockNode? ChildB;       // Right or Bottom child
+    public float SplitRatio = 0.5f; // 0-1, fraction of space given to ChildA
+
+    // Leaf node fields (valid when SplitDirection == None)
+    public List<uint> DockedWindowIds = new();
+    public int ActiveTabIndex;
+
+    public bool IsLeaf => SplitDirection == DockSplitDirection.None;
+    public bool IsEmpty => IsLeaf && DockedWindowIds.Count == 0;
+
+    /// <summary>
+    /// Finds a node by ID in this subtree.
+    /// </summary>
+    public DockNode? FindNode(uint nodeId)
+    {
+        if (Id == nodeId) return this;
+        if (!IsLeaf)
+        {
+            var found = ChildA?.FindNode(nodeId);
+            if (found != null) return found;
+            found = ChildB?.FindNode(nodeId);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Finds the parent of a given node in this subtree.
+    /// </summary>
+    public DockNode? FindParent(uint childId)
+    {
+        if (IsLeaf) return null;
+        if (ChildA?.Id == childId || ChildB?.Id == childId) return this;
+        var found = ChildA?.FindParent(childId);
+        if (found != null) return found;
+        return ChildB?.FindParent(childId);
+    }
+
+    /// <summary>
+    /// Rebuilds the window-to-node lookup map for all leaves in this subtree.
+    /// </summary>
+    public void RebuildWindowToNodeMap(Dictionary<uint, DockNode> map)
+    {
+        if (IsLeaf)
+        {
+            foreach (var winId in DockedWindowIds)
+                map[winId] = this;
+        }
+        else
+        {
+            ChildA?.RebuildWindowToNodeMap(map);
+            ChildB?.RebuildWindowToNodeMap(map);
+        }
+    }
+}
+
+/// <summary>
+/// Persistent state for a single DockSpace.
+/// </summary>
+public class DockSpaceState
+{
+    public uint Id;
+    public DockNode RootNode = null!;
+    public readonly Dictionary<uint, DockNode> WindowToNode = new();
+
+    internal uint NextNodeId;
+
+    /// <summary>
+    /// Generates a unique node ID for this dock space.
+    /// </summary>
+    internal uint GenerateNodeId()
+    {
+        return ElementId.Hash($"DockNode_{Id}_{NextNodeId++}").Id;
+    }
+}
+
+/// <summary>
+/// Style configuration for dock space widgets.
+/// </summary>
+public struct DockSpaceStyle
+{
+    public DockSpaceStyle() { }
+    public float TabBarHeight { get; set; } = 26;
+    public float TabMinWidth { get; set; } = 60;
+    public float TabMaxWidth { get; set; } = 200;
+    public float TabPadding { get; set; } = 8;
+    public float SplitterThickness { get; set; } = 4;
+    public float UndockThreshold { get; set; } = 15;
+    public Color TabActiveColor { get; set; } = Color.Rgba(50, 50, 55);
+    public Color TabInactiveColor { get; set; } = Color.Rgba(35, 35, 38);
+    public Color TabHoverColor { get; set; } = Color.Rgba(60, 60, 65);
+    public Color TabTextColor { get; set; } = Color.Rgba(200, 200, 200);
+    public Color TabActiveTextColor { get; set; } = Color.Rgba(240, 240, 240);
+    public Color TabBarColor { get; set; } = Color.Rgba(30, 30, 33);
+    public Color DropPreviewColor { get; set; } = Color.Rgba(60, 140, 230, 80);
+    public Color SplitterColor { get; set; } = Color.Rgba(20, 20, 22);
+    public Color SplitterHoverColor { get; set; } = Color.Rgba(60, 140, 230);
+    public Color SplitterDragColor { get; set; } = Color.Rgba(60, 140, 230);
+    public Color ContentBackgroundColor { get; set; } = Color.Rgba(35, 35, 40);
+    public ushort FontId { get; set; } = 0;
+    public ushort FontSize { get; set; } = 13;
+}
+
+/// <summary>
+/// Fluent API for defining dock layouts, used with BeginDockSpace's setup callback.
+/// </summary>
+public class DockLayout
+{
+    private readonly DockSpaceState _space;
+    private readonly uint _rootId;
+
+    internal DockLayout(DockSpaceState space)
+    {
+        _space = space;
+        _rootId = space.RootNode.Id;
+    }
+
+    /// <summary>
+    /// Splits the root node. Returns the IDs of the two children.
+    /// </summary>
+    public (uint a, uint b) Split(DockSplitDirection direction, float ratio)
+        => Split(_rootId, direction, ratio);
+
+    /// <summary>
+    /// Splits a node by ID. Returns the IDs of the two children.
+    /// </summary>
+    public (uint a, uint b) Split(uint nodeId, DockSplitDirection direction, float ratio)
+    {
+        var node = _space.RootNode.FindNode(nodeId);
+        if (node == null || !node.IsLeaf)
+            throw new InvalidOperationException($"Node {nodeId} not found or is not a leaf.");
+
+        var idA = _space.GenerateNodeId();
+        var idB = _space.GenerateNodeId();
+
+        node.SplitDirection = direction;
+        node.ChildA = new DockNode
+        {
+            Id = idA,
+            DockedWindowIds = node.DockedWindowIds,
+            ActiveTabIndex = node.ActiveTabIndex
+        };
+        node.ChildB = new DockNode { Id = idB };
+        node.SplitRatio = Math.Clamp(ratio, 0.1f, 0.9f);
+        node.DockedWindowIds = new List<uint>();
+        node.ActiveTabIndex = 0;
+
+        return (idA, idB);
+    }
+
+    /// <summary>
+    /// Docks a window into a leaf node.
+    /// </summary>
+    public void Window(uint nodeId, string title)
+    {
+        var node = _space.RootNode.FindNode(nodeId);
+        if (node == null || !node.IsLeaf)
+            throw new InvalidOperationException($"Node {nodeId} not found or is not a leaf.");
+
+        var windowId = ElementId.Hash($"Window_{title}", seed: 0x436C6179).Id;
+        if (!node.DockedWindowIds.Contains(windowId))
+        {
+            node.DockedWindowIds.Add(windowId);
+            ClayUI.SetDockedWindowTitle(windowId, title);
+        }
+    }
+
+    /// <summary>
+    /// Docks a window into the root node (convenience for single-window dock).
+    /// </summary>
+    public void Window(string title) => Window(_rootId, title);
+}
+
+/// <summary>
+/// Provides methods to programmatically build dock layouts.
+/// </summary>
+public static class DockBuilder
+{
+    /// <summary>
+    /// Checks if a dock space has been initialized with a layout.
+    /// </summary>
+    public static bool HasLayout(string dockSpaceLabel)
+    {
+        var id = ElementId.Hash(dockSpaceLabel, seed: 0x436C6179);
+        var space = ClayUI.GetDockSpaceState(id.Id);
+        return space?.RootNode != null && !space.RootNode.IsEmpty;
+    }
+
+    /// <summary>
+    /// Gets or creates a dock space state, clearing any existing layout.
+    /// Returns the root node ID.
+    /// </summary>
+    public static uint Reset(string dockSpaceLabel)
+    {
+        var id = ElementId.Hash(dockSpaceLabel, seed: 0x436C6179);
+        var space = ClayUI.GetOrCreateDockSpaceState(id.Id);
+        space.NextNodeId = 0;
+        var rootId = space.GenerateNodeId();
+        space.RootNode = new DockNode { Id = rootId };
+        space.WindowToNode.Clear();
+        return rootId;
+    }
+
+    /// <summary>
+    /// Splits a leaf node into two children. Returns the IDs of the two new child nodes.
+    /// </summary>
+    public static (uint nodeIdA, uint nodeIdB) SplitNode(
+        uint nodeId, DockSplitDirection direction, float sizeRatioForNodeA)
+    {
+        var (space, node) = ClayUI.FindDockNode(nodeId);
+        if (space == null || node == null)
+            throw new InvalidOperationException($"Dock node {nodeId} not found.");
+        if (!node.IsLeaf)
+            throw new InvalidOperationException($"Dock node {nodeId} is not a leaf node.");
+        if (direction == DockSplitDirection.None)
+            throw new ArgumentException("Split direction must be Horizontal or Vertical.");
+
+        var idA = space.GenerateNodeId();
+        var idB = space.GenerateNodeId();
+
+        // Move existing docked windows to child A
+        var childA = new DockNode
+        {
+            Id = idA,
+            DockedWindowIds = node.DockedWindowIds,
+            ActiveTabIndex = node.ActiveTabIndex
+        };
+        var childB = new DockNode
+        {
+            Id = idB
+        };
+
+        node.SplitDirection = direction;
+        node.ChildA = childA;
+        node.ChildB = childB;
+        node.SplitRatio = Math.Clamp(sizeRatioForNodeA, 0.1f, 0.9f);
+        node.DockedWindowIds = new List<uint>(); // Clear leaf data
+        node.ActiveTabIndex = 0;
+
+        return (idA, idB);
+    }
+
+    /// <summary>
+    /// Docks a window into a specific leaf node.
+    /// </summary>
+    public static void DockWindow(uint nodeId, string windowTitle)
+    {
+        var (space, node) = ClayUI.FindDockNode(nodeId);
+        if (space == null || node == null)
+            throw new InvalidOperationException($"Dock node {nodeId} not found.");
+        if (!node.IsLeaf)
+            throw new InvalidOperationException($"Dock node {nodeId} is not a leaf node.");
+
+        var windowId = ElementId.Hash($"Window_{windowTitle}", seed: 0x436C6179).Id;
+        if (!node.DockedWindowIds.Contains(windowId))
+        {
+            node.DockedWindowIds.Add(windowId);
+            ClayUI.SetDockedWindowTitle(windowId, windowTitle);
+        }
+    }
+
+    /// <summary>
+    /// Serializes the dock layout to a JSON string for saving.
+    /// </summary>
+    public static string SaveLayout(string dockSpaceLabel)
+    {
+        var id = ElementId.Hash(dockSpaceLabel, seed: 0x436C6179);
+        var space = ClayUI.GetDockSpaceState(id.Id);
+        if (space?.RootNode == null)
+            return "{}";
+
+        var root = SerializeNode(space.RootNode);
+        return JsonSerializer.Serialize(root, new JsonSerializerOptions { WriteIndented = true });
+    }
+
+    /// <summary>
+    /// Restores a dock layout from a previously saved JSON string.
+    /// </summary>
+    public static void LoadLayout(string dockSpaceLabel, string json)
+    {
+        var id = ElementId.Hash(dockSpaceLabel, seed: 0x436C6179);
+        var space = ClayUI.GetOrCreateDockSpaceState(id.Id);
+
+        var doc = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json);
+        if (doc == null) return;
+
+        space.NextNodeId = 0;
+        space.RootNode = DeserializeNode(doc, space);
+        space.WindowToNode.Clear();
+    }
+
+    private static Dictionary<string, object?> SerializeNode(DockNode node)
+    {
+        var dict = new Dictionary<string, object?>();
+
+        if (node.IsLeaf)
+        {
+            // Leaf: store window titles
+            var titles = new List<string>();
+            foreach (var winId in node.DockedWindowIds)
+            {
+                if (ClayUI.GetDockedWindowTitle(winId) is { } title)
+                    titles.Add(title);
+            }
+            dict["windows"] = titles;
+            dict["activeTab"] = node.ActiveTabIndex;
+        }
+        else
+        {
+            dict["split"] = node.SplitDirection.ToString();
+            dict["ratio"] = node.SplitRatio;
+            dict["childA"] = SerializeNode(node.ChildA!);
+            dict["childB"] = SerializeNode(node.ChildB!);
+        }
+
+        return dict;
+    }
+
+    private static DockNode DeserializeNode(Dictionary<string, JsonElement> data, DockSpaceState space)
+    {
+        var node = new DockNode { Id = space.GenerateNodeId() };
+
+        if (data.TryGetValue("split", out var splitEl))
+        {
+            // Internal node
+            node.SplitDirection = Enum.Parse<DockSplitDirection>(splitEl.GetString()!);
+            node.SplitRatio = data["ratio"].GetSingle();
+            node.ChildA = DeserializeNode(
+                data["childA"].Deserialize<Dictionary<string, JsonElement>>()!, space);
+            node.ChildB = DeserializeNode(
+                data["childB"].Deserialize<Dictionary<string, JsonElement>>()!, space);
+        }
+        else if (data.TryGetValue("windows", out var windowsEl))
+        {
+            // Leaf node
+            foreach (var winEl in windowsEl.EnumerateArray())
+            {
+                var title = winEl.GetString()!;
+                var windowId = ElementId.Hash($"Window_{title}", seed: 0x436C6179).Id;
+                node.DockedWindowIds.Add(windowId);
+                ClayUI.SetDockedWindowTitle(windowId, title);
+            }
+            if (data.TryGetValue("activeTab", out var tabEl))
+                node.ActiveTabIndex = tabEl.GetInt32();
+        }
+
+        return node;
+    }
 }

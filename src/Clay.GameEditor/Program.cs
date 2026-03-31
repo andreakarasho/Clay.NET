@@ -180,14 +180,12 @@ float editorCameraSpeed = 5.0f;
 int gizmoMode = 0; // 0=Translate, 1=Rotate, 2=Scale
 bool gizmoLocal = false;
 
-// Panel sizes (resizable via splitters) - these are modified by ClayUI.Splitter()
-float hierarchyWidth = 220;
-float viewportWidth = 0; // computed dynamically
-float inspectorWidth = 300;
-float mainAreaHeight = 0; // computed dynamically
-float bottomHeight = 200;
-float assetBrowserWidth = 0; // computed dynamically
-float consoleWidth = 0;      // computed dynamically
+// Dockable window open states
+bool hierarchyOpen = true;
+bool viewportOpen = true;
+bool inspectorOpen = true;
+bool assetBrowserOpen = true;
+bool consoleOpen = true;
 
 // Main loop
 while (!Raylib.WindowShouldClose())
@@ -200,39 +198,6 @@ while (!Raylib.WindowShouldClose())
 
     if (isPlaying && !isPaused)
         playTime += deltaTime;
-
-    // Compute dynamic panel sizes before the frame
-    float screenW = Raylib.GetScreenWidth();
-    float screenH = Raylib.GetScreenHeight();
-    float splitterSize = ClayUI.Style.Splitter.Thickness;
-    float toolbarAndMenuH = 28 + 36; // menu bar + toolbar
-    float statusBarH = 22;
-
-    // Horizontal: hierarchy + splitter + viewport + splitter + inspector = screenW
-    if (viewportWidth <= 0)
-        viewportWidth = screenW - hierarchyWidth - inspectorWidth - splitterSize * 2;
-
-    // Vertical: main area + splitter + bottom = available height
-    float availableH = screenH - toolbarAndMenuH - statusBarH;
-    if (showConsole || showAssetBrowser)
-    {
-        if (mainAreaHeight <= 0)
-            mainAreaHeight = availableH - bottomHeight - splitterSize;
-    }
-    else
-    {
-        mainAreaHeight = availableH;
-    }
-
-    // Bottom horizontal: asset browser + splitter + console
-    if (showAssetBrowser && showConsole)
-    {
-        if (assetBrowserWidth <= 0)
-        {
-            assetBrowserWidth = screenW * 0.55f;
-            consoleWidth = screenW - assetBrowserWidth - splitterSize;
-        }
-    }
 
     ClayUI.BeginFrame(new Dimensions(Raylib.GetScreenWidth(), Raylib.GetScreenHeight()),
         mouseDown, new Vector2(mousePos.X, mousePos.Y), scrollDelta, deltaTime);
@@ -252,31 +217,52 @@ while (!Raylib.WindowShouldClose())
     RenderMenuBar();
     RenderToolbar();
 
-    // ===== Main Editor Area =====
-    ClayUI.BeginHorizontal(gap: 0, style: new LayoutStyle
+    // ===== Dock Space =====
+    ClayUI.BeginDockSpace("EditorDock", setup: dock =>
     {
-        Sizing = new Sizing(SizingAxis.Grow(), SizingAxis.Fixed(mainAreaHeight))
+        var (main, bottom) = dock.Split(DockSplitDirection.Vertical, 0.7f);
+        var (left, centerRight) = dock.Split(main, DockSplitDirection.Horizontal, 0.16f);
+        var (center, right) = dock.Split(centerRight, DockSplitDirection.Horizontal, 0.72f);
+        var (bottomLeft, bottomRight) = dock.Split(bottom, DockSplitDirection.Horizontal, 0.55f);
+        dock.Window(left, "Hierarchy");
+        dock.Window(center, "Viewport");
+        dock.Window(right, "Inspector");
+        dock.Window(bottomLeft, "Asset Browser");
+        dock.Window(bottomRight, "Console");
     });
 
-    // Left: Scene Hierarchy
-    RenderHierarchyPanel();
-    ClayUI.Splitter("SplitHierarchy", ref hierarchyWidth, ref viewportWidth);
-
-    // Center: Viewport
-    RenderViewport();
-    ClayUI.Splitter("SplitInspector", ref viewportWidth, ref inspectorWidth);
-
-    // Right: Inspector
-    RenderInspectorPanel();
-
-    ClayUI.EndHorizontal();
-
-    // Horizontal splitter between main area and bottom
-    if (showConsole || showAssetBrowser)
+    // Dockable panels — each renders as a docked window
+    if (ClayUI.BeginWindow("Hierarchy", ref hierarchyOpen, flags: WindowFlags.NoCollapse))
     {
-        ClayUI.Splitter("SplitBottom", ref mainAreaHeight, ref bottomHeight, vertical: false);
-        RenderBottomArea();
+        RenderHierarchyContent();
     }
+    ClayUI.EndWindow();
+
+    if (ClayUI.BeginWindow("Viewport", ref viewportOpen, flags: WindowFlags.NoCollapse | WindowFlags.NoScroll))
+    {
+        RenderViewportContent();
+    }
+    ClayUI.EndWindow();
+
+    if (ClayUI.BeginWindow("Inspector", ref inspectorOpen, flags: WindowFlags.NoCollapse))
+    {
+        RenderInspectorContent();
+    }
+    ClayUI.EndWindow();
+
+    if (ClayUI.BeginWindow("Asset Browser", ref assetBrowserOpen, flags: WindowFlags.NoCollapse))
+    {
+        RenderAssetBrowserContent();
+    }
+    ClayUI.EndWindow();
+
+    if (ClayUI.BeginWindow("Console", ref consoleOpen, flags: WindowFlags.NoCollapse))
+    {
+        RenderConsoleContent();
+    }
+    ClayUI.EndWindow();
+
+    ClayUI.EndDockSpace();
 
     // ===== Status Bar =====
     RenderStatusBar();
@@ -289,27 +275,8 @@ while (!Raylib.WindowShouldClose())
 
     ClayUI.EndVertical();
 
-    // Update cursor for splitter hover/drag
-    if (ClayUI.IsSplitterBeingDragged)
-    {
-        // Determine direction from the active splitter's ID
-        var splitBottomId = ClayUI.StableId("SplitBottom");
-        Raylib.SetMouseCursor(ClayUI.ActiveSplitterId == splitBottomId.Id
-            ? MouseCursor.MOUSE_CURSOR_RESIZE_NS
-            : MouseCursor.MOUSE_CURSOR_RESIZE_EW);
-    }
-    else if (ClayUI.WasHovered("SplitBottom"))
-    {
-        Raylib.SetMouseCursor(MouseCursor.MOUSE_CURSOR_RESIZE_NS);
-    }
-    else if (ClayUI.WasHovered("SplitHierarchy") || ClayUI.WasHovered("SplitInspector") || ClayUI.WasHovered("SplitAssetConsole"))
-    {
-        Raylib.SetMouseCursor(MouseCursor.MOUSE_CURSOR_RESIZE_EW);
-    }
-    else
-    {
-        Raylib.SetMouseCursor(MouseCursor.MOUSE_CURSOR_DEFAULT);
-    }
+    // Update cursor for dock splitter hover/drag
+    Raylib.SetMouseCursor(MouseCursor.MOUSE_CURSOR_DEFAULT);
 
     var commands = ClayUI.EndFrame();
 
@@ -592,39 +559,8 @@ void RenderToolbar()
 
 // ============ Hierarchy Panel ============
 
-void RenderHierarchyPanel()
+void RenderHierarchyContent()
 {
-    ClayUI.BeginVertical(gap: 0, style: new LayoutStyle
-    {
-        Sizing = new Sizing(SizingAxis.Fixed(hierarchyWidth), SizingAxis.Grow()),
-        BackgroundColor = colPanel
-    });
-
-    // Header
-    ClayUI.BeginHorizontal(gap: 4, alignment: ChildAlignment.CenterLeft, style: new LayoutStyle
-    {
-        Sizing = new Sizing(SizingAxis.Grow(), SizingAxis.Fixed(28)),
-        Padding = Padding.Horizontal(8),
-        BackgroundColor = colPanelHeader
-    });
-    ClayUI.Label("Hierarchy", new LabelStyle { TextColor = colTextBright, FontSize = 13 });
-    ClayUI.Spacer();
-
-    var smallBtnStyle = new ButtonStyle
-    {
-        BackgroundColor = Color.Rgba(0, 0, 0, 0),
-        HoverColor = Color.Rgba(255, 255, 255, 20),
-        PressedColor = Color.Rgba(255, 255, 255, 30),
-        TextColor = colTextDim,
-        Padding = Padding.Symmetric(6, 2),
-        CornerRadius = CornerRadius.All(3),
-        FontSize = 12
-    };
-    if (ClayUI.Button("+##addEntity", smallBtnStyle))
-        Console.WriteLine("Add entity");
-
-    ClayUI.EndHorizontal();
-
     // Scene label
     ClayUI.BeginHorizontal(style: new LayoutStyle
     {
@@ -635,12 +571,6 @@ void RenderHierarchyPanel()
     ClayUI.EndHorizontal();
 
     // Entity list
-    ClayUI.BeginScrollArea("HierarchyScroll", style: new ScrollAreaStyle
-    {
-        BackgroundColor = colPanel,
-        Padding = Padding.All(4)
-    });
-
     for (int i = 0; i < sceneEntities.Length; i++)
     {
         bool isSelected = selectedEntity == i;
@@ -672,72 +602,13 @@ void RenderHierarchyPanel()
             ClayUI.EndContextMenu();
         }
     }
-
-    ClayUI.EndScrollArea();
-
-    ClayUI.EndVertical();
 }
 
 // ============ Viewport ============
 
-void RenderViewport()
+void RenderViewportContent()
 {
-    ClayUI.BeginVertical(gap: 0, style: new LayoutStyle
-    {
-        Sizing = new Sizing(SizingAxis.Fixed(viewportWidth), SizingAxis.Grow()),
-        BackgroundColor = colViewport
-    });
-
-    // Viewport header bar
-    ClayUI.BeginHorizontal(gap: 8, alignment: ChildAlignment.CenterLeft, style: new LayoutStyle
-    {
-        Sizing = new Sizing(SizingAxis.Grow(), SizingAxis.Fixed(24)),
-        Padding = Padding.Horizontal(8),
-        BackgroundColor = Color.Rgba(35, 35, 38)
-    });
-
-    var tabStyle = new ButtonStyle
-    {
-        BackgroundColor = Color.Rgba(0, 0, 0, 0),
-        HoverColor = Color.Rgba(255, 255, 255, 15),
-        PressedColor = Color.Rgba(255, 255, 255, 25),
-        TextColor = colTextDim,
-        Padding = Padding.Symmetric(8, 2),
-        CornerRadius = CornerRadius.All(2),
-        FontSize = 12
-    };
-
-    var activeTabStyle = new ButtonStyle
-    {
-        BackgroundColor = colAccentDim,
-        HoverColor = colAccent,
-        PressedColor = colAccentDim,
-        TextColor = Color.White,
-        Padding = Padding.Symmetric(8, 2),
-        CornerRadius = CornerRadius.All(2),
-        FontSize = 12
-    };
-
-    ClayUI.Button("Scene##viewTab", activeTabStyle);
-    ClayUI.Button("Game##viewTab", tabStyle);
-    ClayUI.Button("Asset Preview##viewTab", tabStyle);
-
-    ClayUI.Spacer();
-
-    ClayUI.Label(editorShowGizmos ? "Gizmos: ON" : "Gizmos: OFF", new LabelStyle { TextColor = colTextDim, FontSize = 11 });
-    ClayUI.Label(editorShowGrid ? "Grid: ON" : "Grid: OFF", new LabelStyle { TextColor = colTextDim, FontSize = 11 });
-
-    ClayUI.EndHorizontal();
-
     // Viewport content area (simulated 3D view)
-    ClayUI.BeginVertical(style: new LayoutStyle
-    {
-        Sizing = Sizing.Fill(),
-        BackgroundColor = colViewport,
-        Padding = Padding.All(1)
-    });
-
-    // Simulated grid
     ClayUI.Spacer();
 
     // Center info overlay
@@ -778,31 +649,12 @@ void RenderViewport()
     });
     ClayUI.Label("Persp  |  Free Camera  |  FOV: 60", new LabelStyle { TextColor = Color.Rgba(100, 100, 110), FontSize = 11 });
     ClayUI.EndHorizontal();
-
-    ClayUI.EndVertical();
-    ClayUI.EndVertical();
 }
 
 // ============ Inspector Panel ============
 
-void RenderInspectorPanel()
+void RenderInspectorContent()
 {
-    ClayUI.BeginVertical(gap: 0, scroll: true, maxHeight: Raylib.GetScreenHeight() - 100, style: new LayoutStyle
-    {
-        Sizing = new Sizing(SizingAxis.Fixed(inspectorWidth), SizingAxis.Grow()),
-        BackgroundColor = colPanel
-    });
-
-    // Header
-    ClayUI.BeginHorizontal(gap: 4, alignment: ChildAlignment.CenterLeft, style: new LayoutStyle
-    {
-        Sizing = new Sizing(SizingAxis.Grow(), SizingAxis.Fixed(28)),
-        Padding = Padding.Horizontal(8),
-        BackgroundColor = colPanelHeader
-    });
-    ClayUI.Label("Inspector", new LabelStyle { TextColor = colTextBright, FontSize = 13 });
-    ClayUI.EndHorizontal();
-
     if (selectedEntity >= 0 && selectedEntity < sceneEntities.Length)
     {
         ClayUI.BeginVertical(gap: 8, style: new LayoutStyle
@@ -885,8 +737,6 @@ void RenderInspectorPanel()
 
         ClayUI.EndVertical();
     }
-
-    ClayUI.EndVertical();
 }
 
 void RenderTransformComponent()
@@ -1012,43 +862,10 @@ void RenderComponentHeader(string componentName, int index)
 
 // ============ Bottom Area (Console + Asset Browser) ============
 
-void RenderBottomArea()
+// RenderBottomArea removed — now handled by dock space
+
+void RenderAssetBrowserContent()
 {
-    ClayUI.BeginHorizontal(gap: 0, style: new LayoutStyle
-    {
-        Sizing = new Sizing(SizingAxis.Grow(), SizingAxis.Fixed(bottomHeight))
-    });
-
-    if (showAssetBrowser)
-        RenderAssetBrowser();
-
-    if (showAssetBrowser && showConsole)
-        ClayUI.Splitter("SplitAssetConsole", ref assetBrowserWidth, ref consoleWidth);
-
-    if (showConsole)
-        RenderConsole();
-
-    ClayUI.EndHorizontal();
-}
-
-void RenderAssetBrowser()
-{
-    ClayUI.BeginVertical(gap: 0, style: new LayoutStyle
-    {
-        Sizing = new Sizing(SizingAxis.Fixed(assetBrowserWidth), SizingAxis.Grow()),
-        BackgroundColor = colPanel
-    });
-
-    // Header
-    ClayUI.BeginHorizontal(gap: 4, alignment: ChildAlignment.CenterLeft, style: new LayoutStyle
-    {
-        Sizing = new Sizing(SizingAxis.Grow(), SizingAxis.Fixed(24)),
-        Padding = Padding.Horizontal(8),
-        BackgroundColor = colPanelHeader
-    });
-    ClayUI.Label("Project Assets", new LabelStyle { TextColor = colTextBright, FontSize = 12 });
-    ClayUI.EndHorizontal();
-
     // Content: folder tree + file list
     ClayUI.BeginHorizontal(gap: 0, style: new LayoutStyle
     {
@@ -1129,28 +946,17 @@ void RenderAssetBrowser()
     ClayUI.EndScrollArea();
 
     ClayUI.EndHorizontal();
-    ClayUI.EndVertical();
 }
 
-void RenderConsole()
+void RenderConsoleContent()
 {
-    // Use fixed width when both panels are shown, otherwise grow to fill
-    var consoleSizingW = (showAssetBrowser && showConsole) ? SizingAxis.Fixed(consoleWidth) : SizingAxis.Grow();
-    ClayUI.BeginVertical(gap: 0, style: new LayoutStyle
-    {
-        Sizing = new Sizing(consoleSizingW, SizingAxis.Grow()),
-        BackgroundColor = colPanel
-    });
-
-    // Console header with filters
+    // Console filter bar
     ClayUI.BeginHorizontal(gap: 8, alignment: ChildAlignment.CenterLeft, style: new LayoutStyle
     {
         Sizing = new Sizing(SizingAxis.Grow(), SizingAxis.Fixed(24)),
         Padding = Padding.Horizontal(8),
         BackgroundColor = colPanelHeader
     });
-    ClayUI.Label("Console", new LabelStyle { TextColor = colTextBright, FontSize = 12 });
-    ClayUI.Spacer();
 
     var filterStyle = new CheckboxStyle
     {
@@ -1162,6 +968,8 @@ void RenderConsole()
     ClayUI.Checkbox("Info##consFilter", ref showInfoLogs, filterStyle);
     ClayUI.Checkbox("Warn##consFilter", ref showWarningLogs, filterStyle);
     ClayUI.Checkbox("Error##consFilter", ref showErrorLogs, filterStyle);
+
+    ClayUI.Spacer();
 
     var clearBtnStyle = new ButtonStyle
     {
@@ -1177,12 +985,6 @@ void RenderConsole()
     ClayUI.EndHorizontal();
 
     // Console messages
-    ClayUI.BeginScrollArea("ConsoleMessages", style: new ScrollAreaStyle
-    {
-        BackgroundColor = Color.Rgba(25, 25, 28),
-        Padding = Padding.All(4)
-    });
-
     foreach (var msg in consoleMessages)
     {
         bool isInfo = msg.StartsWith("[INFO]");
@@ -1197,9 +999,6 @@ void RenderConsole()
 
         ClayUI.Label(msg, new LabelStyle { TextColor = msgColor, FontSize = 11 });
     }
-
-    ClayUI.EndScrollArea();
-    ClayUI.EndVertical();
 }
 
 // ============ Status Bar ============
