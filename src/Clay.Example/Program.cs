@@ -360,13 +360,32 @@ void PageButtons()
 
     ClayUI.BeginHorizontal(gap: 12);
     if (ClayUI.Button("Click Me")) clickCount++;
+    ClayUI.Tooltip("Increments the click counter");
     if (ClayUI.Button("Reset")) { clickCount = 0; progressValue = 0; sliderValue = 0.5f; }
+    ClayUI.Tooltip("Reset all values to defaults");
     if (ClayUI.Button("+ Progress")) progressValue = Math.Min(1f, progressValue + 0.1f);
+    ClayUI.Tooltip("Increase progress by 10%");
     if (ClayUI.Button("- Progress")) progressValue = Math.Max(0f, progressValue - 0.1f);
+    ClayUI.Tooltip("Decrease progress by 10%");
     ClayUI.EndHorizontal();
 
     ClayUI.Space(8);
     ClayUI.Label($"Click count: {clickCount}");
+
+    ClayUI.Space(16);
+    ClayUI.Label("Per-widget style override:");
+    ClayUI.Space(4);
+    ClayUI.Space(8);
+    ClayUI.Label("Tooltips appear after hovering for 0.5s:");
+    ClayUI.Space(4);
+    ClayUI.Button("Hover for Rich Tooltip");
+    if (ClayUI.BeginTooltip())
+    {
+        ClayUI.Label("Rich Tooltip");
+        ClayUI.Separator();
+        ClayUI.Label("Supports any widget content.");
+        ClayUI.EndTooltip();
+    }
 
     ClayUI.Space(16);
     ClayUI.Label("Per-widget style override:");

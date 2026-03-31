@@ -116,6 +116,13 @@ internal class ClayUIContext
     internal float HoveredMenuItemTime;   // How long it has been hovered (seconds)
     internal const float SubmenuOpenDelay = 0.26f; // Delay before submenu opens on hover
 
+    // Tooltip tracking
+    internal ElementId LastWidgetId;       // ID of the most recently rendered widget
+    internal uint TooltipHoveredId;        // Which widget is being hovered for tooltip
+    internal float TooltipHoverTime;       // How long it has been hovered
+    internal const float TooltipDelay = 0.5f; // Delay before tooltip appears
+    internal bool TooltipShownThisFrame;   // Whether a tooltip was rendered this frame
+
     /// <summary>
     /// Clears per-frame state. Called at the start of each frame.
     /// </summary>
@@ -124,6 +131,8 @@ internal class ClayUIContext
         PressedThisFrame.Clear();
         HoveredThisFrame.Clear();
         DisabledDepth = 0;
+        LastWidgetId = default;
+        TooltipShownThisFrame = false;
         // Modifier state from previous frame is used for scroll remapping in BeginFrame,
         // then reset. KeyDown calls during this frame will set them again.
         WasShiftHeld = ShiftHeld;
@@ -785,7 +794,11 @@ public static class ClayUI
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ElementId Id(string label)
-        => ElementId.Hash(label, _context.IdCounter++, IdSeed);
+    {
+        var id = ElementId.Hash(label, _context.IdCounter++, IdSeed);
+        _context.LastWidgetId = id;
+        return id;
+    }
 
     /// <summary>
     /// Generates a stable ID for a widget (doesn't auto-increment).
@@ -2388,6 +2401,189 @@ public static class ClayUI
         var id = StableId($"Window_{title}");
         if (_context.WindowStates.TryGetValue(id.Id, out var state))
             _context.WindowStates[id.Id] = state with { Topmost = topmost };
+    }
+
+    // ============ Tooltip ============
+
+    /// <summary>
+    /// Shows a simple text tooltip when the previously rendered widget is hovered.
+    /// Call immediately after the widget you want to attach the tooltip to.
+    /// The tooltip appears after a short delay (0.5s) near the mouse cursor.
+    /// </summary>
+    /// <param name="text">Tooltip text to display.</param>
+    /// <param name="style">Optional tooltip style.</param>
+    public static void Tooltip(string text, TooltipStyle? style = null)
+    {
+        if (_context.TooltipShownThisFrame) return;
+        var targetId = _context.LastWidgetId;
+        if (targetId.Id == 0) return;
+
+        bool isHovered = IsHovered(targetId);
+
+        // Track hover time
+        if (isHovered)
+        {
+            if (_context.TooltipHoveredId == targetId.Id)
+            {
+                _context.TooltipHoverTime += _context.DeltaTime;
+            }
+            else
+            {
+                _context.TooltipHoveredId = targetId.Id;
+                _context.TooltipHoverTime = 0;
+            }
+        }
+        else if (_context.TooltipHoveredId == targetId.Id)
+        {
+            _context.TooltipHoveredId = 0;
+            _context.TooltipHoverTime = 0;
+        }
+
+        if (!isHovered || _context.TooltipHoverTime < ClayUIContext.TooltipDelay) return;
+
+        var s = style ?? Style.Tooltip;
+
+        // Position near mouse cursor with a small offset
+        var pos = _context.MousePosition + new Vector2(12, 16);
+
+        // Clamp to screen
+        var layoutDims = Clay.GetLayoutDimensions();
+        var tooltipId = StableId($"Tooltip_{targetId.Id}");
+        var prevData = Clay.GetElementData(tooltipId);
+        float tipWidth = prevData.Found ? prevData.BoundingBox.Width : 100;
+        float tipHeight = prevData.Found ? prevData.BoundingBox.Height : 20;
+
+        if (pos.X + tipWidth > layoutDims.Width)
+            pos.X = layoutDims.Width - tipWidth;
+        if (pos.Y + tipHeight > layoutDims.Height)
+            pos.Y = _context.MousePosition.Y - tipHeight - 4;
+        if (pos.X < 0) pos.X = 0;
+        if (pos.Y < 0) pos.Y = 0;
+
+        using (Clay.Element(new ElementDeclaration
+        {
+            Id = tooltipId,
+            Layout = new LayoutConfig
+            {
+                Padding = s.Padding,
+                Sizing = new Sizing
+                {
+                    Width = SizingAxis.Fit(0, s.MaxWidth),
+                    Height = SizingAxis.Fit()
+                }
+            },
+            BackgroundColor = s.BackgroundColor,
+            CornerRadius = s.CornerRadius,
+            Border = s.Border,
+            Floating = new FloatingConfig
+            {
+                AttachTo = FloatingAttachTo.Root,
+                Offset = pos,
+                ZIndex = 3000 // Above everything
+            }
+        }))
+        {
+            Clay.Text(text, new TextConfig
+            {
+                FontId = s.FontId,
+                FontSize = s.FontSize,
+                TextColor = s.TextColor,
+                WrapMode = TextWrapMode.Words
+            });
+        }
+
+        _context.TooltipShownThisFrame = true;
+    }
+
+    /// <summary>
+    /// Begins a rich tooltip when the previously rendered widget is hovered.
+    /// Call immediately after the widget you want to attach the tooltip to.
+    /// Returns true if the tooltip is visible and content should be rendered.
+    /// Call EndTooltip() when done (only if this returns true).
+    /// </summary>
+    /// <param name="style">Optional tooltip style.</param>
+    /// <returns>True if tooltip should be rendered.</returns>
+    public static bool BeginTooltip(TooltipStyle? style = null)
+    {
+        if (_context.TooltipShownThisFrame) return false;
+        var targetId = _context.LastWidgetId;
+        if (targetId.Id == 0) return false;
+
+        bool isHovered = IsHovered(targetId);
+
+        // Track hover time
+        if (isHovered)
+        {
+            if (_context.TooltipHoveredId == targetId.Id)
+            {
+                _context.TooltipHoverTime += _context.DeltaTime;
+            }
+            else
+            {
+                _context.TooltipHoveredId = targetId.Id;
+                _context.TooltipHoverTime = 0;
+            }
+        }
+        else if (_context.TooltipHoveredId == targetId.Id)
+        {
+            _context.TooltipHoveredId = 0;
+            _context.TooltipHoverTime = 0;
+        }
+
+        if (!isHovered || _context.TooltipHoverTime < ClayUIContext.TooltipDelay) return false;
+
+        var s = style ?? Style.Tooltip;
+
+        var pos = _context.MousePosition + new Vector2(12, 16);
+
+        var layoutDims = Clay.GetLayoutDimensions();
+        var tooltipId = StableId($"Tooltip_{targetId.Id}");
+        var prevData = Clay.GetElementData(tooltipId);
+        float tipWidth = prevData.Found ? prevData.BoundingBox.Width : 100;
+        float tipHeight = prevData.Found ? prevData.BoundingBox.Height : 20;
+
+        if (pos.X + tipWidth > layoutDims.Width)
+            pos.X = layoutDims.Width - tipWidth;
+        if (pos.Y + tipHeight > layoutDims.Height)
+            pos.Y = _context.MousePosition.Y - tipHeight - 4;
+        if (pos.X < 0) pos.X = 0;
+        if (pos.Y < 0) pos.Y = 0;
+
+        Clay.Element(new ElementDeclaration
+        {
+            Id = tooltipId,
+            Layout = new LayoutConfig
+            {
+                Direction = LayoutDirection.TopToBottom,
+                Padding = s.Padding,
+                ChildGap = 4,
+                Sizing = new Sizing
+                {
+                    Width = SizingAxis.Fit(0, s.MaxWidth),
+                    Height = SizingAxis.Fit()
+                }
+            },
+            BackgroundColor = s.BackgroundColor,
+            CornerRadius = s.CornerRadius,
+            Border = s.Border,
+            Floating = new FloatingConfig
+            {
+                AttachTo = FloatingAttachTo.Root,
+                Offset = pos,
+                ZIndex = 3000
+            }
+        });
+
+        _context.TooltipShownThisFrame = true;
+        return true;
+    }
+
+    /// <summary>
+    /// Ends a rich tooltip. Must be called if BeginTooltip returned true.
+    /// </summary>
+    public static void EndTooltip()
+    {
+        Clay.CloseElement();
     }
 
     // ============ Popup Widget ============
@@ -4718,6 +4914,7 @@ public class ClayUIStyle
     public WindowStyle Window = new();
     public PopupStyle Popup = new();
     public ModalStyle Modal = new();
+    public TooltipStyle Tooltip = new();
     public Color SeparatorColor = Color.Rgba(60, 60, 65);
 
     public static ClayUIStyle Default => new();
@@ -4867,6 +5064,12 @@ public class ClayUIStyle
             DimColor = Color.Rgba(0, 0, 0, 100),
             TitleBarColor = Color.Rgba(230, 230, 238),
             TitleColor = Color.Rgba(30, 30, 35)
+        },
+        Tooltip = new TooltipStyle
+        {
+            BackgroundColor = Color.Rgba(50, 50, 55),
+            TextColor = Color.Rgba(240, 240, 245),
+            Border = BorderConfig.Uniform(1, Color.Rgba(80, 80, 90))
         },
         SeparatorColor = Color.Rgba(200, 200, 205)
     };
@@ -5177,6 +5380,22 @@ public struct ModalStyle
     public ushort TitleFontSize { get; set; } = 16;
     public ushort FontId { get; set; } = 0;
     public ushort FontSize { get; set; } = 14;
+}
+
+/// <summary>
+/// Style configuration for tooltip widgets.
+/// </summary>
+public struct TooltipStyle
+{
+    public TooltipStyle() { }
+    public Color BackgroundColor { get; set; } = Color.Rgba(20, 20, 25);
+    public Color TextColor { get; set; } = Color.Rgba(220, 220, 225);
+    public CornerRadius CornerRadius { get; set; } = CornerRadius.All(4);
+    public BorderConfig Border { get; set; } = BorderConfig.Uniform(1, Color.Rgba(60, 60, 65));
+    public Padding Padding { get; set; } = Padding.Symmetric(8, 6);
+    public float MaxWidth { get; set; } = 300;
+    public ushort FontId { get; set; } = 0;
+    public ushort FontSize { get; set; } = 13;
 }
 
 /// <summary>
