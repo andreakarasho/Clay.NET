@@ -1,4 +1,4 @@
-using System.Numerics;
+﻿using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Clay.Widgets;
@@ -897,7 +897,7 @@ public static class ClayUI
     /// </summary>
     public static bool Button(string label, ButtonStyle? style = null, ButtonSkin? skin = null)
     {
-        var s = style ?? Style.Button;
+        var s = style.HasValue ? style.Value.MergeOver(Style.Button) : Style.Button;
         var sk = skin ?? Skin?.Button ?? default;
         var id = Id(label);
         bool isHovered = IsHovered(id);
@@ -942,7 +942,7 @@ public static class ClayUI
     /// </summary>
     public static void Label(string text, LabelStyle? style = null)
     {
-        var s = style ?? Style.Label;
+        var s = style.HasValue ? style.Value.MergeOver(Style.Label) : Style.Label;
         Clay.Text(text, new TextConfig
         {
             FontId = s.FontId,
@@ -957,7 +957,7 @@ public static class ClayUI
     /// </summary>
     public static void Heading(string text, HeadingStyle? style = null)
     {
-        var s = style ?? Style.Heading;
+        var s = style.HasValue ? style.Value.MergeOver(Style.Heading) : Style.Heading;
         Clay.Text(text, new TextConfig
         {
             FontId = s.FontId,
@@ -975,7 +975,7 @@ public static class ClayUI
     /// <param name="style">Optional image style.</param>
     public static void Image(object imageData, float width, float height, ImageStyle? style = null)
     {
-        var s = style ?? Style.Image;
+        var s = style.HasValue ? style.Value.MergeOver(Style.Image) : Style.Image;
         var id = Id("Image");
 
         using (Clay.Element(new ElementDeclaration
@@ -1001,7 +1001,7 @@ public static class ClayUI
     /// <param name="style">Optional image style.</param>
     public static bool ImageButton(object imageData, float width, float height, ImageStyle? style = null)
     {
-        var s = style ?? Style.Image;
+        var s = style.HasValue ? style.Value.MergeOver(Style.Image) : Style.Image;
         var id = Id("ImageButton");
         bool isHovered = IsHovered(id);
         bool isPressed = isHovered && _context.MousePressed;
@@ -1036,7 +1036,7 @@ public static class ClayUI
     /// </summary>
     public static bool Checkbox(string label, ref bool value, CheckboxStyle? style = null, CheckboxSkin? skin = null)
     {
-        var s = style ?? Style.Checkbox;
+        var s = style.HasValue ? style.Value.MergeOver(Style.Checkbox) : Style.Checkbox;
         var sk = skin ?? Skin?.Checkbox ?? default;
         var id = Id(label);
         bool isHovered = IsHovered(id);
@@ -1134,7 +1134,7 @@ public static class ClayUI
     /// </summary>
     public static bool Slider(string label, ref float value, float min = 0f, float max = 1f, SliderStyle? style = null, SliderSkin? skin = null)
     {
-        var s = style ?? Style.Slider;
+        var s = style.HasValue ? style.Value.MergeOver(Style.Slider) : Style.Slider;
         var sk = skin ?? Skin?.Slider ?? default;
         var id = Id(label);
         var trackId = ElementId.Hash($"SlTrack_{id.Id}");
@@ -1245,7 +1245,7 @@ public static class ClayUI
     /// </summary>
     public static bool Toggle(string label, ref bool value, ToggleStyle? style = null, ToggleSkin? skin = null)
     {
-        var s = style ?? Style.Toggle;
+        var s = style.HasValue ? style.Value.MergeOver(Style.Toggle) : Style.Toggle;
         var sk = skin ?? Skin?.Toggle ?? default;
         var id = Id(label);
         bool isHovered = IsHovered(id);
@@ -1326,7 +1326,7 @@ public static class ClayUI
     /// </summary>
     public static void ProgressBar(float value, float min = 0f, float max = 1f, ProgressBarStyle? style = null, ProgressBarSkin? skin = null)
     {
-        var s = style ?? Style.ProgressBar;
+        var s = style.HasValue ? style.Value.MergeOver(Style.ProgressBar) : Style.ProgressBar;
         var sk = skin ?? Skin?.ProgressBar ?? default;
         float fillPercent = Math.Clamp((value - min) / (max - min), 0f, 1f);
 
@@ -1488,7 +1488,7 @@ public static class ClayUI
     public static bool Splitter(string label, ref float size1, ref float size2,
         float minSize1 = 50, float minSize2 = 50, bool vertical = true, SplitterStyle? style = null)
     {
-        var s = style ?? Style.Splitter;
+        var s = style.HasValue ? style.Value.MergeOver(Style.Splitter) : Style.Splitter;
         var id = StableId(label);
         bool isHovered = !IsDisabled && Clay.PointerOver(id);
         bool justPressed = isHovered && ShouldProcessClick;
@@ -1849,7 +1849,7 @@ public static class ClayUI
     /// <param name="maxHeight">Maximum height before scrolling (only used when scroll=true).</param>
     public static void BeginPanel(string title, PanelStyle? style = null, bool scroll = false, float? maxHeight = null, PanelSkin? skin = null)
     {
-        var s = style ?? Style.Panel;
+        var s = style.HasValue ? style.Value.MergeOver(Style.Panel) : Style.Panel;
         var sk = skin ?? Skin?.Panel ?? default;
         var panelId = StableId($"Panel_{title}");
 
@@ -2056,7 +2056,7 @@ public static class ClayUI
             return false;
         }
 
-        var s = style ?? Style.Window;
+        var s = style.HasValue ? style.Value.MergeOver(Style.Window) : Style.Window;
         var sk = skin ?? Skin?.Window ?? default;
         var id = StableId($"Window_{title}");
 
@@ -2786,7 +2786,7 @@ public static class ClayUI
     /// </example>
     public static void BeginDockSpace(string label, Action<DockLayout>? setup = null, DockSpaceStyle? style = null)
     {
-        var s = style ?? Style.DockSpace;
+        var s = style.HasValue ? style.Value.MergeOver(Style.DockSpace) : Style.DockSpace;
         var id = StableId(label);
 
         // Get or create dock space state
@@ -3454,7 +3454,7 @@ public static class ClayUI
 
         if (!isHovered || _context.TooltipHoverTime < ClayUIContext.TooltipDelay) return;
 
-        var s = style ?? Style.Tooltip;
+        var s = style.HasValue ? style.Value.MergeOver(Style.Tooltip) : Style.Tooltip;
 
         // Position near mouse cursor with a small offset
         var pos = _context.MousePosition + new Vector2(12, 16);
@@ -3545,7 +3545,7 @@ public static class ClayUI
 
         if (!isHovered || _context.TooltipHoverTime < ClayUIContext.TooltipDelay) return false;
 
-        var s = style ?? Style.Tooltip;
+        var s = style.HasValue ? style.Value.MergeOver(Style.Tooltip) : Style.Tooltip;
 
         var pos = _context.MousePosition + new Vector2(12, 16);
 
@@ -3677,7 +3677,7 @@ public static class ClayUI
     public static bool BeginPopup(string id, PopupStyle? style = null)
     {
         var popupId = StableId($"Popup_{id}");
-        var s = style ?? Style.Popup;
+        var s = style.HasValue ? style.Value.MergeOver(Style.Popup) : Style.Popup;
 
         bool justOpened = false;
 
@@ -4068,7 +4068,7 @@ public static class ClayUI
     public static bool BeginPopupModal(string id, ModalStyle? style = null)
     {
         var popupId = StableId($"Popup_{id}");
-        var s = style ?? Style.Modal;
+        var s = style.HasValue ? style.Value.MergeOver(Style.Modal) : Style.Modal;
 
         bool justOpened = false;
 
@@ -4255,7 +4255,7 @@ public static class ClayUI
     /// </summary>
     public static bool BeginTreeNode(string label, TreeNodeStyle? style = null)
     {
-        var s = style ?? Style.TreeNode;
+        var s = style.HasValue ? style.Value.MergeOver(Style.TreeNode) : Style.TreeNode;
         var id = StableId($"TreeNode_{label}");
         bool isHovered = IsHovered(id);
         bool clicked = isHovered && ShouldProcessClick;
@@ -4347,7 +4347,7 @@ public static class ClayUI
     /// <param name="style">Optional scrollbar style.</param>
     public static void VerticalScrollbar(ElementId scrollContainerId, ScrollbarStyle? style = null, ScrollbarSkin? skin = null)
     {
-        var s = style ?? Style.Scrollbar;
+        var s = style.HasValue ? style.Value.MergeOver(Style.Scrollbar) : Style.Scrollbar;
         var sk = skin ?? Skin?.Scrollbar ?? default;
         var scrollData = Clay.GetScrollContainerData(scrollContainerId);
 
@@ -4521,7 +4521,7 @@ public static class ClayUI
     /// <param name="style">Optional scrollbar style.</param>
     public static void HorizontalScrollbar(ElementId scrollContainerId, ScrollbarStyle? style = null, ScrollbarSkin? skin = null)
     {
-        var s = style ?? Style.Scrollbar;
+        var s = style.HasValue ? style.Value.MergeOver(Style.Scrollbar) : Style.Scrollbar;
         var sk = skin ?? Skin?.Scrollbar ?? default;
         var scrollData = Clay.GetScrollContainerData(scrollContainerId);
 
@@ -4692,7 +4692,7 @@ public static class ClayUI
     /// <param name="style">Optional visual style.</param>
     public static void BeginScrollArea(string id, float? maxHeight = null, bool horizontal = false, ScrollAreaStyle? style = null)
     {
-        var s = style ?? Style.ScrollArea;
+        var s = style.HasValue ? style.Value.MergeOver(Style.ScrollArea) : Style.ScrollArea;
         var scrollId = StableId($"ScrollArea_{id}");
 
         var scrollConfig = horizontal
@@ -4850,7 +4850,7 @@ public static class ClayUI
     /// <param name="style">Optional style override.</param>
     public static void BeginListBox(string label, float maxHeight = 150, ListBoxStyle? style = null)
     {
-        var s = style ?? Style.ListBox;
+        var s = style.HasValue ? style.Value.MergeOver(Style.ListBox) : Style.ListBox;
         var listId = StableId($"ListBox_{label}");
         var scrollId = StableId($"ListBoxScroll_{label}");
 
@@ -4999,7 +4999,7 @@ public static class ClayUI
     /// <returns>True if selection changed.</returns>
     public static bool Combo(string label, ref int selectedIndex, string[] options, ComboStyle? style = null)
     {
-        var s = style ?? Style.Combo;
+        var s = style.HasValue ? style.Value.MergeOver(Style.Combo) : Style.Combo;
         string popupId = $"Combo_{label}";
         var buttonId = Id($"ComboBtn_{label}");
         bool changed = false;
@@ -5154,7 +5154,7 @@ public static class ClayUI
     /// <param name="style">Optional style.</param>
     public static bool RadioGroup(string label, ref int selectedIndex, string[] options, RadioGroupStyle? style = null, RadioGroupSkin? skin = null)
     {
-        var s = style ?? Style.RadioGroup;
+        var s = style.HasValue ? style.Value.MergeOver(Style.RadioGroup) : Style.RadioGroup;
         var sk = skin ?? Skin?.RadioGroup ?? default;
         bool changed = false;
 
@@ -6245,126 +6245,421 @@ public class ClayUIStyle
 public struct ButtonStyle
 {
     public ButtonStyle() { }
-    public Color BackgroundColor { get; set; } = Color.Rgba(55, 55, 65);
-    public Color HoverColor { get; set; } = Color.Rgba(70, 70, 80);
-    public Color PressedColor { get; set; } = Color.Rgba(50, 100, 180);
-    public Color TextColor { get; set; } = Color.White;
-    public Padding Padding { get; set; } = Padding.Symmetric(16, 10);
-    public CornerRadius CornerRadius { get; set; } = CornerRadius.All(6);
-    public ushort FontId { get; set; } = 0;
-    public ushort FontSize { get; set; } = 14;
+    private uint _set;
+
+    private Color _backgroundColor = Color.Rgba(55, 55, 65);
+    public Color BackgroundColor { get => _backgroundColor; set { _backgroundColor = value; _set |= 1u << 0; } }
+
+    private Color _hoverColor = Color.Rgba(70, 70, 80);
+    public Color HoverColor { get => _hoverColor; set { _hoverColor = value; _set |= 1u << 1; } }
+
+    private Color _pressedColor = Color.Rgba(50, 100, 180);
+    public Color PressedColor { get => _pressedColor; set { _pressedColor = value; _set |= 1u << 2; } }
+
+    private Color _textColor = Color.White;
+    public Color TextColor { get => _textColor; set { _textColor = value; _set |= 1u << 3; } }
+
+    private Padding _padding = Padding.Symmetric(16, 10);
+    public Padding Padding { get => _padding; set { _padding = value; _set |= 1u << 4; } }
+
+    private CornerRadius _cornerRadius = CornerRadius.All(6);
+    public CornerRadius CornerRadius { get => _cornerRadius; set { _cornerRadius = value; _set |= 1u << 5; } }
+
+    private ushort _fontId = 0;
+    public ushort FontId { get => _fontId; set { _fontId = value; _set |= 1u << 6; } }
+
+    private ushort _fontSize = 14;
+    public ushort FontSize { get => _fontSize; set { _fontSize = value; _set |= 1u << 7; } }
+
+    public ButtonStyle MergeOver(ButtonStyle @base)
+    {
+        var result = @base;
+        if ((_set & (1u << 0)) != 0) result._backgroundColor = _backgroundColor;
+        if ((_set & (1u << 1)) != 0) result._hoverColor = _hoverColor;
+        if ((_set & (1u << 2)) != 0) result._pressedColor = _pressedColor;
+        if ((_set & (1u << 3)) != 0) result._textColor = _textColor;
+        if ((_set & (1u << 4)) != 0) result._padding = _padding;
+        if ((_set & (1u << 5)) != 0) result._cornerRadius = _cornerRadius;
+        if ((_set & (1u << 6)) != 0) result._fontId = _fontId;
+        if ((_set & (1u << 7)) != 0) result._fontSize = _fontSize;
+        return result;
+    }
 }
 
 public struct ImageStyle
 {
     public ImageStyle() { }
-    public CornerRadius CornerRadius { get; set; } = CornerRadius.Zero;
-    public BorderConfig Border { get; set; } = default;
-    public BorderConfig HoverBorder { get; set; } = BorderConfig.Uniform(1, Color.Rgba(100, 150, 255));
-    public Color HoverTint { get; set; } = Color.Rgba(255, 255, 255, 30);
-    public Color PressedTint { get; set; } = Color.Rgba(0, 0, 0, 40);
-    public Padding Padding { get; set; } = Padding.Zero;
+    private uint _set;
+
+    private CornerRadius _cornerRadius = CornerRadius.Zero;
+    public CornerRadius CornerRadius { get => _cornerRadius; set { _cornerRadius = value; _set |= 1u << 0; } }
+
+    private BorderConfig _border = default;
+    public BorderConfig Border { get => _border; set { _border = value; _set |= 1u << 1; } }
+
+    private BorderConfig _hoverBorder = BorderConfig.Uniform(1, Color.Rgba(100, 150, 255));
+    public BorderConfig HoverBorder { get => _hoverBorder; set { _hoverBorder = value; _set |= 1u << 2; } }
+
+    private Color _hoverTint = Color.Rgba(255, 255, 255, 30);
+    public Color HoverTint { get => _hoverTint; set { _hoverTint = value; _set |= 1u << 3; } }
+
+    private Color _pressedTint = Color.Rgba(0, 0, 0, 40);
+    public Color PressedTint { get => _pressedTint; set { _pressedTint = value; _set |= 1u << 4; } }
+
+    private Padding _padding = Padding.Zero;
+    public Padding Padding { get => _padding; set { _padding = value; _set |= 1u << 5; } }
+
+    public ImageStyle MergeOver(ImageStyle @base)
+    {
+        var result = @base;
+        if ((_set & (1u << 0)) != 0) result._cornerRadius = _cornerRadius;
+        if ((_set & (1u << 1)) != 0) result._border = _border;
+        if ((_set & (1u << 2)) != 0) result._hoverBorder = _hoverBorder;
+        if ((_set & (1u << 3)) != 0) result._hoverTint = _hoverTint;
+        if ((_set & (1u << 4)) != 0) result._pressedTint = _pressedTint;
+        if ((_set & (1u << 5)) != 0) result._padding = _padding;
+        return result;
+    }
 }
 
 public struct LabelStyle
 {
     public LabelStyle() { }
-    public Color TextColor { get; set; } = Color.Rgba(200, 200, 200);
-    public ushort FontId { get; set; } = 0;
-    public ushort FontSize { get; set; } = 14;
-    public ushort LineHeight { get; set; } = 20;
+    private uint _set;
+
+    private Color _textColor = Color.Rgba(200, 200, 200);
+    public Color TextColor { get => _textColor; set { _textColor = value; _set |= 1u << 0; } }
+
+    private ushort _fontId = 0;
+    public ushort FontId { get => _fontId; set { _fontId = value; _set |= 1u << 1; } }
+
+    private ushort _fontSize = 14;
+    public ushort FontSize { get => _fontSize; set { _fontSize = value; _set |= 1u << 2; } }
+
+    private ushort _lineHeight = 20;
+    public ushort LineHeight { get => _lineHeight; set { _lineHeight = value; _set |= 1u << 3; } }
+
+    public LabelStyle MergeOver(LabelStyle @base)
+    {
+        var result = @base;
+        if ((_set & (1u << 0)) != 0) result._textColor = _textColor;
+        if ((_set & (1u << 1)) != 0) result._fontId = _fontId;
+        if ((_set & (1u << 2)) != 0) result._fontSize = _fontSize;
+        if ((_set & (1u << 3)) != 0) result._lineHeight = _lineHeight;
+        return result;
+    }
 }
 
 public struct HeadingStyle
 {
     public HeadingStyle() { }
-    public Color TextColor { get; set; } = Color.White;
-    public ushort FontId { get; set; } = 0;
-    public ushort FontSize { get; set; } = 20;
+    private uint _set;
+
+    private Color _textColor = Color.White;
+    public Color TextColor { get => _textColor; set { _textColor = value; _set |= 1u << 0; } }
+
+    private ushort _fontId = 0;
+    public ushort FontId { get => _fontId; set { _fontId = value; _set |= 1u << 1; } }
+
+    private ushort _fontSize = 20;
+    public ushort FontSize { get => _fontSize; set { _fontSize = value; _set |= 1u << 2; } }
+
+    public HeadingStyle MergeOver(HeadingStyle @base)
+    {
+        var result = @base;
+        if ((_set & (1u << 0)) != 0) result._textColor = _textColor;
+        if ((_set & (1u << 1)) != 0) result._fontId = _fontId;
+        if ((_set & (1u << 2)) != 0) result._fontSize = _fontSize;
+        return result;
+    }
 }
 
 public struct CheckboxStyle
 {
     public CheckboxStyle() { }
-    public Color BoxColor { get; set; } = Color.Rgba(45, 45, 50);
-    public Color CheckedColor { get; set; } = Color.Rgba(70, 130, 200);
-    public Color CheckmarkColor { get; set; } = Color.White;
-    public Color BoxBorderColor { get; set; } = Color.Rgba(80, 80, 85);
-    public Color TextColor { get; set; } = Color.Rgba(200, 200, 200);
-    public Color HoverColor { get; set; } = Color.Rgba(50, 50, 55);
-    public Color PressedColor { get; set; } = Color.Rgba(40, 40, 45);
-    public Padding Padding { get; set; } = Padding.Symmetric(4, 4);
-    public float BoxSize { get; set; } = 18;
-    public float BoxCornerRadius { get; set; } = 4;
-    public ushort FontId { get; set; } = 0;
-    public ushort FontSize { get; set; } = 14;
+    private uint _set;
+
+    private Color _boxColor = Color.Rgba(45, 45, 50);
+    public Color BoxColor { get => _boxColor; set { _boxColor = value; _set |= 1u << 0; } }
+
+    private Color _checkedColor = Color.Rgba(70, 130, 200);
+    public Color CheckedColor { get => _checkedColor; set { _checkedColor = value; _set |= 1u << 1; } }
+
+    private Color _checkmarkColor = Color.White;
+    public Color CheckmarkColor { get => _checkmarkColor; set { _checkmarkColor = value; _set |= 1u << 2; } }
+
+    private Color _boxBorderColor = Color.Rgba(80, 80, 85);
+    public Color BoxBorderColor { get => _boxBorderColor; set { _boxBorderColor = value; _set |= 1u << 3; } }
+
+    private Color _textColor = Color.Rgba(200, 200, 200);
+    public Color TextColor { get => _textColor; set { _textColor = value; _set |= 1u << 4; } }
+
+    private Color _hoverColor = Color.Rgba(50, 50, 55);
+    public Color HoverColor { get => _hoverColor; set { _hoverColor = value; _set |= 1u << 5; } }
+
+    private Color _pressedColor = Color.Rgba(40, 40, 45);
+    public Color PressedColor { get => _pressedColor; set { _pressedColor = value; _set |= 1u << 6; } }
+
+    private Padding _padding = Padding.Symmetric(4, 4);
+    public Padding Padding { get => _padding; set { _padding = value; _set |= 1u << 7; } }
+
+    private float _boxSize = 18;
+    public float BoxSize { get => _boxSize; set { _boxSize = value; _set |= 1u << 8; } }
+
+    private float _boxCornerRadius = 4;
+    public float BoxCornerRadius { get => _boxCornerRadius; set { _boxCornerRadius = value; _set |= 1u << 9; } }
+
+    private ushort _fontId = 0;
+    public ushort FontId { get => _fontId; set { _fontId = value; _set |= 1u << 10; } }
+
+    private ushort _fontSize = 14;
+    public ushort FontSize { get => _fontSize; set { _fontSize = value; _set |= 1u << 11; } }
+
+    public CheckboxStyle MergeOver(CheckboxStyle @base)
+    {
+        var result = @base;
+        if ((_set & (1u << 0)) != 0) result._boxColor = _boxColor;
+        if ((_set & (1u << 1)) != 0) result._checkedColor = _checkedColor;
+        if ((_set & (1u << 2)) != 0) result._checkmarkColor = _checkmarkColor;
+        if ((_set & (1u << 3)) != 0) result._boxBorderColor = _boxBorderColor;
+        if ((_set & (1u << 4)) != 0) result._textColor = _textColor;
+        if ((_set & (1u << 5)) != 0) result._hoverColor = _hoverColor;
+        if ((_set & (1u << 6)) != 0) result._pressedColor = _pressedColor;
+        if ((_set & (1u << 7)) != 0) result._padding = _padding;
+        if ((_set & (1u << 8)) != 0) result._boxSize = _boxSize;
+        if ((_set & (1u << 9)) != 0) result._boxCornerRadius = _boxCornerRadius;
+        if ((_set & (1u << 10)) != 0) result._fontId = _fontId;
+        if ((_set & (1u << 11)) != 0) result._fontSize = _fontSize;
+        return result;
+    }
 }
 
 public struct SliderStyle
 {
     public SliderStyle() { }
-    public Color TrackColor { get; set; } = Color.Rgba(45, 45, 50);
-    public Color FillColor { get; set; } = Color.Rgba(70, 130, 200);
-    public Color TextColor { get; set; } = Color.Rgba(200, 200, 200);
-    public Color ValueTextColor { get; set; } = Color.Rgba(150, 150, 155);
-    public float TrackHeight { get; set; } = 8;
-    public ushort FontId { get; set; } = 0;
-    public ushort FontSize { get; set; } = 14;
+    private uint _set;
+
+    private Color _trackColor = Color.Rgba(45, 45, 50);
+    public Color TrackColor { get => _trackColor; set { _trackColor = value; _set |= 1u << 0; } }
+
+    private Color _fillColor = Color.Rgba(70, 130, 200);
+    public Color FillColor { get => _fillColor; set { _fillColor = value; _set |= 1u << 1; } }
+
+    private Color _textColor = Color.Rgba(200, 200, 200);
+    public Color TextColor { get => _textColor; set { _textColor = value; _set |= 1u << 2; } }
+
+    private Color _valueTextColor = Color.Rgba(150, 150, 155);
+    public Color ValueTextColor { get => _valueTextColor; set { _valueTextColor = value; _set |= 1u << 3; } }
+
+    private float _trackHeight = 8;
+    public float TrackHeight { get => _trackHeight; set { _trackHeight = value; _set |= 1u << 4; } }
+
+    private ushort _fontId = 0;
+    public ushort FontId { get => _fontId; set { _fontId = value; _set |= 1u << 5; } }
+
+    private ushort _fontSize = 14;
+    public ushort FontSize { get => _fontSize; set { _fontSize = value; _set |= 1u << 6; } }
+
+    public SliderStyle MergeOver(SliderStyle @base)
+    {
+        var result = @base;
+        if ((_set & (1u << 0)) != 0) result._trackColor = _trackColor;
+        if ((_set & (1u << 1)) != 0) result._fillColor = _fillColor;
+        if ((_set & (1u << 2)) != 0) result._textColor = _textColor;
+        if ((_set & (1u << 3)) != 0) result._valueTextColor = _valueTextColor;
+        if ((_set & (1u << 4)) != 0) result._trackHeight = _trackHeight;
+        if ((_set & (1u << 5)) != 0) result._fontId = _fontId;
+        if ((_set & (1u << 6)) != 0) result._fontSize = _fontSize;
+        return result;
+    }
 }
 
 public struct ToggleStyle
 {
     public ToggleStyle() { }
-    public Color OnColor { get; set; } = Color.Rgba(70, 130, 200);
-    public Color OffColor { get; set; } = Color.Rgba(60, 60, 65);
-    public Color KnobColor { get; set; } = Color.White;
-    public Color TextColor { get; set; } = Color.Rgba(200, 200, 200);
-    public Color HoverColor { get; set; } = Color.Rgba(50, 50, 55);
-    public Color PressedColor { get; set; } = Color.Rgba(40, 40, 45);
-    public Padding Padding { get; set; } = Padding.Symmetric(4, 4);
-    public float TrackWidth { get; set; } = 44;
-    public float TrackHeight { get; set; } = 24;
-    public float KnobSize { get; set; } = 20;
-    public ushort FontId { get; set; } = 0;
-    public ushort FontSize { get; set; } = 14;
+    private uint _set;
+
+    private Color _onColor = Color.Rgba(70, 130, 200);
+    public Color OnColor { get => _onColor; set { _onColor = value; _set |= 1u << 0; } }
+
+    private Color _offColor = Color.Rgba(60, 60, 65);
+    public Color OffColor { get => _offColor; set { _offColor = value; _set |= 1u << 1; } }
+
+    private Color _knobColor = Color.White;
+    public Color KnobColor { get => _knobColor; set { _knobColor = value; _set |= 1u << 2; } }
+
+    private Color _textColor = Color.Rgba(200, 200, 200);
+    public Color TextColor { get => _textColor; set { _textColor = value; _set |= 1u << 3; } }
+
+    private Color _hoverColor = Color.Rgba(50, 50, 55);
+    public Color HoverColor { get => _hoverColor; set { _hoverColor = value; _set |= 1u << 4; } }
+
+    private Color _pressedColor = Color.Rgba(40, 40, 45);
+    public Color PressedColor { get => _pressedColor; set { _pressedColor = value; _set |= 1u << 5; } }
+
+    private Padding _padding = Padding.Symmetric(4, 4);
+    public Padding Padding { get => _padding; set { _padding = value; _set |= 1u << 6; } }
+
+    private float _trackWidth = 44;
+    public float TrackWidth { get => _trackWidth; set { _trackWidth = value; _set |= 1u << 7; } }
+
+    private float _trackHeight = 24;
+    public float TrackHeight { get => _trackHeight; set { _trackHeight = value; _set |= 1u << 8; } }
+
+    private float _knobSize = 20;
+    public float KnobSize { get => _knobSize; set { _knobSize = value; _set |= 1u << 9; } }
+
+    private ushort _fontId = 0;
+    public ushort FontId { get => _fontId; set { _fontId = value; _set |= 1u << 10; } }
+
+    private ushort _fontSize = 14;
+    public ushort FontSize { get => _fontSize; set { _fontSize = value; _set |= 1u << 11; } }
+
+    public ToggleStyle MergeOver(ToggleStyle @base)
+    {
+        var result = @base;
+        if ((_set & (1u << 0)) != 0) result._onColor = _onColor;
+        if ((_set & (1u << 1)) != 0) result._offColor = _offColor;
+        if ((_set & (1u << 2)) != 0) result._knobColor = _knobColor;
+        if ((_set & (1u << 3)) != 0) result._textColor = _textColor;
+        if ((_set & (1u << 4)) != 0) result._hoverColor = _hoverColor;
+        if ((_set & (1u << 5)) != 0) result._pressedColor = _pressedColor;
+        if ((_set & (1u << 6)) != 0) result._padding = _padding;
+        if ((_set & (1u << 7)) != 0) result._trackWidth = _trackWidth;
+        if ((_set & (1u << 8)) != 0) result._trackHeight = _trackHeight;
+        if ((_set & (1u << 9)) != 0) result._knobSize = _knobSize;
+        if ((_set & (1u << 10)) != 0) result._fontId = _fontId;
+        if ((_set & (1u << 11)) != 0) result._fontSize = _fontSize;
+        return result;
+    }
 }
 
 public struct ProgressBarStyle
 {
     public ProgressBarStyle() { }
-    public Color BackgroundColor { get; set; } = Color.Rgba(45, 45, 50);
-    public Color FillColor { get; set; } = Color.Rgba(70, 130, 200);
-    public float Height { get; set; } = 8;
-    public float CornerRadius { get; set; } = 4;
+    private uint _set;
+
+    private Color _backgroundColor = Color.Rgba(45, 45, 50);
+    public Color BackgroundColor { get => _backgroundColor; set { _backgroundColor = value; _set |= 1u << 0; } }
+
+    private Color _fillColor = Color.Rgba(70, 130, 200);
+    public Color FillColor { get => _fillColor; set { _fillColor = value; _set |= 1u << 1; } }
+
+    private float _height = 8;
+    public float Height { get => _height; set { _height = value; _set |= 1u << 2; } }
+
+    private float _cornerRadius = 4;
+    public float CornerRadius { get => _cornerRadius; set { _cornerRadius = value; _set |= 1u << 3; } }
+
+    public ProgressBarStyle MergeOver(ProgressBarStyle @base)
+    {
+        var result = @base;
+        if ((_set & (1u << 0)) != 0) result._backgroundColor = _backgroundColor;
+        if ((_set & (1u << 1)) != 0) result._fillColor = _fillColor;
+        if ((_set & (1u << 2)) != 0) result._height = _height;
+        if ((_set & (1u << 3)) != 0) result._cornerRadius = _cornerRadius;
+        return result;
+    }
 }
 
 public struct PanelStyle
 {
     public PanelStyle() { }
-    public Color BackgroundColor { get; set; } = Color.Rgba(40, 40, 45);
-    public Color TitleColor { get; set; } = Color.White;
-    public Color SeparatorColor { get; set; } = Color.Rgba(60, 60, 65);
-    public Padding Padding { get; set; } = Padding.All(16);
-    public CornerRadius CornerRadius { get; set; } = CornerRadius.All(8);
-    public BorderConfig Border { get; set; } = BorderConfig.Uniform(1, Color.Rgba(55, 55, 60));
-    public ushort ChildGap { get; set; } = 12;
-    public ushort TitleFontId { get; set; } = 0;
-    public ushort TitleFontSize { get; set; } = 16;
+    private uint _set;
+
+    private Color _backgroundColor = Color.Rgba(40, 40, 45);
+    public Color BackgroundColor { get => _backgroundColor; set { _backgroundColor = value; _set |= 1u << 0; } }
+
+    private Color _titleColor = Color.White;
+    public Color TitleColor { get => _titleColor; set { _titleColor = value; _set |= 1u << 1; } }
+
+    private Color _separatorColor = Color.Rgba(60, 60, 65);
+    public Color SeparatorColor { get => _separatorColor; set { _separatorColor = value; _set |= 1u << 2; } }
+
+    private Padding _padding = Padding.All(16);
+    public Padding Padding { get => _padding; set { _padding = value; _set |= 1u << 3; } }
+
+    private CornerRadius _cornerRadius = CornerRadius.All(8);
+    public CornerRadius CornerRadius { get => _cornerRadius; set { _cornerRadius = value; _set |= 1u << 4; } }
+
+    private BorderConfig _border = BorderConfig.Uniform(1, Color.Rgba(55, 55, 60));
+    public BorderConfig Border { get => _border; set { _border = value; _set |= 1u << 5; } }
+
+    private ushort _childGap = 12;
+    public ushort ChildGap { get => _childGap; set { _childGap = value; _set |= 1u << 6; } }
+
+    private ushort _titleFontId = 0;
+    public ushort TitleFontId { get => _titleFontId; set { _titleFontId = value; _set |= 1u << 7; } }
+
+    private ushort _titleFontSize = 16;
+    public ushort TitleFontSize { get => _titleFontSize; set { _titleFontSize = value; _set |= 1u << 8; } }
+
+    public PanelStyle MergeOver(PanelStyle @base)
+    {
+        var result = @base;
+        if ((_set & (1u << 0)) != 0) result._backgroundColor = _backgroundColor;
+        if ((_set & (1u << 1)) != 0) result._titleColor = _titleColor;
+        if ((_set & (1u << 2)) != 0) result._separatorColor = _separatorColor;
+        if ((_set & (1u << 3)) != 0) result._padding = _padding;
+        if ((_set & (1u << 4)) != 0) result._cornerRadius = _cornerRadius;
+        if ((_set & (1u << 5)) != 0) result._border = _border;
+        if ((_set & (1u << 6)) != 0) result._childGap = _childGap;
+        if ((_set & (1u << 7)) != 0) result._titleFontId = _titleFontId;
+        if ((_set & (1u << 8)) != 0) result._titleFontSize = _titleFontSize;
+        return result;
+    }
 }
 
 public struct TreeNodeStyle
 {
     public TreeNodeStyle() { }
-    public Color TextColor { get; set; } = Color.Rgba(200, 200, 200);
-    public Color ArrowColor { get; set; } = Color.Rgba(150, 150, 155);
-    public Color HoverColor { get; set; } = Color.Rgba(50, 50, 55);
-    public Padding Padding { get; set; } = Padding.Symmetric(4, 4);
-    public string ExpandedIcon { get; set; } = "v";
-    public string CollapsedIcon { get; set; } = ">";
-    public ushort IndentSize { get; set; } = 20;
-    public bool DefaultExpanded { get; set; } = false;
-    public ushort FontId { get; set; } = 0;
-    public ushort FontSize { get; set; } = 14;
+    private uint _set;
+
+    private Color _textColor = Color.Rgba(200, 200, 200);
+    public Color TextColor { get => _textColor; set { _textColor = value; _set |= 1u << 0; } }
+
+    private Color _arrowColor = Color.Rgba(150, 150, 155);
+    public Color ArrowColor { get => _arrowColor; set { _arrowColor = value; _set |= 1u << 1; } }
+
+    private Color _hoverColor = Color.Rgba(50, 50, 55);
+    public Color HoverColor { get => _hoverColor; set { _hoverColor = value; _set |= 1u << 2; } }
+
+    private Padding _padding = Padding.Symmetric(4, 4);
+    public Padding Padding { get => _padding; set { _padding = value; _set |= 1u << 3; } }
+
+    private string _expandedIcon = "v";
+    public string ExpandedIcon { get => _expandedIcon; set { _expandedIcon = value; _set |= 1u << 4; } }
+
+    private string _collapsedIcon = ">";
+    public string CollapsedIcon { get => _collapsedIcon; set { _collapsedIcon = value; _set |= 1u << 5; } }
+
+    private ushort _indentSize = 20;
+    public ushort IndentSize { get => _indentSize; set { _indentSize = value; _set |= 1u << 6; } }
+
+    private bool _defaultExpanded = false;
+    public bool DefaultExpanded { get => _defaultExpanded; set { _defaultExpanded = value; _set |= 1u << 7; } }
+
+    private ushort _fontId = 0;
+    public ushort FontId { get => _fontId; set { _fontId = value; _set |= 1u << 8; } }
+
+    private ushort _fontSize = 14;
+    public ushort FontSize { get => _fontSize; set { _fontSize = value; _set |= 1u << 9; } }
+
+    public TreeNodeStyle MergeOver(TreeNodeStyle @base)
+    {
+        var result = @base;
+        if ((_set & (1u << 0)) != 0) result._textColor = _textColor;
+        if ((_set & (1u << 1)) != 0) result._arrowColor = _arrowColor;
+        if ((_set & (1u << 2)) != 0) result._hoverColor = _hoverColor;
+        if ((_set & (1u << 3)) != 0) result._padding = _padding;
+        if ((_set & (1u << 4)) != 0) result._expandedIcon = _expandedIcon;
+        if ((_set & (1u << 5)) != 0) result._collapsedIcon = _collapsedIcon;
+        if ((_set & (1u << 6)) != 0) result._indentSize = _indentSize;
+        if ((_set & (1u << 7)) != 0) result._defaultExpanded = _defaultExpanded;
+        if ((_set & (1u << 8)) != 0) result._fontId = _fontId;
+        if ((_set & (1u << 9)) != 0) result._fontSize = _fontSize;
+        return result;
+    }
 }
 
 /// <summary>
@@ -6373,64 +6668,192 @@ public struct TreeNodeStyle
 public struct LayoutStyle
 {
     public LayoutStyle() { }
-    public Color BackgroundColor { get; set; } = Color.Transparent;
-    public CornerRadius CornerRadius { get; set; } = default;
-    public BorderConfig Border { get; set; } = default;
-    public Padding Padding { get; set; } = default;
-    public Sizing Sizing { get; set; } = default;
+    private uint _set;
+
+    private Color _backgroundColor = Color.Transparent;
+    public Color BackgroundColor { get => _backgroundColor; set { _backgroundColor = value; _set |= 1u << 0; } }
+
+    private CornerRadius _cornerRadius = default;
+    public CornerRadius CornerRadius { get => _cornerRadius; set { _cornerRadius = value; _set |= 1u << 1; } }
+
+    private BorderConfig _border = default;
+    public BorderConfig Border { get => _border; set { _border = value; _set |= 1u << 2; } }
+
+    private Padding _padding = default;
+    public Padding Padding { get => _padding; set { _padding = value; _set |= 1u << 3; } }
+
+    private Sizing _sizing = default;
+    public Sizing Sizing { get => _sizing; set { _sizing = value; _set |= 1u << 4; } }
+
     /// <summary>
     /// When true, children are clipped to this element's bounding box.
     /// </summary>
-    public bool ClipContent { get; set; } = false;
+    private bool _clipContent = false;
+    public bool ClipContent { get => _clipContent; set { _clipContent = value; _set |= 1u << 5; } }
+
+    public LayoutStyle MergeOver(LayoutStyle @base)
+    {
+        var result = @base;
+        if ((_set & (1u << 0)) != 0) result._backgroundColor = _backgroundColor;
+        if ((_set & (1u << 1)) != 0) result._cornerRadius = _cornerRadius;
+        if ((_set & (1u << 2)) != 0) result._border = _border;
+        if ((_set & (1u << 3)) != 0) result._padding = _padding;
+        if ((_set & (1u << 4)) != 0) result._sizing = _sizing;
+        if ((_set & (1u << 5)) != 0) result._clipContent = _clipContent;
+        return result;
+    }
 }
 
 public struct ScrollAreaStyle
 {
     public ScrollAreaStyle() { }
-    public Color BackgroundColor { get; set; } = Color.Rgba(35, 35, 40);
-    public Padding Padding { get; set; } = Padding.All(8);
-    public CornerRadius CornerRadius { get; set; } = CornerRadius.All(4);
+    private uint _set;
+
+    private Color _backgroundColor = Color.Rgba(35, 35, 40);
+    public Color BackgroundColor { get => _backgroundColor; set { _backgroundColor = value; _set |= 1u << 0; } }
+
+    private Padding _padding = Padding.All(8);
+    public Padding Padding { get => _padding; set { _padding = value; _set |= 1u << 1; } }
+
+    private CornerRadius _cornerRadius = CornerRadius.All(4);
+    public CornerRadius CornerRadius { get => _cornerRadius; set { _cornerRadius = value; _set |= 1u << 2; } }
+
+    public ScrollAreaStyle MergeOver(ScrollAreaStyle @base)
+    {
+        var result = @base;
+        if ((_set & (1u << 0)) != 0) result._backgroundColor = _backgroundColor;
+        if ((_set & (1u << 1)) != 0) result._padding = _padding;
+        if ((_set & (1u << 2)) != 0) result._cornerRadius = _cornerRadius;
+        return result;
+    }
 }
 
 public struct SplitterStyle
 {
     public SplitterStyle() { }
+    private uint _set;
+
     /// <summary>Thickness of the splitter handle in pixels.</summary>
-    public float Thickness { get; set; } = 5;
+    private float _thickness = 5;
+    public float Thickness { get => _thickness; set { _thickness = value; _set |= 1u << 0; } }
+
     /// <summary>Background color when idle (transparent = invisible until hovered).</summary>
-    public Color BackgroundColor { get; set; } = Color.Rgba(0, 0, 0, 0);
+    private Color _backgroundColor = Color.Rgba(0, 0, 0, 0);
+    public Color BackgroundColor { get => _backgroundColor; set { _backgroundColor = value; _set |= 1u << 1; } }
+
     /// <summary>Background color when the mouse is hovering over the splitter.</summary>
-    public Color HoverColor { get; set; } = Color.Rgba(60, 140, 230, 100);
+    private Color _hoverColor = Color.Rgba(60, 140, 230, 100);
+    public Color HoverColor { get => _hoverColor; set { _hoverColor = value; _set |= 1u << 2; } }
+
     /// <summary>Background color while the splitter is being dragged.</summary>
-    public Color DragColor { get; set; } = Color.Rgba(60, 140, 230, 180);
+    private Color _dragColor = Color.Rgba(60, 140, 230, 180);
+    public Color DragColor { get => _dragColor; set { _dragColor = value; _set |= 1u << 3; } }
+
+    public SplitterStyle MergeOver(SplitterStyle @base)
+    {
+        var result = @base;
+        if ((_set & (1u << 0)) != 0) result._thickness = _thickness;
+        if ((_set & (1u << 1)) != 0) result._backgroundColor = _backgroundColor;
+        if ((_set & (1u << 2)) != 0) result._hoverColor = _hoverColor;
+        if ((_set & (1u << 3)) != 0) result._dragColor = _dragColor;
+        return result;
+    }
 }
 
 public struct RadioGroupStyle
 {
     public RadioGroupStyle() { }
-    public Color TextColor { get; set; } = Color.Rgba(200, 200, 200);
-    public Color LabelColor { get; set; } = Color.Rgba(150, 150, 155);
-    public Color CircleColor { get; set; } = Color.Rgba(45, 45, 50);
-    public Color CircleBorderColor { get; set; } = Color.Rgba(80, 80, 85);
-    public Color DotColor { get; set; } = Color.Rgba(70, 130, 200);
-    public Color HoverColor { get; set; } = Color.Rgba(50, 50, 55);
-    public Padding OptionPadding { get; set; } = Padding.Symmetric(4, 4);
-    public float CircleSize { get; set; } = 18;
-    public float DotSize { get; set; } = 10;
-    public ushort FontId { get; set; } = 0;
-    public ushort FontSize { get; set; } = 14;
+    private uint _set;
+
+    private Color _textColor = Color.Rgba(200, 200, 200);
+    public Color TextColor { get => _textColor; set { _textColor = value; _set |= 1u << 0; } }
+
+    private Color _labelColor = Color.Rgba(150, 150, 155);
+    public Color LabelColor { get => _labelColor; set { _labelColor = value; _set |= 1u << 1; } }
+
+    private Color _circleColor = Color.Rgba(45, 45, 50);
+    public Color CircleColor { get => _circleColor; set { _circleColor = value; _set |= 1u << 2; } }
+
+    private Color _circleBorderColor = Color.Rgba(80, 80, 85);
+    public Color CircleBorderColor { get => _circleBorderColor; set { _circleBorderColor = value; _set |= 1u << 3; } }
+
+    private Color _dotColor = Color.Rgba(70, 130, 200);
+    public Color DotColor { get => _dotColor; set { _dotColor = value; _set |= 1u << 4; } }
+
+    private Color _hoverColor = Color.Rgba(50, 50, 55);
+    public Color HoverColor { get => _hoverColor; set { _hoverColor = value; _set |= 1u << 5; } }
+
+    private Padding _optionPadding = Padding.Symmetric(4, 4);
+    public Padding OptionPadding { get => _optionPadding; set { _optionPadding = value; _set |= 1u << 6; } }
+
+    private float _circleSize = 18;
+    public float CircleSize { get => _circleSize; set { _circleSize = value; _set |= 1u << 7; } }
+
+    private float _dotSize = 10;
+    public float DotSize { get => _dotSize; set { _dotSize = value; _set |= 1u << 8; } }
+
+    private ushort _fontId = 0;
+    public ushort FontId { get => _fontId; set { _fontId = value; _set |= 1u << 9; } }
+
+    private ushort _fontSize = 14;
+    public ushort FontSize { get => _fontSize; set { _fontSize = value; _set |= 1u << 10; } }
+
+    public RadioGroupStyle MergeOver(RadioGroupStyle @base)
+    {
+        var result = @base;
+        if ((_set & (1u << 0)) != 0) result._textColor = _textColor;
+        if ((_set & (1u << 1)) != 0) result._labelColor = _labelColor;
+        if ((_set & (1u << 2)) != 0) result._circleColor = _circleColor;
+        if ((_set & (1u << 3)) != 0) result._circleBorderColor = _circleBorderColor;
+        if ((_set & (1u << 4)) != 0) result._dotColor = _dotColor;
+        if ((_set & (1u << 5)) != 0) result._hoverColor = _hoverColor;
+        if ((_set & (1u << 6)) != 0) result._optionPadding = _optionPadding;
+        if ((_set & (1u << 7)) != 0) result._circleSize = _circleSize;
+        if ((_set & (1u << 8)) != 0) result._dotSize = _dotSize;
+        if ((_set & (1u << 9)) != 0) result._fontId = _fontId;
+        if ((_set & (1u << 10)) != 0) result._fontSize = _fontSize;
+        return result;
+    }
 }
 
 public struct ScrollbarStyle
 {
     public ScrollbarStyle() { }
-    public Color TrackColor { get; set; } = Color.Rgba(40, 40, 45);
-    public Color ThumbColor { get; set; } = Color.Rgba(80, 80, 90);
-    public Color ThumbHoverColor { get; set; } = Color.Rgba(100, 100, 110);
-    public float Width { get; set; } = 8;
-    public float MinThumbSize { get; set; } = 20;
-    public float TrackPadding { get; set; } = 2;
-    public CornerRadius CornerRadius { get; set; } = CornerRadius.All(4);
+    private uint _set;
+
+    private Color _trackColor = Color.Rgba(40, 40, 45);
+    public Color TrackColor { get => _trackColor; set { _trackColor = value; _set |= 1u << 0; } }
+
+    private Color _thumbColor = Color.Rgba(80, 80, 90);
+    public Color ThumbColor { get => _thumbColor; set { _thumbColor = value; _set |= 1u << 1; } }
+
+    private Color _thumbHoverColor = Color.Rgba(100, 100, 110);
+    public Color ThumbHoverColor { get => _thumbHoverColor; set { _thumbHoverColor = value; _set |= 1u << 2; } }
+
+    private float _width = 8;
+    public float Width { get => _width; set { _width = value; _set |= 1u << 3; } }
+
+    private float _minThumbSize = 20;
+    public float MinThumbSize { get => _minThumbSize; set { _minThumbSize = value; _set |= 1u << 4; } }
+
+    private float _trackPadding = 2;
+    public float TrackPadding { get => _trackPadding; set { _trackPadding = value; _set |= 1u << 5; } }
+
+    private CornerRadius _cornerRadius = CornerRadius.All(4);
+    public CornerRadius CornerRadius { get => _cornerRadius; set { _cornerRadius = value; _set |= 1u << 6; } }
+
+    public ScrollbarStyle MergeOver(ScrollbarStyle @base)
+    {
+        var result = @base;
+        if ((_set & (1u << 0)) != 0) result._trackColor = _trackColor;
+        if ((_set & (1u << 1)) != 0) result._thumbColor = _thumbColor;
+        if ((_set & (1u << 2)) != 0) result._thumbHoverColor = _thumbHoverColor;
+        if ((_set & (1u << 3)) != 0) result._width = _width;
+        if ((_set & (1u << 4)) != 0) result._minThumbSize = _minThumbSize;
+        if ((_set & (1u << 5)) != 0) result._trackPadding = _trackPadding;
+        if ((_set & (1u << 6)) != 0) result._cornerRadius = _cornerRadius;
+        return result;
+    }
 }
 
 /// <summary>
@@ -6474,39 +6897,107 @@ public enum ResizeDirection
 public struct WindowStyle
 {
     public WindowStyle() { }
+    private uint _set;
+
     // Window background and border
-    public Color BackgroundColor { get; set; } = Color.Rgba(35, 35, 40);
-    public CornerRadius CornerRadius { get; set; } = CornerRadius.All(8);
-    public BorderConfig Border { get; set; } = BorderConfig.Uniform(1, Color.Rgba(55, 55, 60));
+    private Color _backgroundColor = Color.Rgba(35, 35, 40);
+    public Color BackgroundColor { get => _backgroundColor; set { _backgroundColor = value; _set |= 1u << 0; } }
+
+    private CornerRadius _cornerRadius = CornerRadius.All(8);
+    public CornerRadius CornerRadius { get => _cornerRadius; set { _cornerRadius = value; _set |= 1u << 1; } }
+
+    private BorderConfig _border = BorderConfig.Uniform(1, Color.Rgba(55, 55, 60));
+    public BorderConfig Border { get => _border; set { _border = value; _set |= 1u << 2; } }
 
     // Title bar
-    public Color TitleBarColor { get; set; } = Color.Rgba(50, 50, 55);
-    public Color TitleBarDragColor { get; set; } = Color.Rgba(60, 60, 65);
-    public float TitleBarHeight { get; set; } = 32;
-    public Padding TitleBarPadding { get; set; } = Padding.Symmetric(8, 6);
-    public Color TitleColor { get; set; } = Color.White;
+    private Color _titleBarColor = Color.Rgba(50, 50, 55);
+    public Color TitleBarColor { get => _titleBarColor; set { _titleBarColor = value; _set |= 1u << 3; } }
+
+    private Color _titleBarDragColor = Color.Rgba(60, 60, 65);
+    public Color TitleBarDragColor { get => _titleBarDragColor; set { _titleBarDragColor = value; _set |= 1u << 4; } }
+
+    private float _titleBarHeight = 32;
+    public float TitleBarHeight { get => _titleBarHeight; set { _titleBarHeight = value; _set |= 1u << 5; } }
+
+    private Padding _titleBarPadding = Padding.Symmetric(8, 6);
+    public Padding TitleBarPadding { get => _titleBarPadding; set { _titleBarPadding = value; _set |= 1u << 6; } }
+
+    private Color _titleColor = Color.White;
+    public Color TitleColor { get => _titleColor; set { _titleColor = value; _set |= 1u << 7; } }
 
     // Buttons
-    public float ButtonSize { get; set; } = 20;
-    public Color ButtonHoverColor { get; set; } = Color.Rgba(70, 70, 75);
-    public Color CloseButtonHoverColor { get; set; } = Color.Rgba(200, 60, 60);
+    private float _buttonSize = 20;
+    public float ButtonSize { get => _buttonSize; set { _buttonSize = value; _set |= 1u << 8; } }
+
+    private Color _buttonHoverColor = Color.Rgba(70, 70, 75);
+    public Color ButtonHoverColor { get => _buttonHoverColor; set { _buttonHoverColor = value; _set |= 1u << 9; } }
+
+    private Color _closeButtonHoverColor = Color.Rgba(200, 60, 60);
+    public Color CloseButtonHoverColor { get => _closeButtonHoverColor; set { _closeButtonHoverColor = value; _set |= 1u << 10; } }
 
     // Content area
-    public Padding ContentPadding { get; set; } = Padding.All(12);
-    public ushort ContentGap { get; set; } = 8;
+    private Padding _contentPadding = Padding.All(12);
+    public Padding ContentPadding { get => _contentPadding; set { _contentPadding = value; _set |= 1u << 11; } }
+
+    private ushort _contentGap = 8;
+    public ushort ContentGap { get => _contentGap; set { _contentGap = value; _set |= 1u << 12; } }
 
     // Resize
-    public float ResizeHandleSize { get; set; } = 8;
-    public float MinWidth { get; set; } = 150;
-    public float MinHeight { get; set; } = 100;
-    public float MaxWidth { get; set; } = float.MaxValue;
-    public float MaxHeight { get; set; } = float.MaxValue;
-    public Color ResizeHandleColor { get; set; } = Color.Rgba(100, 100, 110);
-    public Color ResizeHandleHoverColor { get; set; } = Color.Rgba(150, 150, 160);
+    private float _resizeHandleSize = 8;
+    public float ResizeHandleSize { get => _resizeHandleSize; set { _resizeHandleSize = value; _set |= 1u << 13; } }
+
+    private float _minWidth = 150;
+    public float MinWidth { get => _minWidth; set { _minWidth = value; _set |= 1u << 14; } }
+
+    private float _minHeight = 100;
+    public float MinHeight { get => _minHeight; set { _minHeight = value; _set |= 1u << 15; } }
+
+    private float _maxWidth = float.MaxValue;
+    public float MaxWidth { get => _maxWidth; set { _maxWidth = value; _set |= 1u << 16; } }
+
+    private float _maxHeight = float.MaxValue;
+    public float MaxHeight { get => _maxHeight; set { _maxHeight = value; _set |= 1u << 17; } }
+
+    private Color _resizeHandleColor = Color.Rgba(100, 100, 110);
+    public Color ResizeHandleColor { get => _resizeHandleColor; set { _resizeHandleColor = value; _set |= 1u << 18; } }
+
+    private Color _resizeHandleHoverColor = Color.Rgba(150, 150, 160);
+    public Color ResizeHandleHoverColor { get => _resizeHandleHoverColor; set { _resizeHandleHoverColor = value; _set |= 1u << 19; } }
 
     // Font
-    public ushort FontId { get; set; } = 0;
-    public ushort FontSize { get; set; } = 14;
+    private ushort _fontId = 0;
+    public ushort FontId { get => _fontId; set { _fontId = value; _set |= 1u << 20; } }
+
+    private ushort _fontSize = 14;
+    public ushort FontSize { get => _fontSize; set { _fontSize = value; _set |= 1u << 21; } }
+
+    public WindowStyle MergeOver(WindowStyle @base)
+    {
+        var result = @base;
+        if ((_set & (1u << 0)) != 0) result._backgroundColor = _backgroundColor;
+        if ((_set & (1u << 1)) != 0) result._cornerRadius = _cornerRadius;
+        if ((_set & (1u << 2)) != 0) result._border = _border;
+        if ((_set & (1u << 3)) != 0) result._titleBarColor = _titleBarColor;
+        if ((_set & (1u << 4)) != 0) result._titleBarDragColor = _titleBarDragColor;
+        if ((_set & (1u << 5)) != 0) result._titleBarHeight = _titleBarHeight;
+        if ((_set & (1u << 6)) != 0) result._titleBarPadding = _titleBarPadding;
+        if ((_set & (1u << 7)) != 0) result._titleColor = _titleColor;
+        if ((_set & (1u << 8)) != 0) result._buttonSize = _buttonSize;
+        if ((_set & (1u << 9)) != 0) result._buttonHoverColor = _buttonHoverColor;
+        if ((_set & (1u << 10)) != 0) result._closeButtonHoverColor = _closeButtonHoverColor;
+        if ((_set & (1u << 11)) != 0) result._contentPadding = _contentPadding;
+        if ((_set & (1u << 12)) != 0) result._contentGap = _contentGap;
+        if ((_set & (1u << 13)) != 0) result._resizeHandleSize = _resizeHandleSize;
+        if ((_set & (1u << 14)) != 0) result._minWidth = _minWidth;
+        if ((_set & (1u << 15)) != 0) result._minHeight = _minHeight;
+        if ((_set & (1u << 16)) != 0) result._maxWidth = _maxWidth;
+        if ((_set & (1u << 17)) != 0) result._maxHeight = _maxHeight;
+        if ((_set & (1u << 18)) != 0) result._resizeHandleColor = _resizeHandleColor;
+        if ((_set & (1u << 19)) != 0) result._resizeHandleHoverColor = _resizeHandleHoverColor;
+        if ((_set & (1u << 20)) != 0) result._fontId = _fontId;
+        if ((_set & (1u << 21)) != 0) result._fontSize = _fontSize;
+        return result;
+    }
 }
 
 /// <summary>
@@ -6515,35 +7006,63 @@ public struct WindowStyle
 public struct PopupStyle
 {
     public PopupStyle() { }
+    private uint _set;
+
     /// <summary>Background color of the popup.</summary>
-    public Color BackgroundColor { get; set; } = Color.Rgba(40, 40, 45);
+    private Color _backgroundColor = Color.Rgba(40, 40, 45);
+    public Color BackgroundColor { get => _backgroundColor; set { _backgroundColor = value; _set |= 1u << 0; } }
 
     /// <summary>Corner radius for rounded corners.</summary>
-    public CornerRadius CornerRadius { get; set; } = CornerRadius.All(4);
+    private CornerRadius _cornerRadius = CornerRadius.All(4);
+    public CornerRadius CornerRadius { get => _cornerRadius; set { _cornerRadius = value; _set |= 1u << 1; } }
 
     /// <summary>Border configuration.</summary>
-    public BorderConfig Border { get; set; } = BorderConfig.Uniform(1, Color.Rgba(60, 60, 65));
+    private BorderConfig _border = BorderConfig.Uniform(1, Color.Rgba(60, 60, 65));
+    public BorderConfig Border { get => _border; set { _border = value; _set |= 1u << 2; } }
 
     /// <summary>Inner padding.</summary>
-    public Padding Padding { get; set; } = Padding.All(8);
+    private Padding _padding = Padding.All(8);
+    public Padding Padding { get => _padding; set { _padding = value; _set |= 1u << 3; } }
 
     /// <summary>Gap between child elements.</summary>
-    public ushort ContentGap { get; set; } = 4;
+    private ushort _contentGap = 4;
+    public ushort ContentGap { get => _contentGap; set { _contentGap = value; _set |= 1u << 4; } }
 
     /// <summary>Shadow/offset from parent element.</summary>
-    public Vector2 Offset { get; set; } = new(0, 2);
+    private Vector2 _offset = new(0, 2);
+    public Vector2 Offset { get => _offset; set { _offset = value; _set |= 1u << 5; } }
 
     /// <summary>Minimum width of the popup.</summary>
-    public float MinWidth { get; set; } = 100;
+    private float _minWidth = 100;
+    public float MinWidth { get => _minWidth; set { _minWidth = value; _set |= 1u << 6; } }
 
     /// <summary>Maximum width of the popup (0 = no limit).</summary>
-    public float MaxWidth { get; set; } = 300;
+    private float _maxWidth = 300;
+    public float MaxWidth { get => _maxWidth; set { _maxWidth = value; _set |= 1u << 7; } }
 
     /// <summary>Font ID for text in popup.</summary>
-    public ushort FontId { get; set; } = 0;
+    private ushort _fontId = 0;
+    public ushort FontId { get => _fontId; set { _fontId = value; _set |= 1u << 8; } }
 
     /// <summary>Font size for text in popup.</summary>
-    public ushort FontSize { get; set; } = 14;
+    private ushort _fontSize = 14;
+    public ushort FontSize { get => _fontSize; set { _fontSize = value; _set |= 1u << 9; } }
+
+    public PopupStyle MergeOver(PopupStyle @base)
+    {
+        var result = @base;
+        if ((_set & (1u << 0)) != 0) result._backgroundColor = _backgroundColor;
+        if ((_set & (1u << 1)) != 0) result._cornerRadius = _cornerRadius;
+        if ((_set & (1u << 2)) != 0) result._border = _border;
+        if ((_set & (1u << 3)) != 0) result._padding = _padding;
+        if ((_set & (1u << 4)) != 0) result._contentGap = _contentGap;
+        if ((_set & (1u << 5)) != 0) result._offset = _offset;
+        if ((_set & (1u << 6)) != 0) result._minWidth = _minWidth;
+        if ((_set & (1u << 7)) != 0) result._maxWidth = _maxWidth;
+        if ((_set & (1u << 8)) != 0) result._fontId = _fontId;
+        if ((_set & (1u << 9)) != 0) result._fontSize = _fontSize;
+        return result;
+    }
 }
 
 /// <summary>
@@ -6552,20 +7071,69 @@ public struct PopupStyle
 public struct ModalStyle
 {
     public ModalStyle() { }
-    public Color BackgroundColor { get; set; } = Color.Rgba(40, 40, 45);
-    public CornerRadius CornerRadius { get; set; } = CornerRadius.All(6);
-    public BorderConfig Border { get; set; } = BorderConfig.Uniform(1, Color.Rgba(70, 70, 80));
-    public Padding Padding { get; set; } = Padding.All(12);
-    public ushort ContentGap { get; set; } = 8;
-    public float MinWidth { get; set; } = 300;
-    public float MaxWidth { get; set; } = 500;
-    public Color DimColor { get; set; } = Color.Rgba(0, 0, 0, 128);
-    public Color TitleBarColor { get; set; } = Color.Rgba(50, 50, 58);
-    public Color TitleColor { get; set; } = Color.White;
-    public float TitleBarHeight { get; set; } = 32;
-    public ushort TitleFontSize { get; set; } = 16;
-    public ushort FontId { get; set; } = 0;
-    public ushort FontSize { get; set; } = 14;
+    private uint _set;
+
+    private Color _backgroundColor = Color.Rgba(40, 40, 45);
+    public Color BackgroundColor { get => _backgroundColor; set { _backgroundColor = value; _set |= 1u << 0; } }
+
+    private CornerRadius _cornerRadius = CornerRadius.All(6);
+    public CornerRadius CornerRadius { get => _cornerRadius; set { _cornerRadius = value; _set |= 1u << 1; } }
+
+    private BorderConfig _border = BorderConfig.Uniform(1, Color.Rgba(70, 70, 80));
+    public BorderConfig Border { get => _border; set { _border = value; _set |= 1u << 2; } }
+
+    private Padding _padding = Padding.All(12);
+    public Padding Padding { get => _padding; set { _padding = value; _set |= 1u << 3; } }
+
+    private ushort _contentGap = 8;
+    public ushort ContentGap { get => _contentGap; set { _contentGap = value; _set |= 1u << 4; } }
+
+    private float _minWidth = 300;
+    public float MinWidth { get => _minWidth; set { _minWidth = value; _set |= 1u << 5; } }
+
+    private float _maxWidth = 500;
+    public float MaxWidth { get => _maxWidth; set { _maxWidth = value; _set |= 1u << 6; } }
+
+    private Color _dimColor = Color.Rgba(0, 0, 0, 128);
+    public Color DimColor { get => _dimColor; set { _dimColor = value; _set |= 1u << 7; } }
+
+    private Color _titleBarColor = Color.Rgba(50, 50, 58);
+    public Color TitleBarColor { get => _titleBarColor; set { _titleBarColor = value; _set |= 1u << 8; } }
+
+    private Color _titleColor = Color.White;
+    public Color TitleColor { get => _titleColor; set { _titleColor = value; _set |= 1u << 9; } }
+
+    private float _titleBarHeight = 32;
+    public float TitleBarHeight { get => _titleBarHeight; set { _titleBarHeight = value; _set |= 1u << 10; } }
+
+    private ushort _titleFontSize = 16;
+    public ushort TitleFontSize { get => _titleFontSize; set { _titleFontSize = value; _set |= 1u << 11; } }
+
+    private ushort _fontId = 0;
+    public ushort FontId { get => _fontId; set { _fontId = value; _set |= 1u << 12; } }
+
+    private ushort _fontSize = 14;
+    public ushort FontSize { get => _fontSize; set { _fontSize = value; _set |= 1u << 13; } }
+
+    public ModalStyle MergeOver(ModalStyle @base)
+    {
+        var result = @base;
+        if ((_set & (1u << 0)) != 0) result._backgroundColor = _backgroundColor;
+        if ((_set & (1u << 1)) != 0) result._cornerRadius = _cornerRadius;
+        if ((_set & (1u << 2)) != 0) result._border = _border;
+        if ((_set & (1u << 3)) != 0) result._padding = _padding;
+        if ((_set & (1u << 4)) != 0) result._contentGap = _contentGap;
+        if ((_set & (1u << 5)) != 0) result._minWidth = _minWidth;
+        if ((_set & (1u << 6)) != 0) result._maxWidth = _maxWidth;
+        if ((_set & (1u << 7)) != 0) result._dimColor = _dimColor;
+        if ((_set & (1u << 8)) != 0) result._titleBarColor = _titleBarColor;
+        if ((_set & (1u << 9)) != 0) result._titleColor = _titleColor;
+        if ((_set & (1u << 10)) != 0) result._titleBarHeight = _titleBarHeight;
+        if ((_set & (1u << 11)) != 0) result._titleFontSize = _titleFontSize;
+        if ((_set & (1u << 12)) != 0) result._fontId = _fontId;
+        if ((_set & (1u << 13)) != 0) result._fontSize = _fontSize;
+        return result;
+    }
 }
 
 /// <summary>
@@ -6574,14 +7142,45 @@ public struct ModalStyle
 public struct TooltipStyle
 {
     public TooltipStyle() { }
-    public Color BackgroundColor { get; set; } = Color.Rgba(20, 20, 25);
-    public Color TextColor { get; set; } = Color.Rgba(220, 220, 225);
-    public CornerRadius CornerRadius { get; set; } = CornerRadius.All(4);
-    public BorderConfig Border { get; set; } = BorderConfig.Uniform(1, Color.Rgba(60, 60, 65));
-    public Padding Padding { get; set; } = Padding.Symmetric(8, 6);
-    public float MaxWidth { get; set; } = 300;
-    public ushort FontId { get; set; } = 0;
-    public ushort FontSize { get; set; } = 13;
+    private uint _set;
+
+    private Color _backgroundColor = Color.Rgba(20, 20, 25);
+    public Color BackgroundColor { get => _backgroundColor; set { _backgroundColor = value; _set |= 1u << 0; } }
+
+    private Color _textColor = Color.Rgba(220, 220, 225);
+    public Color TextColor { get => _textColor; set { _textColor = value; _set |= 1u << 1; } }
+
+    private CornerRadius _cornerRadius = CornerRadius.All(4);
+    public CornerRadius CornerRadius { get => _cornerRadius; set { _cornerRadius = value; _set |= 1u << 2; } }
+
+    private BorderConfig _border = BorderConfig.Uniform(1, Color.Rgba(60, 60, 65));
+    public BorderConfig Border { get => _border; set { _border = value; _set |= 1u << 3; } }
+
+    private Padding _padding = Padding.Symmetric(8, 6);
+    public Padding Padding { get => _padding; set { _padding = value; _set |= 1u << 4; } }
+
+    private float _maxWidth = 300;
+    public float MaxWidth { get => _maxWidth; set { _maxWidth = value; _set |= 1u << 5; } }
+
+    private ushort _fontId = 0;
+    public ushort FontId { get => _fontId; set { _fontId = value; _set |= 1u << 6; } }
+
+    private ushort _fontSize = 13;
+    public ushort FontSize { get => _fontSize; set { _fontSize = value; _set |= 1u << 7; } }
+
+    public TooltipStyle MergeOver(TooltipStyle @base)
+    {
+        var result = @base;
+        if ((_set & (1u << 0)) != 0) result._backgroundColor = _backgroundColor;
+        if ((_set & (1u << 1)) != 0) result._textColor = _textColor;
+        if ((_set & (1u << 2)) != 0) result._cornerRadius = _cornerRadius;
+        if ((_set & (1u << 3)) != 0) result._border = _border;
+        if ((_set & (1u << 4)) != 0) result._padding = _padding;
+        if ((_set & (1u << 5)) != 0) result._maxWidth = _maxWidth;
+        if ((_set & (1u << 6)) != 0) result._fontId = _fontId;
+        if ((_set & (1u << 7)) != 0) result._fontSize = _fontSize;
+        return result;
+    }
 }
 
 /// <summary>
@@ -6590,19 +7189,65 @@ public struct TooltipStyle
 public struct ListBoxStyle
 {
     public ListBoxStyle() { }
-    public Color BackgroundColor { get; set; } = Color.Rgba(35, 35, 40);
-    public Color TextColor { get; set; } = Color.Rgba(200, 200, 200);
-    public Color LabelColor { get; set; } = Color.Rgba(150, 150, 155);
-    public Color HoverColor { get; set; } = Color.Rgba(55, 55, 65);
-    public Color SelectedColor { get; set; } = Color.Rgba(70, 130, 200);
-    public Color SelectedTextColor { get; set; } = Color.White;
-    public CornerRadius CornerRadius { get; set; } = CornerRadius.All(4);
-    public BorderConfig Border { get; set; } = BorderConfig.Uniform(1, Color.Rgba(60, 60, 65));
-    public Padding Padding { get; set; } = Padding.All(4);
-    public Padding ItemPadding { get; set; } = Padding.Symmetric(8, 4);
-    public float ItemCornerRadius { get; set; } = 3;
-    public ushort FontId { get; set; } = 0;
-    public ushort FontSize { get; set; } = 14;
+    private uint _set;
+
+    private Color _backgroundColor = Color.Rgba(35, 35, 40);
+    public Color BackgroundColor { get => _backgroundColor; set { _backgroundColor = value; _set |= 1u << 0; } }
+
+    private Color _textColor = Color.Rgba(200, 200, 200);
+    public Color TextColor { get => _textColor; set { _textColor = value; _set |= 1u << 1; } }
+
+    private Color _labelColor = Color.Rgba(150, 150, 155);
+    public Color LabelColor { get => _labelColor; set { _labelColor = value; _set |= 1u << 2; } }
+
+    private Color _hoverColor = Color.Rgba(55, 55, 65);
+    public Color HoverColor { get => _hoverColor; set { _hoverColor = value; _set |= 1u << 3; } }
+
+    private Color _selectedColor = Color.Rgba(70, 130, 200);
+    public Color SelectedColor { get => _selectedColor; set { _selectedColor = value; _set |= 1u << 4; } }
+
+    private Color _selectedTextColor = Color.White;
+    public Color SelectedTextColor { get => _selectedTextColor; set { _selectedTextColor = value; _set |= 1u << 5; } }
+
+    private CornerRadius _cornerRadius = CornerRadius.All(4);
+    public CornerRadius CornerRadius { get => _cornerRadius; set { _cornerRadius = value; _set |= 1u << 6; } }
+
+    private BorderConfig _border = BorderConfig.Uniform(1, Color.Rgba(60, 60, 65));
+    public BorderConfig Border { get => _border; set { _border = value; _set |= 1u << 7; } }
+
+    private Padding _padding = Padding.All(4);
+    public Padding Padding { get => _padding; set { _padding = value; _set |= 1u << 8; } }
+
+    private Padding _itemPadding = Padding.Symmetric(8, 4);
+    public Padding ItemPadding { get => _itemPadding; set { _itemPadding = value; _set |= 1u << 9; } }
+
+    private float _itemCornerRadius = 3;
+    public float ItemCornerRadius { get => _itemCornerRadius; set { _itemCornerRadius = value; _set |= 1u << 10; } }
+
+    private ushort _fontId = 0;
+    public ushort FontId { get => _fontId; set { _fontId = value; _set |= 1u << 11; } }
+
+    private ushort _fontSize = 14;
+    public ushort FontSize { get => _fontSize; set { _fontSize = value; _set |= 1u << 12; } }
+
+    public ListBoxStyle MergeOver(ListBoxStyle @base)
+    {
+        var result = @base;
+        if ((_set & (1u << 0)) != 0) result._backgroundColor = _backgroundColor;
+        if ((_set & (1u << 1)) != 0) result._textColor = _textColor;
+        if ((_set & (1u << 2)) != 0) result._labelColor = _labelColor;
+        if ((_set & (1u << 3)) != 0) result._hoverColor = _hoverColor;
+        if ((_set & (1u << 4)) != 0) result._selectedColor = _selectedColor;
+        if ((_set & (1u << 5)) != 0) result._selectedTextColor = _selectedTextColor;
+        if ((_set & (1u << 6)) != 0) result._cornerRadius = _cornerRadius;
+        if ((_set & (1u << 7)) != 0) result._border = _border;
+        if ((_set & (1u << 8)) != 0) result._padding = _padding;
+        if ((_set & (1u << 9)) != 0) result._itemPadding = _itemPadding;
+        if ((_set & (1u << 10)) != 0) result._itemCornerRadius = _itemCornerRadius;
+        if ((_set & (1u << 11)) != 0) result._fontId = _fontId;
+        if ((_set & (1u << 12)) != 0) result._fontSize = _fontSize;
+        return result;
+    }
 }
 
 /// <summary>
@@ -6611,21 +7256,73 @@ public struct ListBoxStyle
 public struct ComboStyle
 {
     public ComboStyle() { }
-    public Color BackgroundColor { get; set; } = Color.Rgba(45, 45, 50);
-    public Color HoverColor { get; set; } = Color.Rgba(55, 55, 65);
-    public Color TextColor { get; set; } = Color.Rgba(200, 200, 200);
-    public Color LabelColor { get; set; } = Color.Rgba(150, 150, 155);
-    public Color ArrowColor { get; set; } = Color.Rgba(150, 150, 155);
-    public Color SelectedColor { get; set; } = Color.Rgba(70, 130, 200);
-    public Color SelectedTextColor { get; set; } = Color.White;
-    public Color ItemHoverColor { get; set; } = Color.Rgba(55, 55, 65);
-    public CornerRadius CornerRadius { get; set; } = CornerRadius.All(4);
-    public BorderConfig Border { get; set; } = BorderConfig.Uniform(1, Color.Rgba(60, 60, 65));
-    public Padding Padding { get; set; } = Padding.Symmetric(8, 6);
-    public float MinWidth { get; set; } = 120;
-    public float MaxWidth { get; set; } = 300;
-    public ushort FontId { get; set; } = 0;
-    public ushort FontSize { get; set; } = 14;
+    private uint _set;
+
+    private Color _backgroundColor = Color.Rgba(45, 45, 50);
+    public Color BackgroundColor { get => _backgroundColor; set { _backgroundColor = value; _set |= 1u << 0; } }
+
+    private Color _hoverColor = Color.Rgba(55, 55, 65);
+    public Color HoverColor { get => _hoverColor; set { _hoverColor = value; _set |= 1u << 1; } }
+
+    private Color _textColor = Color.Rgba(200, 200, 200);
+    public Color TextColor { get => _textColor; set { _textColor = value; _set |= 1u << 2; } }
+
+    private Color _labelColor = Color.Rgba(150, 150, 155);
+    public Color LabelColor { get => _labelColor; set { _labelColor = value; _set |= 1u << 3; } }
+
+    private Color _arrowColor = Color.Rgba(150, 150, 155);
+    public Color ArrowColor { get => _arrowColor; set { _arrowColor = value; _set |= 1u << 4; } }
+
+    private Color _selectedColor = Color.Rgba(70, 130, 200);
+    public Color SelectedColor { get => _selectedColor; set { _selectedColor = value; _set |= 1u << 5; } }
+
+    private Color _selectedTextColor = Color.White;
+    public Color SelectedTextColor { get => _selectedTextColor; set { _selectedTextColor = value; _set |= 1u << 6; } }
+
+    private Color _itemHoverColor = Color.Rgba(55, 55, 65);
+    public Color ItemHoverColor { get => _itemHoverColor; set { _itemHoverColor = value; _set |= 1u << 7; } }
+
+    private CornerRadius _cornerRadius = CornerRadius.All(4);
+    public CornerRadius CornerRadius { get => _cornerRadius; set { _cornerRadius = value; _set |= 1u << 8; } }
+
+    private BorderConfig _border = BorderConfig.Uniform(1, Color.Rgba(60, 60, 65));
+    public BorderConfig Border { get => _border; set { _border = value; _set |= 1u << 9; } }
+
+    private Padding _padding = Padding.Symmetric(8, 6);
+    public Padding Padding { get => _padding; set { _padding = value; _set |= 1u << 10; } }
+
+    private float _minWidth = 120;
+    public float MinWidth { get => _minWidth; set { _minWidth = value; _set |= 1u << 11; } }
+
+    private float _maxWidth = 300;
+    public float MaxWidth { get => _maxWidth; set { _maxWidth = value; _set |= 1u << 12; } }
+
+    private ushort _fontId = 0;
+    public ushort FontId { get => _fontId; set { _fontId = value; _set |= 1u << 13; } }
+
+    private ushort _fontSize = 14;
+    public ushort FontSize { get => _fontSize; set { _fontSize = value; _set |= 1u << 14; } }
+
+    public ComboStyle MergeOver(ComboStyle @base)
+    {
+        var result = @base;
+        if ((_set & (1u << 0)) != 0) result._backgroundColor = _backgroundColor;
+        if ((_set & (1u << 1)) != 0) result._hoverColor = _hoverColor;
+        if ((_set & (1u << 2)) != 0) result._textColor = _textColor;
+        if ((_set & (1u << 3)) != 0) result._labelColor = _labelColor;
+        if ((_set & (1u << 4)) != 0) result._arrowColor = _arrowColor;
+        if ((_set & (1u << 5)) != 0) result._selectedColor = _selectedColor;
+        if ((_set & (1u << 6)) != 0) result._selectedTextColor = _selectedTextColor;
+        if ((_set & (1u << 7)) != 0) result._itemHoverColor = _itemHoverColor;
+        if ((_set & (1u << 8)) != 0) result._cornerRadius = _cornerRadius;
+        if ((_set & (1u << 9)) != 0) result._border = _border;
+        if ((_set & (1u << 10)) != 0) result._padding = _padding;
+        if ((_set & (1u << 11)) != 0) result._minWidth = _minWidth;
+        if ((_set & (1u << 12)) != 0) result._maxWidth = _maxWidth;
+        if ((_set & (1u << 13)) != 0) result._fontId = _fontId;
+        if ((_set & (1u << 14)) != 0) result._fontSize = _fontSize;
+        return result;
+    }
 }
 
 // ============ Docking System ============
@@ -6749,25 +7446,89 @@ public class DockSpaceState
 public struct DockSpaceStyle
 {
     public DockSpaceStyle() { }
-    public float TabBarHeight { get; set; } = 26;
-    public float TabMinWidth { get; set; } = 60;
-    public float TabMaxWidth { get; set; } = 200;
-    public float TabPadding { get; set; } = 8;
-    public float SplitterThickness { get; set; } = 4;
-    public float UndockThreshold { get; set; } = 15;
-    public Color TabActiveColor { get; set; } = Color.Rgba(50, 50, 55);
-    public Color TabInactiveColor { get; set; } = Color.Rgba(35, 35, 38);
-    public Color TabHoverColor { get; set; } = Color.Rgba(60, 60, 65);
-    public Color TabTextColor { get; set; } = Color.Rgba(200, 200, 200);
-    public Color TabActiveTextColor { get; set; } = Color.Rgba(240, 240, 240);
-    public Color TabBarColor { get; set; } = Color.Rgba(30, 30, 33);
-    public Color DropPreviewColor { get; set; } = Color.Rgba(60, 140, 230, 80);
-    public Color SplitterColor { get; set; } = Color.Rgba(20, 20, 22);
-    public Color SplitterHoverColor { get; set; } = Color.Rgba(60, 140, 230);
-    public Color SplitterDragColor { get; set; } = Color.Rgba(60, 140, 230);
-    public Color ContentBackgroundColor { get; set; } = Color.Rgba(35, 35, 40);
-    public ushort FontId { get; set; } = 0;
-    public ushort FontSize { get; set; } = 13;
+    private uint _set;
+
+    private float _tabBarHeight = 26;
+    public float TabBarHeight { get => _tabBarHeight; set { _tabBarHeight = value; _set |= 1u << 0; } }
+
+    private float _tabMinWidth = 60;
+    public float TabMinWidth { get => _tabMinWidth; set { _tabMinWidth = value; _set |= 1u << 1; } }
+
+    private float _tabMaxWidth = 200;
+    public float TabMaxWidth { get => _tabMaxWidth; set { _tabMaxWidth = value; _set |= 1u << 2; } }
+
+    private float _tabPadding = 8;
+    public float TabPadding { get => _tabPadding; set { _tabPadding = value; _set |= 1u << 3; } }
+
+    private float _splitterThickness = 4;
+    public float SplitterThickness { get => _splitterThickness; set { _splitterThickness = value; _set |= 1u << 4; } }
+
+    private float _undockThreshold = 15;
+    public float UndockThreshold { get => _undockThreshold; set { _undockThreshold = value; _set |= 1u << 5; } }
+
+    private Color _tabActiveColor = Color.Rgba(50, 50, 55);
+    public Color TabActiveColor { get => _tabActiveColor; set { _tabActiveColor = value; _set |= 1u << 6; } }
+
+    private Color _tabInactiveColor = Color.Rgba(35, 35, 38);
+    public Color TabInactiveColor { get => _tabInactiveColor; set { _tabInactiveColor = value; _set |= 1u << 7; } }
+
+    private Color _tabHoverColor = Color.Rgba(60, 60, 65);
+    public Color TabHoverColor { get => _tabHoverColor; set { _tabHoverColor = value; _set |= 1u << 8; } }
+
+    private Color _tabTextColor = Color.Rgba(200, 200, 200);
+    public Color TabTextColor { get => _tabTextColor; set { _tabTextColor = value; _set |= 1u << 9; } }
+
+    private Color _tabActiveTextColor = Color.Rgba(240, 240, 240);
+    public Color TabActiveTextColor { get => _tabActiveTextColor; set { _tabActiveTextColor = value; _set |= 1u << 10; } }
+
+    private Color _tabBarColor = Color.Rgba(30, 30, 33);
+    public Color TabBarColor { get => _tabBarColor; set { _tabBarColor = value; _set |= 1u << 11; } }
+
+    private Color _dropPreviewColor = Color.Rgba(60, 140, 230, 80);
+    public Color DropPreviewColor { get => _dropPreviewColor; set { _dropPreviewColor = value; _set |= 1u << 12; } }
+
+    private Color _splitterColor = Color.Rgba(20, 20, 22);
+    public Color SplitterColor { get => _splitterColor; set { _splitterColor = value; _set |= 1u << 13; } }
+
+    private Color _splitterHoverColor = Color.Rgba(60, 140, 230);
+    public Color SplitterHoverColor { get => _splitterHoverColor; set { _splitterHoverColor = value; _set |= 1u << 14; } }
+
+    private Color _splitterDragColor = Color.Rgba(60, 140, 230);
+    public Color SplitterDragColor { get => _splitterDragColor; set { _splitterDragColor = value; _set |= 1u << 15; } }
+
+    private Color _contentBackgroundColor = Color.Rgba(35, 35, 40);
+    public Color ContentBackgroundColor { get => _contentBackgroundColor; set { _contentBackgroundColor = value; _set |= 1u << 16; } }
+
+    private ushort _fontId = 0;
+    public ushort FontId { get => _fontId; set { _fontId = value; _set |= 1u << 17; } }
+
+    private ushort _fontSize = 13;
+    public ushort FontSize { get => _fontSize; set { _fontSize = value; _set |= 1u << 18; } }
+
+    public DockSpaceStyle MergeOver(DockSpaceStyle @base)
+    {
+        var result = @base;
+        if ((_set & (1u << 0)) != 0) result._tabBarHeight = _tabBarHeight;
+        if ((_set & (1u << 1)) != 0) result._tabMinWidth = _tabMinWidth;
+        if ((_set & (1u << 2)) != 0) result._tabMaxWidth = _tabMaxWidth;
+        if ((_set & (1u << 3)) != 0) result._tabPadding = _tabPadding;
+        if ((_set & (1u << 4)) != 0) result._splitterThickness = _splitterThickness;
+        if ((_set & (1u << 5)) != 0) result._undockThreshold = _undockThreshold;
+        if ((_set & (1u << 6)) != 0) result._tabActiveColor = _tabActiveColor;
+        if ((_set & (1u << 7)) != 0) result._tabInactiveColor = _tabInactiveColor;
+        if ((_set & (1u << 8)) != 0) result._tabHoverColor = _tabHoverColor;
+        if ((_set & (1u << 9)) != 0) result._tabTextColor = _tabTextColor;
+        if ((_set & (1u << 10)) != 0) result._tabActiveTextColor = _tabActiveTextColor;
+        if ((_set & (1u << 11)) != 0) result._tabBarColor = _tabBarColor;
+        if ((_set & (1u << 12)) != 0) result._dropPreviewColor = _dropPreviewColor;
+        if ((_set & (1u << 13)) != 0) result._splitterColor = _splitterColor;
+        if ((_set & (1u << 14)) != 0) result._splitterHoverColor = _splitterHoverColor;
+        if ((_set & (1u << 15)) != 0) result._splitterDragColor = _splitterDragColor;
+        if ((_set & (1u << 16)) != 0) result._contentBackgroundColor = _contentBackgroundColor;
+        if ((_set & (1u << 17)) != 0) result._fontId = _fontId;
+        if ((_set & (1u << 18)) != 0) result._fontSize = _fontSize;
+        return result;
+    }
 }
 
 /// <summary>
