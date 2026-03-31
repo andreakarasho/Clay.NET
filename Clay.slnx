@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/Clay/Clay.csproj" />
     <Project Path="src/Clay.Example/Clay.Example.csproj" />
+    <Project Path="src/Clay.GameEditor/Clay.GameEditor.csproj" />
     <Project Path="src/Clay.Test/Clay.Test.csproj" />
     <Project Path="src/StbTextEdit/StbTextEdit.csproj" />
     <Project Path="src/StbTextEdit.Test/StbTextEdit.Test.csproj" />
