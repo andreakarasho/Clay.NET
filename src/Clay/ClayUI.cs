@@ -73,6 +73,11 @@ internal class ClayUIContext
     internal float ActiveSliderMin;
     internal float ActiveSliderMax = 1;
 
+    // Active splitter tracking for drag behavior
+    internal uint ActiveSplitterId;
+    internal float SplitterDragStartMouse;  // Mouse position at drag start (on the relevant axis)
+    internal float SplitterDragStartSize1;  // size1 value at drag start
+
     // Active scrollbar tracking for drag behavior
     internal uint ActiveScrollbarId;
     internal ElementId ActiveScrollContainerId;
@@ -189,6 +194,7 @@ internal class ClayUIContext
         if (!mouseDown)
         {
             ActiveSliderTrackId = 0;
+            ActiveSplitterId = 0;
             ActiveScrollbarId = 0;
             ActiveDragWindowId = 0;
             ActiveResizeWindowId = 0;
@@ -1388,6 +1394,89 @@ public static class ClayUI
             }
         })) { }
     }
+
+    // ============ Splitter ============
+
+    /// <summary>
+    /// Renders a draggable splitter between two panels. When the user drags the splitter,
+    /// size1 increases and size2 decreases (or vice versa) by the drag delta.
+    /// Works like ImGui's SplitterBehavior: the caller uses the resulting sizes to lay out
+    /// adjacent panels with Fixed sizing.
+    /// </summary>
+    /// <param name="label">Unique label for this splitter (supports ## suffix for hidden IDs).</param>
+    /// <param name="size1">Size of the panel before the splitter (left or top).</param>
+    /// <param name="size2">Size of the panel after the splitter (right or bottom).</param>
+    /// <param name="minSize1">Minimum allowed size for the first panel.</param>
+    /// <param name="minSize2">Minimum allowed size for the second panel.</param>
+    /// <param name="vertical">If true, the splitter is a vertical bar between horizontal panels (resizes width).
+    /// If false, the splitter is a horizontal bar between vertical panels (resizes height).</param>
+    /// <param name="style">Optional visual style.</param>
+    /// <returns>True if the splitter is currently being dragged.</returns>
+    public static bool Splitter(string label, ref float size1, ref float size2,
+        float minSize1 = 50, float minSize2 = 50, bool vertical = true, SplitterStyle? style = null)
+    {
+        var s = style ?? Style.Splitter;
+        var id = StableId(label);
+        bool isHovered = !IsDisabled && Clay.PointerOver(id);
+        bool justPressed = isHovered && ShouldProcessClick;
+
+        if (isHovered) _context.HoveredThisFrame.Add(id.Id);
+
+        // Check if this splitter should become active (mouse just pressed on it)
+        if (justPressed)
+        {
+            _context.ActiveSplitterId = id.Id;
+            _context.SplitterDragStartMouse = vertical ? _context.MousePosition.X : _context.MousePosition.Y;
+            _context.SplitterDragStartSize1 = size1;
+        }
+
+        bool isActive = _context.ActiveSplitterId == id.Id;
+
+        // Process drag: compute new size1 directly from mouse delta since drag start
+        if (isActive && _context.MousePressed)
+        {
+            float mousePos = vertical ? _context.MousePosition.X : _context.MousePosition.Y;
+            float delta = mousePos - _context.SplitterDragStartMouse;
+            float totalSize = size1 + size2;
+
+            float newSize1 = Math.Clamp(_context.SplitterDragStartSize1 + delta, minSize1, totalSize - minSize2);
+            float newSize2 = totalSize - newSize1;
+
+            size1 = newSize1;
+            size2 = newSize2;
+        }
+
+        // Determine visual state
+        Color bgColor = isActive ? s.DragColor
+            : isHovered ? s.HoverColor
+            : s.BackgroundColor;
+
+        // Render the splitter element
+        using (Clay.Element(new ElementDeclaration
+        {
+            Id = id,
+            Layout = new LayoutConfig
+            {
+                Sizing = vertical
+                    ? new Sizing(SizingAxis.Fixed(s.Thickness), SizingAxis.Grow())
+                    : new Sizing(SizingAxis.Grow(), SizingAxis.Fixed(s.Thickness))
+            },
+            BackgroundColor = bgColor
+        })) { }
+
+        return isActive;
+    }
+
+    /// <summary>
+    /// Returns true if any splitter is currently being dragged.
+    /// Useful for changing the mouse cursor in the application.
+    /// </summary>
+    public static bool IsSplitterBeingDragged => _context.ActiveSplitterId != 0;
+
+    /// <summary>
+    /// Gets the ID of the currently active (being dragged) splitter, or 0 if none.
+    /// </summary>
+    public static uint ActiveSplitterId => _context.ActiveSplitterId;
 
     // ============ Disabled Region ============
 
@@ -4915,6 +5004,7 @@ public class ClayUIStyle
     public PopupStyle Popup = new();
     public ModalStyle Modal = new();
     public TooltipStyle Tooltip = new();
+    public SplitterStyle Splitter = new();
     public Color SeparatorColor = Color.Rgba(60, 60, 65);
 
     public static ClayUIStyle Default => new();
@@ -5343,6 +5433,19 @@ public struct ScrollAreaStyle
     public Color BackgroundColor { get; set; } = Color.Rgba(35, 35, 40);
     public Padding Padding { get; set; } = Padding.All(8);
     public CornerRadius CornerRadius { get; set; } = CornerRadius.All(4);
+}
+
+public struct SplitterStyle
+{
+    public SplitterStyle() { }
+    /// <summary>Thickness of the splitter handle in pixels.</summary>
+    public float Thickness { get; set; } = 5;
+    /// <summary>Background color when idle (transparent = invisible until hovered).</summary>
+    public Color BackgroundColor { get; set; } = Color.Rgba(0, 0, 0, 0);
+    /// <summary>Background color when the mouse is hovering over the splitter.</summary>
+    public Color HoverColor { get; set; } = Color.Rgba(60, 140, 230, 100);
+    /// <summary>Background color while the splitter is being dragged.</summary>
+    public Color DragColor { get; set; } = Color.Rgba(60, 140, 230, 180);
 }
 
 public struct RadioGroupStyle
