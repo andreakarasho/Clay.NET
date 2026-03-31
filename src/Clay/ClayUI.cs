@@ -4923,16 +4923,140 @@ public class ClayUIStyle
     {
         Button = new ButtonStyle
         {
-            BackgroundColor = Color.Rgba(55, 55, 65),
-            HoverColor = Color.Rgba(70, 70, 80),
-            PressedColor = Color.Rgba(50, 50, 60),
-            TextColor = Color.White
+            BackgroundColor = Color.Rgba(72, 72, 72),
+            HoverColor = Color.Rgba(88, 88, 88),
+            PressedColor = Color.Rgba(60, 60, 60),
+            TextColor = Color.Rgba(220, 220, 220),
+            CornerRadius = CornerRadius.All(4)
+        },
+        Label = new LabelStyle
+        {
+            TextColor = Color.Rgba(200, 200, 200)
+        },
+        Heading = new HeadingStyle
+        {
+            TextColor = Color.Rgba(220, 220, 220)
+        },
+        Checkbox = new CheckboxStyle
+        {
+            BoxColor = Color.Rgba(56, 56, 56),
+            CheckedColor = Color.Rgba(100, 150, 200),
+            CheckmarkColor = Color.White,
+            BoxBorderColor = Color.Rgba(90, 90, 90),
+            TextColor = Color.Rgba(200, 200, 200),
+            HoverColor = Color.Rgba(68, 68, 68),
+            PressedColor = Color.Rgba(52, 52, 52)
+        },
+        Slider = new SliderStyle
+        {
+            TrackColor = Color.Rgba(56, 56, 56),
+            FillColor = Color.Rgba(100, 150, 200),
+            TextColor = Color.Rgba(200, 200, 200),
+            ValueTextColor = Color.Rgba(150, 150, 150)
+        },
+        Toggle = new ToggleStyle
+        {
+            OnColor = Color.Rgba(100, 150, 200),
+            OffColor = Color.Rgba(72, 72, 72),
+            KnobColor = Color.Rgba(220, 220, 220),
+            TextColor = Color.Rgba(200, 200, 200),
+            HoverColor = Color.Rgba(64, 64, 64),
+            PressedColor = Color.Rgba(56, 56, 56)
+        },
+        ProgressBar = new ProgressBarStyle
+        {
+            BackgroundColor = Color.Rgba(56, 56, 56),
+            FillColor = Color.Rgba(100, 150, 200)
         },
         Panel = new PanelStyle
         {
-            BackgroundColor = Color.Rgba(35, 35, 40),
-            TitleColor = Color.Rgba(200, 200, 200)
-        }
+            BackgroundColor = Color.Rgba(48, 48, 48),
+            TitleColor = Color.Rgba(200, 200, 200),
+            SeparatorColor = Color.Rgba(72, 72, 72),
+            Border = BorderConfig.Uniform(1, Color.Rgba(64, 64, 64))
+        },
+        TreeNode = new TreeNodeStyle
+        {
+            TextColor = Color.Rgba(200, 200, 200),
+            ArrowColor = Color.Rgba(150, 150, 150),
+            HoverColor = Color.Rgba(64, 64, 64)
+        },
+        ScrollArea = new ScrollAreaStyle
+        {
+            BackgroundColor = Color.Rgba(42, 42, 42)
+        },
+        RadioGroup = new RadioGroupStyle
+        {
+            TextColor = Color.Rgba(200, 200, 200),
+            LabelColor = Color.Rgba(150, 150, 150),
+            CircleColor = Color.Rgba(56, 56, 56),
+            CircleBorderColor = Color.Rgba(90, 90, 90),
+            DotColor = Color.Rgba(100, 150, 200),
+            HoverColor = Color.Rgba(68, 68, 68)
+        },
+        Scrollbar = new ScrollbarStyle
+        {
+            TrackColor = Color.Rgba(48, 48, 48),
+            ThumbColor = Color.Rgba(88, 88, 88),
+            ThumbHoverColor = Color.Rgba(108, 108, 108)
+        },
+        ListBox = new ListBoxStyle
+        {
+            BackgroundColor = Color.Rgba(42, 42, 42),
+            TextColor = Color.Rgba(200, 200, 200),
+            LabelColor = Color.Rgba(150, 150, 150),
+            HoverColor = Color.Rgba(60, 60, 60),
+            SelectedColor = Color.Rgba(100, 150, 200),
+            SelectedTextColor = Color.White,
+            Border = BorderConfig.Uniform(1, Color.Rgba(64, 64, 64))
+        },
+        Combo = new ComboStyle
+        {
+            BackgroundColor = Color.Rgba(56, 56, 56),
+            HoverColor = Color.Rgba(68, 68, 68),
+            TextColor = Color.Rgba(200, 200, 200),
+            LabelColor = Color.Rgba(150, 150, 150),
+            ArrowColor = Color.Rgba(150, 150, 150),
+            SelectedColor = Color.Rgba(100, 150, 200),
+            SelectedTextColor = Color.White,
+            ItemHoverColor = Color.Rgba(68, 68, 68),
+            Border = BorderConfig.Uniform(1, Color.Rgba(72, 72, 72))
+        },
+        Window = new WindowStyle
+        {
+            BackgroundColor = Color.Rgba(48, 48, 48),
+            CornerRadius = CornerRadius.All(6),
+            Border = BorderConfig.Uniform(1, Color.Rgba(72, 72, 72)),
+            TitleBarColor = Color.Rgba(56, 56, 56),
+            TitleBarDragColor = Color.Rgba(64, 64, 64),
+            TitleColor = Color.Rgba(210, 210, 210),
+            ButtonHoverColor = Color.Rgba(80, 80, 80),
+            CloseButtonHoverColor = Color.Rgba(180, 60, 60),
+            ResizeHandleColor = Color.Rgba(88, 88, 88),
+            ResizeHandleHoverColor = Color.Rgba(120, 120, 120)
+        },
+        Popup = new PopupStyle
+        {
+            BackgroundColor = Color.Rgba(52, 52, 52),
+            CornerRadius = CornerRadius.All(4),
+            Border = BorderConfig.Uniform(1, Color.Rgba(72, 72, 72))
+        },
+        Modal = new ModalStyle
+        {
+            BackgroundColor = Color.Rgba(52, 52, 52),
+            CornerRadius = CornerRadius.All(6),
+            Border = BorderConfig.Uniform(1, Color.Rgba(80, 80, 80)),
+            DimColor = Color.Rgba(0, 0, 0, 140),
+            TitleBarColor = Color.Rgba(60, 60, 60),
+            TitleColor = Color.Rgba(210, 210, 210)
+        },
+        Tooltip = new TooltipStyle
+        {
+            BackgroundColor = Color.Rgba(32, 32, 32),
+            TextColor = Color.Rgba(210, 210, 210),
+            Border = BorderConfig.Uniform(1, Color.Rgba(72, 72, 72))
+        },
+        SeparatorColor = Color.Rgba(72, 72, 72)
     };
 
     public static ClayUIStyle Light => new()
