@@ -138,6 +138,7 @@ internal class ClayUIContext
 
     // Per-frame dock tracking
     internal readonly HashSet<uint> DockableWindowsThisFrame = new();
+    internal readonly HashSet<uint> NoDockingWindows = new(); // windows with NoDocking flag
     internal readonly List<(uint NodeId, BoundingBox Bounds, uint SpaceId)> DockLeafBounds = new();
 
     // Active dock splitter drag (same pattern as ActiveSplitterId)
@@ -2062,6 +2063,10 @@ public static class ClayUI
         // Track window title for dock system (needed when window gets docked via drag)
         _context.DockedWindowTitles[id.Id] = title;
 
+        // Track NoDocking flag so drag-to-dock can check it
+        if (flags.HasFlag(WindowFlags.NoDocking))
+            _context.NoDockingWindows.Add(id.Id);
+
         // Get or create window state
         if (!_context.WindowStates.TryGetValue(id.Id, out var state))
         {
@@ -3075,10 +3080,9 @@ public static class ClayUI
         _context.DockDropZone = DockDropZone.None;
         _context.DockDropTargetSpaceId = 0;
 
-        // Check if the dragged window has NoDocking — can't determine this easily without flags,
-        // so we skip windows that are already docked
         var dragWindowId = _context.ActiveDragWindowId;
-        if (space.WindowToNode.ContainsKey(dragWindowId))
+        // Skip windows that have NoDocking flag or are already docked
+        if (_context.NoDockingWindows.Contains(dragWindowId) || space.WindowToNode.ContainsKey(dragWindowId))
             return;
 
         // Hit-test dock leaf bounds (from previous frame)
@@ -5295,7 +5299,7 @@ public static class ClayUI
         var defaultPos = new Vector2(10, 10);
         var defaultSize = new Vector2(320, 400);
 
-        if (BeginWindow("ClayUI Debug", ref open, defaultPosition: defaultPos, defaultSize: defaultSize))
+        if (BeginWindow("ClayUI Debug", ref open, defaultPosition: defaultPos, defaultSize: defaultSize, flags: WindowFlags.NoDocking))
         {
             // Frame stats
             if (BeginTreeNode("Clay Stats"))
