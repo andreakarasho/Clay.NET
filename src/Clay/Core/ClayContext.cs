@@ -327,8 +327,8 @@ public class ClayContext : IDisposable
             GenerateIdForAnonymousElement(ref openLayoutElement);
         }
 
-        // ClipContent adds to clip stack (without scroll behavior)
-        if (declaration.Layout.ClipContent)
+        // Push to clip stack if this element clips children (one entry per element)
+        if (declaration.Layout.ClipContent || declaration.Scroll.IsScrollable)
         {
             OpenClipElementStack.Add((int)openLayoutElement.Id);
         }
@@ -339,8 +339,6 @@ public class ClayContext : IDisposable
             int scrollIndex = ScrollElementConfigs.Add(declaration.Scroll);
             ElementConfigs.Add(new ElementConfig { Type = ElementConfigType.Scroll, ConfigIndex = scrollIndex });
             openLayoutElement.ElementConfigsLength++;
-            if (!declaration.Layout.ClipContent) // Avoid double-push
-                OpenClipElementStack.Add((int)openLayoutElement.Id);
 
             // Find or create scroll container data
             bool found = false;
@@ -391,12 +389,6 @@ public class ClayContext : IDisposable
         bool elementHasScrollHorizontal = false;
         bool elementHasScrollVertical = false;
 
-        // Pop clip stack for ClipContent elements
-        if (layoutConfig.ClipContent)
-        {
-            OpenClipElementStack.Length--;
-        }
-
         // Check for scroll config
         for (int i = 0; i < openLayoutElement.ElementConfigsLength; i++)
         {
@@ -406,10 +398,14 @@ public class ClayContext : IDisposable
                 ref var scrollConfig = ref ScrollElementConfigs[config.ConfigIndex];
                 elementHasScrollHorizontal = scrollConfig.Horizontal;
                 elementHasScrollVertical = scrollConfig.Vertical;
-                if (!layoutConfig.ClipContent) // Avoid double-pop
-                    OpenClipElementStack.Length--;
                 break;
             }
+        }
+
+        // Pop clip stack (one entry per element, matching the push in ConfigureOpenElement)
+        if (layoutConfig.ClipContent || elementHasScrollHorizontal || elementHasScrollVertical)
+        {
+            OpenClipElementStack.Length--;
         }
 
         // Attach children
@@ -1148,8 +1144,6 @@ public class ClayContext : IDisposable
         // Find configs
         int sharedIndex = FindConfigIndex(ref element, ElementConfigType.Shared);
         int scrollIndex = FindConfigIndex(ref element, ElementConfigType.Scroll);
-        ref var layoutConfig = ref LayoutConfigs[element.LayoutConfigIndex];
-        bool clipContent = layoutConfig.ClipContent;
 
         SharedElementConfig sharedConfig = sharedIndex >= 0 ? SharedElementConfigs[sharedIndex] : default;
 
@@ -1171,7 +1165,8 @@ public class ClayContext : IDisposable
         }
 
         // Scissor start (for scroll containers or ClipContent elements)
-        bool needsScissor = scrollIndex >= 0 || clipContent;
+        bool needsScissor = scrollIndex >= 0 ||
+            LayoutConfigs[element.LayoutConfigIndex].ClipContent;
         if (needsScissor)
         {
             ScrollRenderData scrollData = default;

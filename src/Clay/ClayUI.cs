@@ -1679,7 +1679,7 @@ public static class ClayUI
                     ChildGap = gap,
                     ChildAlignment = alignment,
                     Padding = hasStyle ? s.Padding : default,
-                    ClipContent = hasStyle && s.ClipContent,
+                    ClipContent = s.ClipContent,
                     Sizing = new Sizing
                     {
                         Width = hasSizingW ? s.Sizing.Width : SizingAxis.Grow(),
@@ -1793,7 +1793,7 @@ public static class ClayUI
                     ChildGap = gap,
                     ChildAlignment = alignment,
                     Padding = hasStyle ? s.Padding : default,
-                    ClipContent = hasStyle && s.ClipContent,
+                    ClipContent = s.ClipContent,
                     Sizing = new Sizing
                     {
                         Width = hasSizingW ? s.Sizing.Width : SizingAxis.Grow(),
