@@ -327,13 +327,20 @@ public class ClayContext : IDisposable
             GenerateIdForAnonymousElement(ref openLayoutElement);
         }
 
+        // ClipContent adds to clip stack (without scroll behavior)
+        if (declaration.Layout.ClipContent)
+        {
+            OpenClipElementStack.Add((int)openLayoutElement.Id);
+        }
+
         // Process scroll config
         if (declaration.Scroll.IsScrollable)
         {
             int scrollIndex = ScrollElementConfigs.Add(declaration.Scroll);
             ElementConfigs.Add(new ElementConfig { Type = ElementConfigType.Scroll, ConfigIndex = scrollIndex });
             openLayoutElement.ElementConfigsLength++;
-            OpenClipElementStack.Add((int)openLayoutElement.Id);
+            if (!declaration.Layout.ClipContent) // Avoid double-push
+                OpenClipElementStack.Add((int)openLayoutElement.Id);
 
             // Find or create scroll container data
             bool found = false;
@@ -384,6 +391,12 @@ public class ClayContext : IDisposable
         bool elementHasScrollHorizontal = false;
         bool elementHasScrollVertical = false;
 
+        // Pop clip stack for ClipContent elements
+        if (layoutConfig.ClipContent)
+        {
+            OpenClipElementStack.Length--;
+        }
+
         // Check for scroll config
         for (int i = 0; i < openLayoutElement.ElementConfigsLength; i++)
         {
@@ -393,7 +406,8 @@ public class ClayContext : IDisposable
                 ref var scrollConfig = ref ScrollElementConfigs[config.ConfigIndex];
                 elementHasScrollHorizontal = scrollConfig.Horizontal;
                 elementHasScrollVertical = scrollConfig.Vertical;
-                OpenClipElementStack.Length--;
+                if (!layoutConfig.ClipContent) // Avoid double-pop
+                    OpenClipElementStack.Length--;
                 break;
             }
         }
@@ -1134,6 +1148,8 @@ public class ClayContext : IDisposable
         // Find configs
         int sharedIndex = FindConfigIndex(ref element, ElementConfigType.Shared);
         int scrollIndex = FindConfigIndex(ref element, ElementConfigType.Scroll);
+        ref var layoutConfig = ref LayoutConfigs[element.LayoutConfigIndex];
+        bool clipContent = layoutConfig.ClipContent;
 
         SharedElementConfig sharedConfig = sharedIndex >= 0 ? SharedElementConfigs[sharedIndex] : default;
 
@@ -1154,28 +1170,34 @@ public class ClayContext : IDisposable
             });
         }
 
-        // Scissor start
-        if (scrollIndex >= 0)
+        // Scissor start (for scroll containers or ClipContent elements)
+        bool needsScissor = scrollIndex >= 0 || clipContent;
+        if (needsScissor)
         {
-            ref var scrollConfig = ref ScrollElementConfigs[scrollIndex];
+            ScrollRenderData scrollData = default;
+            if (scrollIndex >= 0)
+            {
+                ref var scrollConfig = ref ScrollElementConfigs[scrollIndex];
+                scrollData = new ScrollRenderData
+                {
+                    Horizontal = scrollConfig.Horizontal,
+                    Vertical = scrollConfig.Vertical
+                };
+            }
             RenderCommands.Add(new RenderCommand
             {
                 BoundingBox = boundingBox,
                 CommandType = RenderCommandType.ScissorStart,
                 Id = element.Id,
                 ZIndex = zIndex,
-                Scroll = new ScrollRenderData
-                {
-                    Horizontal = scrollConfig.Horizontal,
-                    Vertical = scrollConfig.Vertical
-                }
+                Scroll = scrollData
             });
         }
 
-        // If this element is a scroll container, its bounding box clips children
+        // If this element clips children, its bounding box clips children
         var childClip = clipBounds;
         bool childHasClip = hasClip;
-        if (scrollIndex >= 0)
+        if (needsScissor)
         {
             childClip = boundingBox;
             childHasClip = true;
@@ -1238,7 +1260,7 @@ public class ClayContext : IDisposable
         }
 
         // Scissor end
-        if (scrollIndex >= 0)
+        if (needsScissor)
         {
             RenderCommands.Add(new RenderCommand
             {

@@ -34,6 +34,11 @@ public struct LayoutConfig
     /// </summary>
     public LayoutDirection Direction;
 
+    /// <summary>
+    /// When true, children are clipped to this element's bounding box.
+    /// </summary>
+    public bool ClipContent;
+
     public static readonly LayoutConfig Default = new()
     {
         Sizing = Sizing.Default,

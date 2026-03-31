@@ -620,7 +620,8 @@ void RenderViewportContent()
     {
         Padding = Padding.All(20),
         BackgroundColor = Color.Rgba(0, 0, 0, 80),
-        CornerRadius = CornerRadius.All(8)
+        CornerRadius = CornerRadius.All(8),
+        ClipContent = true
     });
 
     if (isPlaying)

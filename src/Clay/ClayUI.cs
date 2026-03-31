@@ -1679,6 +1679,7 @@ public static class ClayUI
                     ChildGap = gap,
                     ChildAlignment = alignment,
                     Padding = hasStyle ? s.Padding : default,
+                    ClipContent = hasStyle && s.ClipContent,
                     Sizing = new Sizing
                     {
                         Width = hasSizingW ? s.Sizing.Width : SizingAxis.Grow(),
@@ -1792,6 +1793,7 @@ public static class ClayUI
                     ChildGap = gap,
                     ChildAlignment = alignment,
                     Padding = hasStyle ? s.Padding : default,
+                    ClipContent = hasStyle && s.ClipContent,
                     Sizing = new Sizing
                     {
                         Width = hasSizingW ? s.Sizing.Width : SizingAxis.Grow(),
@@ -2139,7 +2141,8 @@ public static class ClayUI
                     Layout = new LayoutConfig
                     {
                         Direction = LayoutDirection.TopToBottom,
-                        Sizing = Sizing.FixedSize(leafData.BoundingBox.Width, leafData.BoundingBox.Height)
+                        Sizing = Sizing.FixedSize(leafData.BoundingBox.Width, leafData.BoundingBox.Height),
+                        ClipContent = true
                     },
                     Floating = new FloatingConfig
                     {
@@ -6371,6 +6374,10 @@ public struct LayoutStyle
     public BorderConfig Border { get; set; } = default;
     public Padding Padding { get; set; } = default;
     public Sizing Sizing { get; set; } = default;
+    /// <summary>
+    /// When true, children are clipped to this element's bounding box.
+    /// </summary>
+    public bool ClipContent { get; set; } = false;
 }
 
 public struct ScrollAreaStyle
