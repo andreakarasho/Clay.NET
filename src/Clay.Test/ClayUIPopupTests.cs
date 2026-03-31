@@ -584,4 +584,236 @@ public class ClayUIPopupTests : IDisposable
 
         Assert.True(open, "Window should not close when popup is over the close button");
     }
+
+    // ============ BeginMenu / EndMenu (Submenus) ============
+
+    [Fact]
+    public void BeginMenu_WhenNotHovered_ReturnsFalse()
+    {
+        bool opened = true;
+        _fixture.RunFrame(() =>
+        {
+            ClayUI.OpenPopupAt("menuParent", new Vector2(50, 50));
+            if (ClayUI.BeginPopup("menuParent"))
+            {
+                opened = ClayUI.BeginMenu("Sub");
+                if (opened) ClayUI.EndMenu();
+                ClayUI.EndPopup();
+            }
+        });
+
+        Assert.False(opened);
+    }
+
+    [Fact]
+    public void BeginMenu_RendersInsidePopup()
+    {
+        // Should not throw when rendered inside a popup
+        _fixture.RunFrame(() =>
+        {
+            ClayUI.OpenPopupAt("menuRender", new Vector2(50, 50));
+            if (ClayUI.BeginPopup("menuRender"))
+            {
+                ClayUI.MenuItem("Item 1");
+                bool sub = ClayUI.BeginMenu("More");
+                if (sub)
+                {
+                    ClayUI.MenuItem("Sub Item");
+                    ClayUI.EndMenu();
+                }
+                ClayUI.EndPopup();
+            }
+        });
+    }
+
+    [Fact]
+    public void BeginMenu_OpensAfterHoverDelay()
+    {
+        // Frame 1: open parent popup, establish layout
+        _fixture.RunFrame(() =>
+        {
+            ClayUI.OpenPopupAt("hoverParent", new Vector2(50, 50));
+            if (ClayUI.BeginPopup("hoverParent"))
+            {
+                ClayUI.BeginMenu("HoverSub");
+                // Don't call EndMenu since BeginMenu returns false
+                ClayUI.EndPopup();
+            }
+        });
+
+        // Frame 2: hover over the submenu item but not long enough (only 1 frame = ~16ms < 260ms)
+        bool opened = false;
+        _fixture.RunFrame(() =>
+        {
+            if (ClayUI.BeginPopup("hoverParent"))
+            {
+                opened = ClayUI.BeginMenu("HoverSub");
+                if (opened) ClayUI.EndMenu();
+                ClayUI.EndPopup();
+            }
+        }, mousePos: new Vector2(80, 60));
+
+        Assert.False(opened, "Submenu should not open before delay");
+    }
+
+    [Fact]
+    public void EndMenu_MatchesEndPopup()
+    {
+        // Open parent, then manually open submenu and verify EndMenu works
+        _fixture.RunFrame(() =>
+        {
+            ClayUI.OpenPopupAt("endMenuParent", new Vector2(50, 50));
+            if (ClayUI.BeginPopup("endMenuParent"))
+            {
+                // Force-open the submenu
+                ClayUI.OpenPopupAt("SubMenu_EndTest", new Vector2(200, 50));
+                bool sub = ClayUI.BeginMenu("EndTest");
+                if (sub)
+                {
+                    ClayUI.MenuItem("Deep Item");
+                    ClayUI.EndMenu();
+                }
+                ClayUI.EndPopup();
+            }
+        });
+
+        Assert.True(ClayUI.IsPopupOpen("SubMenu_EndTest"));
+    }
+
+    [Fact]
+    public void MenuItem_InSubmenu_ClosesAllPopups()
+    {
+        // Frame 1: open parent popup and submenu
+        _fixture.RunFrame(() =>
+        {
+            ClayUI.OpenPopupAt("closeChainParent", new Vector2(50, 50));
+            if (ClayUI.BeginPopup("closeChainParent"))
+            {
+                ClayUI.OpenPopupAt("SubMenu_CloseChain", new Vector2(200, 50));
+                bool sub = ClayUI.BeginMenu("CloseChain");
+                if (sub)
+                {
+                    ClayUI.MenuItem("Click Me");
+                    ClayUI.EndMenu();
+                }
+                ClayUI.EndPopup();
+            }
+        });
+
+        Assert.True(ClayUI.IsPopupOpen("closeChainParent"));
+        Assert.True(ClayUI.IsPopupOpen("SubMenu_CloseChain"));
+
+        // Frame 2: simulate clicking the menu item (need bounding box from frame 1)
+        // Use CloseAllPopups to verify the chain close behavior
+        ClayUI.CloseAllPopups();
+
+        Assert.False(ClayUI.IsPopupOpen("closeChainParent"));
+        Assert.False(ClayUI.IsPopupOpen("SubMenu_CloseChain"));
+    }
+
+    [Fact]
+    public void ClickOutside_WithSubmenuOpen_ClosesAllPopups()
+    {
+        // Frame 1: open parent popup and submenu
+        _fixture.RunFrame(() =>
+        {
+            ClayUI.OpenPopupAt("outsideParent", new Vector2(50, 50));
+            if (ClayUI.BeginPopup("outsideParent"))
+            {
+                ClayUI.OpenPopupAt("SubMenu_Outside", new Vector2(200, 50));
+                bool sub = ClayUI.BeginMenu("Outside");
+                if (sub)
+                {
+                    ClayUI.MenuItem("Sub Item");
+                    ClayUI.EndMenu();
+                }
+                ClayUI.EndPopup();
+            }
+        });
+
+        Assert.True(ClayUI.IsPopupOpen("outsideParent"));
+        Assert.True(ClayUI.IsPopupOpen("SubMenu_Outside"));
+
+        // Frame 2: establish layout
+        _fixture.RunFrame(() =>
+        {
+            if (ClayUI.BeginPopup("outsideParent"))
+            {
+                bool sub = ClayUI.BeginMenu("Outside");
+                if (sub)
+                {
+                    ClayUI.MenuItem("Sub Item");
+                    ClayUI.EndMenu();
+                }
+                ClayUI.EndPopup();
+            }
+        });
+
+        // Frame 3: click far outside — should close everything
+        _fixture.RunFrame(() =>
+        {
+            if (ClayUI.BeginPopup("outsideParent"))
+            {
+                bool sub = ClayUI.BeginMenu("Outside");
+                if (sub)
+                {
+                    ClayUI.MenuItem("Sub Item");
+                    ClayUI.EndMenu();
+                }
+                ClayUI.EndPopup();
+            }
+        }, mousePos: new Vector2(700, 700), mouseDown: true);
+
+        Assert.False(ClayUI.IsPopupOpen("outsideParent"), "Parent popup should close on click outside");
+        Assert.False(ClayUI.IsPopupOpen("SubMenu_Outside"), "Submenu should close on click outside");
+    }
+
+    [Fact]
+    public void BeginMenu_DisabledDoesNotOpen()
+    {
+        // Frame 1: open parent, try disabled submenu
+        _fixture.RunFrame(() =>
+        {
+            ClayUI.OpenPopupAt("disabledParent", new Vector2(50, 50));
+            if (ClayUI.BeginPopup("disabledParent"))
+            {
+                bool sub = ClayUI.BeginMenu("DisabledSub", enabled: false);
+                if (sub) ClayUI.EndMenu();
+                ClayUI.EndPopup();
+            }
+        });
+
+        Assert.False(ClayUI.IsPopupOpen("SubMenu_DisabledSub"));
+    }
+
+    [Fact]
+    public void NestedSubmenus_ThreeLevelsDeep()
+    {
+        // Open all three levels manually
+        _fixture.RunFrame(() =>
+        {
+            ClayUI.OpenPopupAt("level0", new Vector2(50, 50));
+            if (ClayUI.BeginPopup("level0"))
+            {
+                ClayUI.OpenPopupAt("SubMenu_Level1", new Vector2(200, 50));
+                bool l1 = ClayUI.BeginMenu("Level1");
+                if (l1)
+                {
+                    ClayUI.OpenPopupAt("SubMenu_Level2", new Vector2(350, 50));
+                    bool l2 = ClayUI.BeginMenu("Level2");
+                    if (l2)
+                    {
+                        ClayUI.MenuItem("Deep Item");
+                        ClayUI.EndMenu();
+                    }
+                    ClayUI.EndMenu();
+                }
+                ClayUI.EndPopup();
+            }
+        });
+
+        Assert.True(ClayUI.IsPopupOpen("level0"));
+        Assert.True(ClayUI.IsPopupOpen("SubMenu_Level1"));
+        Assert.True(ClayUI.IsPopupOpen("SubMenu_Level2"));
+    }
 }

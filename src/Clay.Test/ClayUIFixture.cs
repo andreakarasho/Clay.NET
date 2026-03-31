@@ -21,9 +21,10 @@ public sealed class ClayUIFixture : IDisposable
         Action buildUi,
         Vector2 mousePos = default,
         bool mouseDown = false,
-        Vector2 scrollDelta = default)
+        Vector2 scrollDelta = default,
+        float deltaTime = 1f / 60f)
     {
-        ClayUI.BeginFrame(new Dimensions(800, 600), mouseDown, mousePos, scrollDelta);
+        ClayUI.BeginFrame(new Dimensions(800, 600), mouseDown, mousePos, scrollDelta, deltaTime);
 
         // Root container so widgets have a parent with known size
         using (ClayApi.Element(new ElementDeclaration

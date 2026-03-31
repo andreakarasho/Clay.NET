@@ -685,6 +685,26 @@ void PagePopups()
         if (ClayUI.MenuItem("Copy")) Console.WriteLine("Copy");
         if (ClayUI.MenuItem("Paste")) Console.WriteLine("Paste");
         ClayUI.MenuSeparator();
+        if (ClayUI.BeginMenu("Transform"))
+        {
+            if (ClayUI.MenuItem("Uppercase")) Console.WriteLine("Uppercase");
+            if (ClayUI.MenuItem("Lowercase")) Console.WriteLine("Lowercase");
+            if (ClayUI.BeginMenu("Encoding"))
+            {
+                if (ClayUI.MenuItem("UTF-8")) Console.WriteLine("UTF-8");
+                if (ClayUI.MenuItem("ASCII")) Console.WriteLine("ASCII");
+                if (ClayUI.MenuItem("Base64")) Console.WriteLine("Base64");
+                ClayUI.EndMenu();
+            }
+            ClayUI.EndMenu();
+        }
+        if (ClayUI.BeginMenu("Insert"))
+        {
+            if (ClayUI.MenuItem("Date/Time")) Console.WriteLine("Date/Time");
+            if (ClayUI.MenuItem("UUID")) Console.WriteLine("UUID");
+            ClayUI.EndMenu();
+        }
+        ClayUI.MenuSeparator();
         if (ClayUI.MenuItem("Select All")) Console.WriteLine("Select All");
         ClayUI.EndPopup();
     }

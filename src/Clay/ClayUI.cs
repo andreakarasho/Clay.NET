@@ -110,6 +110,11 @@ internal class ClayUIContext
     // Disabled region depth (> 0 means currently inside a BeginDisabled/EndDisabled block)
     internal int DisabledDepth;
 
+    // Submenu hover tracking (for hover-to-open delay)
+    internal uint HoveredMenuItemId;      // Which menu item is currently hovered
+    internal float HoveredMenuItemTime;   // How long it has been hovered (seconds)
+    internal const float SubmenuOpenDelay = 0.26f; // Delay before submenu opens on hover
+
     /// <summary>
     /// Clears per-frame state. Called at the start of each frame.
     /// </summary>
@@ -152,12 +157,20 @@ internal class ClayUIContext
         }
 
         // If any popup is open and a click just happened outside all popups,
-        // pre-consume the click so widgets rendered before BeginPopup don't fire.
-        // BeginPopup will handle the actual closing.
+        // close them all immediately and consume the click so widgets behind don't fire.
         bool justPressed = mouseDown && !MouseWasPressed;
         if (justPressed && OpenPopupStack.Count > 0 && !IsPointOverAnyPopup(mousePosition))
         {
             ClickConsumedThisFrame = true;
+            // Close all popups now - don't defer to BeginPopup which may not run for all of them
+            for (int i = OpenPopupStack.Count - 1; i >= 0; i--)
+            {
+                uint closeId = OpenPopupStack[i];
+                if (PopupStates.TryGetValue(closeId, out var state))
+                    PopupStates[closeId] = state with { Open = false };
+            }
+            OpenPopupStack.Clear();
+            OpenPopupBounds.Clear();
         }
 
         // Release active slider/scrollbar/window/resize when mouse is released
@@ -2680,6 +2693,163 @@ public static class ClayUI
             });
             Clay.CloseElement();
         }
+    }
+
+    /// <summary>
+    /// Begins a submenu inside a popup. Renders a menu item with a ">" arrow that
+    /// opens a child popup to the right when hovered (with a short delay).
+    /// Returns true if the submenu is open and content should be rendered.
+    /// Call EndMenu() when done (only if this returns true).
+    /// </summary>
+    /// <param name="label">Submenu label.</param>
+    /// <param name="enabled">Whether the submenu can be opened.</param>
+    /// <returns>True if the submenu is open.</returns>
+    public static bool BeginMenu(string label, bool enabled = true)
+    {
+        var itemId = StableId($"SubMenu_{label}");
+        string popupId = $"SubMenu_{label}";
+        bool isHovered = IsHovered(itemId) && enabled;
+
+        // Track hover time for this menu item
+        if (isHovered)
+        {
+            if (_context.HoveredMenuItemId == itemId.Id)
+            {
+                _context.HoveredMenuItemTime += _context.DeltaTime;
+            }
+            else
+            {
+                _context.HoveredMenuItemId = itemId.Id;
+                _context.HoveredMenuItemTime = 0;
+            }
+        }
+        else if (_context.HoveredMenuItemId == itemId.Id)
+        {
+            // Mouse left this item - only reset if submenu isn't open
+            if (!IsPopupOpen(popupId))
+            {
+                _context.HoveredMenuItemId = 0;
+                _context.HoveredMenuItemTime = 0;
+            }
+        }
+
+        // Open submenu after hover delay
+        bool isOpen = IsPopupOpen(popupId);
+        if (isHovered && !isOpen && enabled && _context.HoveredMenuItemTime >= ClayUIContext.SubmenuOpenDelay)
+        {
+            // Position to the right of this item
+            var itemData = Clay.GetElementData(itemId);
+            if (itemData.Found)
+            {
+                var bounds = itemData.BoundingBox;
+                OpenPopupAt(popupId, new Vector2(bounds.X + bounds.Width, bounds.Y));
+            }
+            else
+            {
+                OpenPopup(popupId);
+            }
+        }
+
+        // Close submenu if mouse moved to a different sibling menu item
+        if (isOpen && !isHovered && _context.HoveredMenuItemId != itemId.Id && _context.HoveredMenuItemId != 0)
+        {
+            // Check if mouse is over this submenu popup or any of its descendant popups.
+            // Find the index of this submenu in the popup stack and check all popups from that point onwards.
+            var subPopupId = StableId($"Popup_{popupId}");
+            int stackIdx = _context.OpenPopupStack.IndexOf(subPopupId.Id);
+            bool overSubmenuOrDescendant = false;
+
+            if (stackIdx >= 0)
+            {
+                // Check this popup and all popups opened after it (descendants)
+                for (int si = stackIdx; si < _context.OpenPopupStack.Count; si++)
+                {
+                    uint checkId = _context.OpenPopupStack[si];
+                    foreach (var (id, bounds) in _context.OpenPopupBounds)
+                    {
+                        if (id == checkId && bounds.Contains(_context.MousePosition))
+                        {
+                            overSubmenuOrDescendant = true;
+                            break;
+                        }
+                    }
+                    if (overSubmenuOrDescendant) break;
+                }
+            }
+
+            if (!overSubmenuOrDescendant)
+            {
+                ClosePopup(popupId);
+            }
+        }
+
+        // Render the menu item row with ">" arrow
+        var s = Style.Popup;
+        var textColor = enabled ? Color.White : Color.Rgba(120, 120, 125);
+        var bgColor = (isHovered || isOpen) ? Color.Rgba(60, 60, 70) : Color.Transparent;
+
+        using (Clay.Element(new ElementDeclaration
+        {
+            Id = itemId,
+            Layout = new LayoutConfig
+            {
+                Sizing = new Sizing { Width = SizingAxis.Grow(), Height = SizingAxis.Fit() },
+                Padding = Padding.Symmetric(8, 4),
+                Direction = LayoutDirection.LeftToRight,
+                ChildAlignment = new ChildAlignment { Y = AlignY.Center }
+            },
+            BackgroundColor = bgColor,
+            CornerRadius = CornerRadius.All(2)
+        }))
+        {
+            // Label (grows to push arrow right)
+            using (Clay.Element(new ElementDeclaration
+            {
+                Layout = new LayoutConfig
+                {
+                    Sizing = new Sizing { Width = SizingAxis.Grow(), Height = SizingAxis.Fit() }
+                }
+            }))
+            {
+                Clay.Text(ElementId.GetDisplayLabel(label), new TextConfig
+                {
+                    FontId = s.FontId,
+                    FontSize = s.FontSize,
+                    TextColor = textColor
+                });
+            }
+
+            // ">" arrow
+            Clay.Text(">", new TextConfig
+            {
+                FontId = s.FontId,
+                FontSize = s.FontSize,
+                TextColor = textColor
+            });
+        }
+
+        // Begin the submenu popup
+        return BeginPopup(popupId, new PopupStyle
+        {
+            BackgroundColor = s.BackgroundColor,
+            CornerRadius = s.CornerRadius,
+            Border = s.Border,
+            Padding = s.Padding,
+            ContentGap = s.ContentGap,
+            MinWidth = s.MinWidth,
+            MaxWidth = s.MaxWidth,
+            FontId = s.FontId,
+            FontSize = s.FontSize,
+            Offset = default // Position is set by OpenPopupAt
+        });
+    }
+
+    /// <summary>
+    /// Ends a submenu. Must be called if BeginMenu returned true.
+    /// </summary>
+    public static void EndMenu()
+    {
+        EndPopup();
     }
 
     /// <summary>
