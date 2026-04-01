@@ -129,6 +129,42 @@ public struct BorderRenderData
 }
 
 /// <summary>
+/// Render data for shadow commands.
+/// </summary>
+public struct ShadowRenderData
+{
+    /// <summary>
+    /// Shadow color.
+    /// </summary>
+    public Color Color;
+
+    /// <summary>
+    /// Corner radius for the shadow shape.
+    /// </summary>
+    public CornerRadius CornerRadius;
+
+    /// <summary>
+    /// Horizontal offset.
+    /// </summary>
+    public float OffsetX;
+
+    /// <summary>
+    /// Vertical offset.
+    /// </summary>
+    public float OffsetY;
+
+    /// <summary>
+    /// Blur radius.
+    /// </summary>
+    public float BlurRadius;
+
+    /// <summary>
+    /// Spread radius.
+    /// </summary>
+    public float SpreadRadius;
+}
+
+/// <summary>
 /// Render data for scissor (clip) commands.
 /// </summary>
 public struct ScrollRenderData

@@ -44,6 +44,12 @@ Clay.Clay.TextEditSetClipboard(new RaylibClipboard());
 // Apply dark theme by default (game editors are always dark)
 ClayUI.Style = ClayUIStyle.Dark;
 
+// Add shadows to windows for depth
+ClayUI.Style.Window = new WindowStyle
+{
+    Shadow = ShadowConfig.Drop(0, 3, 10, Color.Rgba(0, 0, 0, 80))
+}.MergeOver(ClayUI.Style.Window);
+
 // ============ Editor Color Palette ============
 
 var colBg = Color.Rgba(30, 30, 30);
@@ -459,7 +465,8 @@ void RenderToolbar()
         Sizing = new Sizing(SizingAxis.Grow(), SizingAxis.Fixed(36)),
         Padding = Padding.Symmetric(8, 4),
         BackgroundColor = colToolbar,
-        Border = new BorderConfig { Width = new BorderWidth(0, 0, 0, 1), Color = colBorder }
+        Border = new BorderConfig { Width = new BorderWidth(0, 0, 0, 1), Color = colBorder },
+        Shadow = ShadowConfig.Drop(0, 1, 4, Color.Rgba(0, 0, 0, 35))
     });
 
     var toolBtnStyle = new ButtonStyle

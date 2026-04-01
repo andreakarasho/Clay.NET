@@ -37,4 +37,5 @@ public struct RenderCommand
     public CustomRenderData Custom;
     public BorderRenderData Border;
     public ScrollRenderData Scroll;
+    public ShadowRenderData Shadow;
 }

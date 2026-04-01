@@ -212,7 +212,8 @@ void RenderHeader()
         Sizing = new Sizing(SizingAxis.Grow(), SizingAxis.Fixed(50)),
         Padding = Padding.Horizontal(16),
         BackgroundColor = ClayUI.Style.Window.TitleBarColor,
-        CornerRadius = CornerRadius.All(8)
+        CornerRadius = CornerRadius.All(8),
+        Shadow = ShadowConfig.Drop(0, 1, 5, Color.Rgba(0, 0, 0, 50))
     });
 
     ClayUI.Heading("Clay .NET", new HeadingStyle { TextColor = Color.Rgba(100, 180, 255) });
@@ -284,7 +285,8 @@ void RenderSidebar()
         SeparatorColor = ClayUI.Style.Panel.SeparatorColor,
         Border = ClayUI.Style.Panel.Border,
         Padding = Padding.All(12),
-        ChildGap = 4
+        ChildGap = 4,
+        Shadow = ShadowConfig.Drop(1, 1, 6, Color.Rgba(0, 0, 0, 40))
     });
 
     for (int i = 0; i < pages.Length; i++)
@@ -320,7 +322,8 @@ void RenderContent()
     {
         BackgroundColor = ClayUI.Style.Panel.BackgroundColor,
         Padding = Padding.All(20),
-        CornerRadius = CornerRadius.All(8)
+        CornerRadius = CornerRadius.All(8),
+        Shadow = ShadowConfig.Drop(1, 1, 6, Color.Rgba(0, 0, 0, 40))
     });
 
     ClayUI.Heading(pages[selectedPage]);

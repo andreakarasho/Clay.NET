@@ -59,6 +59,10 @@ public class RaylibRenderer : IClayRenderer
                 case RenderCommandType.Custom:
                     RenderCustom(box, cmd.Custom);
                     break;
+
+                case RenderCommandType.Shadow:
+                    RenderShadow(box, cmd.Shadow);
+                    break;
             }
         }
     }
@@ -145,72 +149,58 @@ public class RaylibRenderer : IClayRenderer
     {
         var color = ToRayColor(data.Color);
 
-        // Use rounded border if corner radius is set
         if (data.CornerRadius.TopLeft > 0)
         {
-            var rect = new Rectangle(box.X, box.Y, box.Width, box.Height);
-            float minDimension = Math.Min(box.Width, box.Height);
-            float roundness = (data.CornerRadius.TopLeft * 2) / minDimension;
-            roundness = Math.Clamp(roundness, 0, 1);
-
-            // Use the maximum border width for the line thickness
-            float lineThickness = Math.Max(
+            float r = data.CornerRadius.TopLeft;
+            float bw = Math.Max(
                 Math.Max(data.Width.Top, data.Width.Bottom),
-                Math.Max(data.Width.Left, data.Width.Right)
-            );
+                Math.Max(data.Width.Left, data.Width.Right));
 
-            Raylib.DrawRectangleRoundedLines(rect, roundness, 8, lineThickness, color);
+            // Clamp radius to half the smallest dimension
+            r = Math.Min(r, Math.Min(box.Width, box.Height) / 2f);
+
+            // Draw four straight border segments (between the corner arcs)
+            // Top
+            Raylib.DrawRectangleRec(new Rectangle(box.X + r, box.Y, box.Width - 2 * r, bw), color);
+            // Bottom
+            Raylib.DrawRectangleRec(new Rectangle(box.X + r, box.Y + box.Height - bw, box.Width - 2 * r, bw), color);
+            // Left
+            Raylib.DrawRectangleRec(new Rectangle(box.X, box.Y + r, bw, box.Height - 2 * r), color);
+            // Right
+            Raylib.DrawRectangleRec(new Rectangle(box.X + box.Width - bw, box.Y + r, bw, box.Height - 2 * r), color);
+
+            // Draw four corner arcs using DrawRing (annulus sector)
+            float outerR = r;
+            float innerR = Math.Max(0, r - bw);
+            int segments = 8;
+
+            // Top-left corner
+            Raylib.DrawRing(
+                new System.Numerics.Vector2(box.X + r, box.Y + r),
+                innerR, outerR, 180, 270, segments, color);
+            // Top-right corner
+            Raylib.DrawRing(
+                new System.Numerics.Vector2(box.X + box.Width - r, box.Y + r),
+                innerR, outerR, 270, 360, segments, color);
+            // Bottom-right corner
+            Raylib.DrawRing(
+                new System.Numerics.Vector2(box.X + box.Width - r, box.Y + box.Height - r),
+                innerR, outerR, 0, 90, segments, color);
+            // Bottom-left corner
+            Raylib.DrawRing(
+                new System.Numerics.Vector2(box.X + r, box.Y + box.Height - r),
+                innerR, outerR, 90, 180, segments, color);
         }
         else
         {
-            // Fall back to straight borders
-            // Top border
             if (data.Width.Top > 0)
-            {
-                Raylib.DrawRectangle(
-                    (int)box.X,
-                    (int)box.Y,
-                    (int)box.Width,
-                    (int)data.Width.Top,
-                    color
-                );
-            }
-
-            // Bottom border
+                Raylib.DrawRectangle((int)box.X, (int)box.Y, (int)box.Width, (int)data.Width.Top, color);
             if (data.Width.Bottom > 0)
-            {
-                Raylib.DrawRectangle(
-                    (int)box.X,
-                    (int)(box.Y + box.Height - data.Width.Bottom),
-                    (int)box.Width,
-                    (int)data.Width.Bottom,
-                    color
-                );
-            }
-
-            // Left border
+                Raylib.DrawRectangle((int)box.X, (int)(box.Y + box.Height - data.Width.Bottom), (int)box.Width, (int)data.Width.Bottom, color);
             if (data.Width.Left > 0)
-            {
-                Raylib.DrawRectangle(
-                    (int)box.X,
-                    (int)box.Y,
-                    (int)data.Width.Left,
-                    (int)box.Height,
-                    color
-                );
-            }
-
-            // Right border
+                Raylib.DrawRectangle((int)box.X, (int)box.Y, (int)data.Width.Left, (int)box.Height, color);
             if (data.Width.Right > 0)
-            {
-                Raylib.DrawRectangle(
-                    (int)(box.X + box.Width - data.Width.Right),
-                    (int)box.Y,
-                    (int)data.Width.Right,
-                    (int)box.Height,
-                    color
-                );
-            }
+                Raylib.DrawRectangle((int)(box.X + box.Width - data.Width.Right), (int)box.Y, (int)data.Width.Right, (int)box.Height, color);
         }
     }
 
@@ -523,6 +513,68 @@ public class RaylibRenderer : IClayRenderer
         }
 
         PopScissor();
+    }
+
+    private void RenderShadow(BoundingBox box, ShadowRenderData data)
+    {
+        // The bounding box arrives pre-expanded (offset + blur + spread already applied).
+        // We draw concentric rounded rectangles from outermost (full box) to innermost,
+        // each layer covering a ring of the blur. Alpha per layer = base_alpha / layers,
+        // so they accumulate to full opacity at the center where all layers overlap.
+        float blur = data.BlurRadius;
+
+        if (blur <= 0)
+        {
+            // Sharp shadow — single rectangle
+            var rect = new Rectangle(box.X, box.Y, box.Width, box.Height);
+            var color = ToRayColor(data.Color);
+
+            if (data.CornerRadius.TopLeft > 0)
+            {
+                float minDim = Math.Min(box.Width, box.Height);
+                float roundness = Math.Clamp((data.CornerRadius.TopLeft * 2) / minDim, 0, 1);
+                Raylib.DrawRectangleRounded(rect, roundness, 8, color);
+            }
+            else
+            {
+                Raylib.DrawRectangleRec(rect, color);
+            }
+            return;
+        }
+
+        // +1 so the last layer sits exactly at inset=blur (the original element edge)
+        int layers = Math.Clamp((int)blur, 4, 24) + 1;
+        float perLayerAlpha = data.Color.A / layers;
+        byte r = (byte)Math.Clamp(data.Color.R, 0, 255);
+        byte g = (byte)Math.Clamp(data.Color.G, 0, 255);
+        byte b = (byte)Math.Clamp(data.Color.B, 0, 255);
+        byte alpha = (byte)Math.Clamp(perLayerAlpha, 1, 255);
+
+        for (int i = 0; i < layers; i++)
+        {
+            float inset = blur * ((float)i / (layers - 1));
+            var rect = new Rectangle(
+                box.X + inset,
+                box.Y + inset,
+                box.Width - inset * 2,
+                box.Height - inset * 2
+            );
+
+            if (rect.width <= 0 || rect.height <= 0) continue;
+
+            var layerColor = new RayColor { r = r, g = g, b = b, a = alpha };
+
+            if (data.CornerRadius.TopLeft > 0)
+            {
+                float minDim = Math.Min(rect.width, rect.height);
+                float roundness = Math.Clamp((data.CornerRadius.TopLeft * 2) / minDim, 0, 1);
+                Raylib.DrawRectangleRounded(rect, roundness, 8, layerColor);
+            }
+            else
+            {
+                Raylib.DrawRectangleRec(rect, layerColor);
+            }
+        }
     }
 
     private static RayColor ToRayColor(ClayColor color)

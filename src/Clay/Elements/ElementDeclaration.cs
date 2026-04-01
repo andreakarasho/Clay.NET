@@ -54,6 +54,11 @@ public struct ElementDeclaration
     public BorderConfig Border;
 
     /// <summary>
+    /// Shadow configuration.
+    /// </summary>
+    public ShadowConfig Shadow;
+
+    /// <summary>
     /// User-defined data (passed through to render commands).
     /// </summary>
     public nint UserData;

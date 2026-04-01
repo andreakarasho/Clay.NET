@@ -1654,7 +1654,8 @@ public static class ClayUI
                 },
                 BackgroundColor = hasStyle ? s.BackgroundColor : default,
                 CornerRadius = hasStyle ? s.CornerRadius : default,
-                Border = hasStyle ? s.Border : default
+                Border = hasStyle ? s.Border : default,
+                Shadow = hasStyle ? s.Shadow : default
             });
             _context.LayoutDepth++;
 
@@ -1698,7 +1699,8 @@ public static class ClayUI
                 },
                 BackgroundColor = hasStyle ? s.BackgroundColor : default,
                 CornerRadius = hasStyle ? s.CornerRadius : default,
-                Border = hasStyle ? s.Border : default
+                Border = hasStyle ? s.Border : default,
+                Shadow = hasStyle ? s.Shadow : default
             });
             _context.LayoutDepth++;
         }
@@ -1768,7 +1770,8 @@ public static class ClayUI
                 },
                 BackgroundColor = hasStyle ? s.BackgroundColor : default,
                 CornerRadius = hasStyle ? s.CornerRadius : default,
-                Border = hasStyle ? s.Border : default
+                Border = hasStyle ? s.Border : default,
+                Shadow = hasStyle ? s.Shadow : default
             });
             _context.LayoutDepth++;
 
@@ -1812,7 +1815,8 @@ public static class ClayUI
                 },
                 BackgroundColor = hasStyle ? s.BackgroundColor : default,
                 CornerRadius = hasStyle ? s.CornerRadius : default,
-                Border = hasStyle ? s.Border : default
+                Border = hasStyle ? s.Border : default,
+                Shadow = hasStyle ? s.Shadow : default
             });
             _context.LayoutDepth++;
         }
@@ -1886,7 +1890,8 @@ public static class ClayUI
                 BackgroundColor = sk.Background.HasImage ? Color.Transparent : s.BackgroundColor,
                 CornerRadius = sk.Background.HasImage ? CornerRadius.Zero : s.CornerRadius,
                 Border = sk.Background.HasImage ? default : s.Border,
-                Image = sk.Background.HasImage ? SkinToImageConfig(sk.Background) : default
+                Image = sk.Background.HasImage ? SkinToImageConfig(sk.Background) : default,
+                Shadow = s.Shadow
             });
             _context.PanelDepth++;
 
@@ -1979,7 +1984,8 @@ public static class ClayUI
                 BackgroundColor = sk.Background.HasImage ? Color.Transparent : s.BackgroundColor,
                 CornerRadius = sk.Background.HasImage ? CornerRadius.Zero : s.CornerRadius,
                 Border = sk.Background.HasImage ? default : s.Border,
-                Image = sk.Background.HasImage ? SkinToImageConfig(sk.Background) : default
+                Image = sk.Background.HasImage ? SkinToImageConfig(sk.Background) : default,
+                Shadow = s.Shadow
             });
             _context.PanelDepth++;
 
@@ -2383,7 +2389,8 @@ public static class ClayUI
             BackgroundColor = sk.Body.HasImage ? Color.Transparent : s.BackgroundColor,
             CornerRadius = sk.Body.HasImage ? CornerRadius.Zero : s.CornerRadius,
             Border = sk.Body.HasImage ? default : s.Border,
-            Image = sk.Body.HasImage ? SkinToImageConfig(sk.Body) : default
+            Image = sk.Body.HasImage ? SkinToImageConfig(sk.Body) : default,
+            Shadow = s.Shadow
         });
 
         // Title bar
@@ -4950,7 +4957,8 @@ public static class ClayUI
                     }
                 },
                 BackgroundColor = s.BackgroundColor,
-                CornerRadius = s.CornerRadius
+                CornerRadius = s.CornerRadius,
+                Shadow = s.Shadow
             });
             _context.LayoutDepth++;
 
@@ -4998,7 +5006,8 @@ public static class ClayUI
                     }
                 },
                 BackgroundColor = s.BackgroundColor,
-                CornerRadius = s.CornerRadius
+                CornerRadius = s.CornerRadius,
+                Shadow = s.Shadow
             });
             _context.LayoutDepth++;
 
@@ -6826,6 +6835,9 @@ public struct PanelStyle
     private ushort _titleFontSize = 16;
     public ushort TitleFontSize { get => _titleFontSize; set { _titleFontSize = value; _set |= 1u << 8; } }
 
+    private ShadowConfig _shadow = default;
+    public ShadowConfig Shadow { get => _shadow; set { _shadow = value; _set |= 1u << 9; } }
+
     public PanelStyle MergeOver(PanelStyle @base)
     {
         var result = @base;
@@ -6838,6 +6850,7 @@ public struct PanelStyle
         if ((_set & (1u << 6)) != 0) result._childGap = _childGap;
         if ((_set & (1u << 7)) != 0) result._titleFontId = _titleFontId;
         if ((_set & (1u << 8)) != 0) result._titleFontSize = _titleFontSize;
+        if ((_set & (1u << 9)) != 0) result._shadow = _shadow;
         return result;
     }
 }
@@ -6923,6 +6936,9 @@ public struct LayoutStyle
     private bool _clipContent = false;
     public bool ClipContent { get => _clipContent; set { _clipContent = value; _set |= 1u << 5; } }
 
+    private ShadowConfig _shadow = default;
+    public ShadowConfig Shadow { get => _shadow; set { _shadow = value; _set |= 1u << 6; } }
+
     public LayoutStyle MergeOver(LayoutStyle @base)
     {
         var result = @base;
@@ -6932,6 +6948,7 @@ public struct LayoutStyle
         if ((_set & (1u << 3)) != 0) result._padding = _padding;
         if ((_set & (1u << 4)) != 0) result._sizing = _sizing;
         if ((_set & (1u << 5)) != 0) result._clipContent = _clipContent;
+        if ((_set & (1u << 6)) != 0) result._shadow = _shadow;
         return result;
     }
 }
@@ -6950,12 +6967,16 @@ public struct ScrollAreaStyle
     private CornerRadius _cornerRadius = CornerRadius.All(4);
     public CornerRadius CornerRadius { get => _cornerRadius; set { _cornerRadius = value; _set |= 1u << 2; } }
 
+    private ShadowConfig _shadow = default;
+    public ShadowConfig Shadow { get => _shadow; set { _shadow = value; _set |= 1u << 3; } }
+
     public ScrollAreaStyle MergeOver(ScrollAreaStyle @base)
     {
         var result = @base;
         if ((_set & (1u << 0)) != 0) result._backgroundColor = _backgroundColor;
         if ((_set & (1u << 1)) != 0) result._padding = _padding;
         if ((_set & (1u << 2)) != 0) result._cornerRadius = _cornerRadius;
+        if ((_set & (1u << 3)) != 0) result._shadow = _shadow;
         return result;
     }
 }
@@ -7203,6 +7224,9 @@ public struct WindowStyle
     private ushort _fontSize = 14;
     public ushort FontSize { get => _fontSize; set { _fontSize = value; _set |= 1u << 21; } }
 
+    private ShadowConfig _shadow = default;
+    public ShadowConfig Shadow { get => _shadow; set { _shadow = value; _set |= 1u << 22; } }
+
     public WindowStyle MergeOver(WindowStyle @base)
     {
         var result = @base;
@@ -7228,6 +7252,7 @@ public struct WindowStyle
         if ((_set & (1u << 19)) != 0) result._resizeHandleHoverColor = _resizeHandleHoverColor;
         if ((_set & (1u << 20)) != 0) result._fontId = _fontId;
         if ((_set & (1u << 21)) != 0) result._fontSize = _fontSize;
+        if ((_set & (1u << 22)) != 0) result._shadow = _shadow;
         return result;
     }
 }

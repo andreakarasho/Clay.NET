@@ -43,5 +43,10 @@ public enum RenderCommandType : byte
     /// <summary>
     /// Custom render command - implementation defined by the renderer.
     /// </summary>
-    Custom = 7
+    Custom = 7,
+
+    /// <summary>
+    /// Draw a drop shadow behind an element.
+    /// </summary>
+    Shadow = 8
 }

@@ -15,7 +15,8 @@ public enum ElementConfigType : byte
     Image = 4,
     Text = 5,
     Custom = 6,
-    Shared = 7
+    Shared = 7,
+    Shadow = 8
 }
 
 /// <summary>

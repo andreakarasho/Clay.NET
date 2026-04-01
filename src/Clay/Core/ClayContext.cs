@@ -87,6 +87,7 @@ public class ClayContext : IDisposable
     public ClayList<ScrollConfig> ScrollElementConfigs;
     public ClayList<CustomConfig> CustomElementConfigs;
     public ClayList<BorderConfig> BorderElementConfigs;
+    public ClayList<ShadowConfig> ShadowElementConfigs;
     public ClayList<SharedElementConfig> SharedElementConfigs;
 
     // Tree structures
@@ -122,6 +123,7 @@ public class ClayContext : IDisposable
         ScrollElementConfigs = new ClayList<ScrollConfig>(maxElementCount);
         CustomElementConfigs = new ClayList<CustomConfig>(maxElementCount);
         BorderElementConfigs = new ClayList<BorderConfig>(maxElementCount);
+        ShadowElementConfigs = new ClayList<ShadowConfig>(maxElementCount);
         SharedElementConfigs = new ClayList<SharedElementConfig>(maxElementCount);
 
         LayoutElementTreeRoots = new ClayList<LayoutElementTreeRoot>(256);
@@ -157,6 +159,7 @@ public class ClayContext : IDisposable
         ScrollElementConfigs.Clear();
         CustomElementConfigs.Clear();
         BorderElementConfigs.Clear();
+        ShadowElementConfigs.Clear();
         SharedElementConfigs.Clear();
 
         LayoutElementTreeRoots.Clear();
@@ -375,6 +378,14 @@ public class ClayContext : IDisposable
         {
             int borderIndex = BorderElementConfigs.Add(declaration.Border);
             ElementConfigs.Add(new ElementConfig { Type = ElementConfigType.Border, ConfigIndex = borderIndex });
+            openLayoutElement.ElementConfigsLength++;
+        }
+
+        // Process shadow config
+        if (declaration.Shadow.HasShadow)
+        {
+            int shadowIndex = ShadowElementConfigs.Add(declaration.Shadow);
+            ElementConfigs.Add(new ElementConfig { Type = ElementConfigType.Shadow, ConfigIndex = shadowIndex });
             openLayoutElement.ElementConfigsLength++;
         }
     }
@@ -1174,8 +1185,48 @@ public class ClayContext : IDisposable
         // Find configs
         int sharedIndex = FindConfigIndex(ref element, ElementConfigType.Shared);
         int scrollIndex = FindConfigIndex(ref element, ElementConfigType.Scroll);
+        int shadowIndex = FindConfigIndex(ref element, ElementConfigType.Shadow);
 
         SharedElementConfig sharedConfig = sharedIndex >= 0 ? SharedElementConfigs[sharedIndex] : default;
+
+        // Shadow render command (before rectangle so it renders behind)
+        if (shadowIndex >= 0)
+        {
+            ref var shadowConfig = ref ShadowElementConfigs[shadowIndex];
+            // Use the shadow's own corner radius, or fall back to the element's
+            var cornerRadius = shadowConfig.CornerRadius.HasRadius
+                ? shadowConfig.CornerRadius
+                : sharedConfig.CornerRadius;
+
+            // Expand bounding box by offset, spread, and blur.
+            // Extra 1px ensures the innermost shadow layer overlaps under the element,
+            // avoiding a sub-pixel gap from anti-aliased rounded corners.
+            float expand = shadowConfig.SpreadRadius + shadowConfig.BlurRadius + 1;
+            var shadowBox = new BoundingBox
+            {
+                X = boundingBox.X + shadowConfig.OffsetX - expand,
+                Y = boundingBox.Y + shadowConfig.OffsetY - expand,
+                Width = boundingBox.Width + expand * 2,
+                Height = boundingBox.Height + expand * 2
+            };
+
+            RenderCommands.Add(new RenderCommand
+            {
+                BoundingBox = shadowBox,
+                CommandType = RenderCommandType.Shadow,
+                Id = element.Id,
+                ZIndex = zIndex,
+                Shadow = new ShadowRenderData
+                {
+                    Color = shadowConfig.Color,
+                    CornerRadius = cornerRadius,
+                    OffsetX = shadowConfig.OffsetX,
+                    OffsetY = shadowConfig.OffsetY,
+                    BlurRadius = shadowConfig.BlurRadius,
+                    SpreadRadius = shadowConfig.SpreadRadius
+                }
+            });
+        }
 
         // Rectangle render command
         if (sharedIndex >= 0 && sharedConfig.BackgroundColor.A > 0)
