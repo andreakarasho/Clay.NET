@@ -66,6 +66,76 @@ public struct ElementId
     }
 
     /// <summary>
+    /// Creates an ElementId by hashing a string prefix combined with a uint suffix,
+    /// without allocating a temporary interpolated string.
+    /// For example, HashComposite("SbTrackV_", 42) is equivalent to Hash($"SbTrackV_42")
+    /// but avoids the string allocation.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static ElementId HashComposite(ReadOnlySpan<char> prefix, uint suffix, uint offset = 0, uint seed = 0)
+    {
+        uint baseHash = seed;
+
+        // Hash the prefix characters
+        for (int i = 0; i < prefix.Length; i++)
+        {
+            baseHash += prefix[i];
+            baseHash += baseHash << 10;
+            baseHash ^= baseHash >> 6;
+        }
+
+        // Hash the suffix digits (same char sequence as uint.ToString())
+        // Build digits in reverse, then hash in forward order
+        Span<char> digits = stackalloc char[10]; // uint.MaxValue is 10 digits
+        int digitCount = 0;
+        if (suffix == 0)
+        {
+            digits[0] = '0';
+            digitCount = 1;
+        }
+        else
+        {
+            uint temp = suffix;
+            while (temp > 0)
+            {
+                digits[digitCount++] = (char)('0' + temp % 10);
+                temp /= 10;
+            }
+            // Reverse
+            for (int i = 0, j = digitCount - 1; i < j; i++, j--)
+            {
+                (digits[i], digits[j]) = (digits[j], digits[i]);
+            }
+        }
+
+        for (int i = 0; i < digitCount; i++)
+        {
+            baseHash += digits[i];
+            baseHash += baseHash << 10;
+            baseHash ^= baseHash >> 6;
+        }
+
+        uint hash = baseHash;
+        hash += offset;
+        hash += hash << 10;
+        hash ^= hash >> 6;
+
+        hash += hash << 3;
+        baseHash += baseHash << 3;
+        hash ^= hash >> 11;
+        baseHash ^= baseHash >> 11;
+        hash += hash << 15;
+        baseHash += baseHash << 15;
+
+        return new ElementId
+        {
+            Id = hash + 1,
+            Offset = offset,
+            BaseId = baseHash + 1
+        };
+    }
+
+    /// <summary>
     /// Creates a local ElementId relative to a parent element.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

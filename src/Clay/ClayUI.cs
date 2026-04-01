@@ -704,8 +704,8 @@ public static class ClayUI
 
         // Get the scrollbar track element to calculate relative position
         var trackId = _context.IsVerticalScrollbar
-            ? ElementId.Hash($"SbTrackV_{_context.ActiveScrollContainerId.Id}")
-            : ElementId.Hash($"SbTrackH_{_context.ActiveScrollContainerId.Id}");
+            ? ElementId.HashComposite("SbTrackV_", _context.ActiveScrollContainerId.Id)
+            : ElementId.HashComposite("SbTrackH_", _context.ActiveScrollContainerId.Id);
         var trackData = Clay.GetElementData(trackId);
         if (!trackData.Found) return;
 
@@ -1138,7 +1138,7 @@ public static class ClayUI
         var s = style.HasValue ? style.Value.MergeOver(Style.Slider) : Style.Slider;
         var sk = skin ?? Skin?.Slider ?? default;
         var id = Id(label);
-        var trackId = ElementId.Hash($"SlTrack_{id.Id}");
+        var trackId = ElementId.HashComposite("SlTrack_", id.Id);
         bool isHovered = IsHovered(trackId);
         bool changed = false;
 
@@ -2127,7 +2127,7 @@ public static class ClayUI
                 }
 
                 // Get the leaf content area bounds from previous frame
-                var leafContentId = ElementId.Hash($"DockLeafArea_{leafNode.Id}");
+                var leafContentId = ElementId.HashComposite("DockLeafArea_", leafNode.Id);
                 var leafData = Clay.GetElementData(leafContentId);
 
                 if (!leafData.Found)
@@ -2138,7 +2138,7 @@ public static class ClayUI
                 }
 
                 var ds = Style.DockSpace;
-                var scrollId = ElementId.Hash($"DockWinScroll_{id.Id}");
+                var scrollId = ElementId.HashComposite("DockWinScroll_", id.Id);
                 bool showScrollbar = !flags.HasFlag(WindowFlags.NoScroll);
 
                 // Store scroll info so EmitDockLeaf can render the scrollbar
@@ -2188,9 +2188,9 @@ public static class ClayUI
         _context.WindowStack.Push(id.Id);
         _context.WindowDepth++;
 
-        var titleBarId = ElementId.Hash($"WinTitle_{id.Id}");
-        var collapseButtonId = ElementId.Hash($"WinCollapse_{id.Id}");
-        var closeButtonId = ElementId.Hash($"WinClose_{id.Id}");
+        var titleBarId = ElementId.HashComposite("WinTitle_", id.Id);
+        var collapseButtonId = ElementId.HashComposite("WinCollapse_", id.Id);
+        var closeButtonId = ElementId.HashComposite("WinClose_", id.Id);
 
         // Calculate window bounds
         float windowHeight = state.Collapsed ? s.TitleBarHeight : state.Size.Y;
@@ -2330,7 +2330,7 @@ public static class ClayUI
         // Handle mouse wheel scrolling for this window (if topmost and not collapsed)
         if (isTopmostAtMouse && !state.Collapsed && (_context.ScrollDelta.X != 0 || _context.ScrollDelta.Y != 0))
         {
-            var scrollId = ElementId.Hash($"WinScroll_{id.Id}");
+            var scrollId = ElementId.HashComposite("WinScroll_", id.Id);
             var scrollData = Clay.GetScrollContainerData(scrollId);
             if (scrollData.Found)
             {
@@ -2465,7 +2465,7 @@ public static class ClayUI
             bool showScrollbar = !flags.HasFlag(WindowFlags.NoScroll);
             bool showResize = !flags.HasFlag(WindowFlags.NoResize);
             bool hasRightColumn = showScrollbar || showResize;
-            var scrollId = ElementId.Hash($"WinScroll_{id.Id}");
+            var scrollId = ElementId.HashComposite("WinScroll_", id.Id);
 
             // Track window frame info for EndWindow
             _context.WindowScrollInfo.Push(new ClayUIContext.WindowFrameInfo(scrollId, showScrollbar, showResize, hasRightColumn));
@@ -2569,7 +2569,7 @@ public static class ClayUI
 
                         // Right column (vertical: scrollbar + resize grip)
                         // Bottom-right corner matches window
-                        var rightColumnId = ElementId.Hash($"WinRCol_{windowId}");
+                        var rightColumnId = ElementId.HashComposite("WinRCol_", windowId);
                         using (Clay.Element(new ElementDeclaration
                         {
                             Id = rightColumnId,
@@ -2900,7 +2900,7 @@ public static class ClayUI
         // Internal split node: container with two children and a splitter
         bool isHorizontal = node.SplitDirection == DockSplitDirection.Horizontal;
         var dir = isHorizontal ? LayoutDirection.LeftToRight : LayoutDirection.TopToBottom;
-        var nodeId = ElementId.Hash($"DockSplit_{node.Id}");
+        var nodeId = ElementId.HashComposite("DockSplit_", node.Id);
 
         using (Clay.Element(new ElementDeclaration
         {
@@ -2913,7 +2913,7 @@ public static class ClayUI
         }))
         {
             // ChildA container
-            var childAId = ElementId.Hash($"DockChild_{node.ChildA!.Id}");
+            var childAId = ElementId.HashComposite("DockChild_", node.ChildA!.Id);
             using (Clay.Element(new ElementDeclaration
             {
                 Id = childAId,
@@ -2933,7 +2933,7 @@ public static class ClayUI
             EmitDockSplitter(node, s);
 
             // ChildB container
-            var childBId = ElementId.Hash($"DockChild_{node.ChildB!.Id}");
+            var childBId = ElementId.HashComposite("DockChild_", node.ChildB!.Id);
             float ratioB = 1.0f - node.SplitRatio;
             using (Clay.Element(new ElementDeclaration
             {
@@ -2954,7 +2954,7 @@ public static class ClayUI
 
     private static void EmitDockLeaf(DockNode leaf, DockSpaceState space, DockSpaceStyle s)
     {
-        var leafId = ElementId.Hash($"DockLeaf_{leaf.Id}");
+        var leafId = ElementId.HashComposite("DockLeaf_", leaf.Id);
 
         // Determine if the active tab's window has a scrollbar
         ElementId activeScrollId = default;
@@ -2994,7 +2994,7 @@ public static class ClayUI
             }))
             {
                 // Content area placeholder (active tab's BeginWindow will fill this via floating element)
-                var contentId = ElementId.Hash($"DockLeafArea_{leaf.Id}");
+                var contentId = ElementId.HashComposite("DockLeafArea_", leaf.Id);
                 using (Clay.Element(new ElementDeclaration
                 {
                     Id = contentId,
@@ -3009,7 +3009,7 @@ public static class ClayUI
                 // Scrollbar column (part of dock layout, not floating window)
                 if (hasScrollbar)
                 {
-                    var rightColumnId = ElementId.Hash($"DockWinRCol_{leaf.Id}");
+                    var rightColumnId = ElementId.HashComposite("DockWinRCol_", leaf.Id);
                     using (Clay.Element(new ElementDeclaration
                     {
                         Id = rightColumnId,
@@ -3043,7 +3043,7 @@ public static class ClayUI
 
     private static void RenderDockLeafTabBar(DockNode leaf, DockSpaceState space, DockSpaceStyle s)
     {
-        var tabBarId = ElementId.Hash($"DockTabBar_{leaf.Id}");
+        var tabBarId = ElementId.HashComposite("DockTabBar_", leaf.Id);
 
         using (Clay.Element(new ElementDeclaration
         {
@@ -3442,7 +3442,7 @@ public static class ClayUI
     private static void EmitDockSplitter(DockNode parentNode, DockSpaceStyle s)
     {
         bool isHorizontal = parentNode.SplitDirection == DockSplitDirection.Horizontal;
-        var splitterId = ElementId.Hash($"DockSplitter_{parentNode.Id}");
+        var splitterId = ElementId.HashComposite("DockSplitter_", parentNode.Id);
 
         bool isHovered = !IsDisabled && Clay.PointerOver(splitterId);
         bool justPressed = isHovered && ShouldProcessClick;
@@ -3461,7 +3461,7 @@ public static class ClayUI
         // Handle drag
         if (isActive && _context.MousePressed && _context.ActiveDockSplitterNode == parentNode)
         {
-            var parentElementId = ElementId.Hash($"DockSplit_{parentNode.Id}");
+            var parentElementId = ElementId.HashComposite("DockSplit_", parentNode.Id);
             var parentData = Clay.GetElementData(parentElementId);
             if (parentData.Found)
             {
@@ -3724,8 +3724,9 @@ public static class ClayUI
     /// </summary>
     public static void CloseAllPopups()
     {
-        foreach (var popupId in _context.OpenPopupStack.ToArray())
+        for (int i = _context.OpenPopupStack.Count - 1; i >= 0; i--)
         {
+            var popupId = _context.OpenPopupStack[i];
             if (_context.PopupStates.TryGetValue(popupId, out var state))
             {
                 _context.PopupStates[popupId] = state with { Open = false };
@@ -4451,8 +4452,8 @@ public static class ClayUI
         float scrollY = scrollData.ScrollPosition.Y;
         float maxScrollY = scrollData.MaxScrollY;
 
-        var trackId = ElementId.Hash($"SbTrackV_{scrollContainerId.Id}");
-        var thumbId = ElementId.Hash($"SbThumbV_{scrollContainerId.Id}");
+        var trackId = ElementId.HashComposite("SbTrackV_", scrollContainerId.Id);
+        var thumbId = ElementId.HashComposite("SbThumbV_", scrollContainerId.Id);
 
         // Use the track's actual rendered height from previous frame when available,
         // so thumb positioning stays correct even when the track is shorter than the
@@ -4625,8 +4626,8 @@ public static class ClayUI
         float scrollX = scrollData.ScrollPosition.X;
         float maxScrollX = scrollData.MaxScrollX;
 
-        var trackId = ElementId.Hash($"SbTrackH_{scrollContainerId.Id}");
-        var thumbId = ElementId.Hash($"SbThumbH_{scrollContainerId.Id}");
+        var trackId = ElementId.HashComposite("SbTrackH_", scrollContainerId.Id);
+        var thumbId = ElementId.HashComposite("SbThumbH_", scrollContainerId.Id);
 
         // Use the track's actual rendered width from previous frame when available
         var trackData = Clay.GetElementData(trackId);

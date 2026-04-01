@@ -96,6 +96,10 @@ public class ClayContext : IDisposable
     public ClayList<int> OpenClipElementStack;
     public ClayList<ScrollContainerDataInternal> ScrollContainerDatas;
 
+    // Reusable temporary collections (avoid per-frame allocations)
+    private readonly List<int> _bfsQueue = new(256);
+    private readonly Dictionary<uint, int> _scrollContainerIndex = new();
+
     public ClayContext(int maxElementCount = 8192)
     {
         MaxElementCount = maxElementCount;
@@ -767,8 +771,10 @@ public class ClayContext : IDisposable
             ref var root = ref LayoutElementTreeRoots[rootIndex];
             ref var rootElement = ref LayoutElements[root.LayoutElementIndex];
 
-            // BFS traversal
-            var queue = new List<int> { root.LayoutElementIndex };
+            // BFS traversal (reuse list to avoid per-root allocation)
+            _bfsQueue.Clear();
+            _bfsQueue.Add(root.LayoutElementIndex);
+            var queue = _bfsQueue;
 
             for (int qi = 0; qi < queue.Count; qi++)
             {
@@ -910,6 +916,13 @@ public class ClayContext : IDisposable
 
     private void PositionElements()
     {
+        // Build scroll container index for O(1) lookup during positioning
+        _scrollContainerIndex.Clear();
+        for (int i = 0; i < ScrollContainerDatas.Length; i++)
+        {
+            _scrollContainerIndex[ScrollContainerDatas[i].ElementId] = i;
+        }
+
         for (int rootIndex = 0; rootIndex < LayoutElementTreeRoots.Length; rootIndex++)
         {
             ref var root = ref LayoutElementTreeRoots[rootIndex];
@@ -962,17 +975,13 @@ public class ClayContext : IDisposable
         int scrollConfigIndex = FindConfigIndex(ref element, ElementConfigType.Scroll);
         if (scrollConfigIndex >= 0)
         {
-            // Find the scroll container data
-            for (int i = 0; i < ScrollContainerDatas.Length; i++)
+            // Find the scroll container data via indexed lookup
+            if (_scrollContainerIndex.TryGetValue(element.Id, out int sci))
             {
-                if (ScrollContainerDatas[i].ElementId == element.Id)
-                {
-                    scrollContainerIndex = i;
-                    scrollOffset = ScrollContainerDatas[i].ScrollPosition;
-                    // Update bounding box
-                    ScrollContainerDatas[i].BoundingBox = new BoundingBox(position, element.Dimensions);
-                    break;
-                }
+                scrollContainerIndex = sci;
+                scrollOffset = ScrollContainerDatas[sci].ScrollPosition;
+                // Update bounding box
+                ScrollContainerDatas[sci].BoundingBox = new BoundingBox(position, element.Dimensions);
             }
             childOffset.X -= scrollOffset.X;
             childOffset.Y -= scrollOffset.Y;
@@ -1108,18 +1117,18 @@ public class ClayContext : IDisposable
     private void GenerateRenderCommands()
     {
         // Sort tree roots by ZIndex so higher z-index elements are rendered last (on top)
+        // Insertion sort: O(N) for nearly-sorted data (typical case), O(N²) worst case
         var roots = LayoutElementTreeRoots.AsSpan();
-        for (int i = 0; i < roots.Length - 1; i++)
+        for (int i = 1; i < roots.Length; i++)
         {
-            for (int j = i + 1; j < roots.Length; j++)
+            var key = roots[i];
+            int j = i - 1;
+            while (j >= 0 && roots[j].ZIndex > key.ZIndex)
             {
-                if (roots[j].ZIndex < roots[i].ZIndex)
-                {
-                    var temp = roots[i];
-                    roots[i] = roots[j];
-                    roots[j] = temp;
-                }
+                roots[j + 1] = roots[j];
+                j--;
             }
+            roots[j + 1] = key;
         }
 
         for (int rootIndex = 0; rootIndex < LayoutElementTreeRoots.Length; rootIndex++)
