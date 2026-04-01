@@ -122,6 +122,14 @@ internal class ClayUIContext
     internal float HoveredMenuItemTime;   // How long it has been hovered (seconds)
     internal const float SubmenuOpenDelay = 0.26f; // Delay before submenu opens on hover
 
+    // Menu bar state: when any menu bar item's popup is open, hovering siblings opens them without click
+    internal bool InsideMenuBar;                             // True between BeginMenuBar/EndMenuBar
+    internal int MenuBarMenuDepth;                           // Tracks how many menu-bar-level menus are open (for restoring InsideMenuBar)
+    internal ButtonStyle? MenuBarStyle;                      // Style for menu bar items (set by BeginMenuBar)
+    internal readonly List<string> MenuBarPopupIds = new();  // Popup IDs registered by BeginMenu this frame
+    internal readonly List<string> PrevMenuBarPopupIds = new(); // Previous frame's menu bar popup IDs
+    internal string? ActiveMenuBarPopupId;                   // Which menu bar popup is currently open (null = none)
+
     // Tooltip tracking
     internal ElementId LastWidgetId;       // ID of the most recently rendered widget
     internal uint TooltipHoveredId;        // Which widget is being hovered for tooltip
@@ -1853,6 +1861,7 @@ public static class ClayUI
         var s = style.HasValue ? style.Value.MergeOver(Style.Panel) : Style.Panel;
         var sk = skin ?? Skin?.Panel ?? default;
         var panelId = StableId($"Panel_{title}");
+        var displayTitle = ElementId.GetDisplayLabel(title).ToString();
 
         if (scroll)
         {
@@ -1893,7 +1902,7 @@ public static class ClayUI
                     }
                 }))
                 {
-                    Clay.Text(title, new TextConfig
+                    Clay.Text(displayTitle, new TextConfig
                     {
                         FontId = s.TitleFontId,
                         FontSize = s.TitleFontSize,
@@ -1986,7 +1995,7 @@ public static class ClayUI
                     }
                 }))
                 {
-                    Clay.Text(title, new TextConfig
+                    Clay.Text(displayTitle, new TextConfig
                     {
                         FontId = s.TitleFontId,
                         FontSize = s.TitleFontSize,
@@ -2060,9 +2069,10 @@ public static class ClayUI
         var s = style.HasValue ? style.Value.MergeOver(Style.Window) : Style.Window;
         var sk = skin ?? Skin?.Window ?? default;
         var id = StableId($"Window_{title}");
+        var displayTitle = ElementId.GetDisplayLabel(title).ToString();
 
         // Track window title for dock system (needed when window gets docked via drag)
-        _context.DockedWindowTitles[id.Id] = title;
+        _context.DockedWindowTitles[id.Id] = displayTitle;
 
         // Track NoDocking flag so drag-to-dock can check it
         if (flags.HasFlag(WindowFlags.NoDocking))
@@ -2101,7 +2111,7 @@ public static class ClayUI
                 bool isDragging = _context.ActiveDragWindowId == id.Id;
                 if (!dockSpace.WindowToNode.ContainsKey(id.Id) && !isDragging)
                 {
-                    AutoDockWindow(dockSpace, id.Id, title);
+                    AutoDockWindow(dockSpace, id.Id, displayTitle);
                 }
             }
 
@@ -2109,7 +2119,7 @@ public static class ClayUI
                 dockSpace.WindowToNode.TryGetValue(id.Id, out var leafNode))
             {
                 // Track this window title for tab bar display
-                _context.DockedWindowTitles[id.Id] = title;
+                _context.DockedWindowTitles[id.Id] = displayTitle;
                 _context.DockableWindowsThisFrame.Add(id.Id);
 
                 _context.WindowStack.Push(id.Id);
@@ -2426,7 +2436,7 @@ public static class ClayUI
                 }
             }))
             {
-                Clay.Text(title, new TextConfig
+                Clay.Text(displayTitle, new TextConfig
                 {
                     FontId = s.FontId,
                     FontSize = s.FontSize,
@@ -3873,6 +3883,44 @@ public static class ClayUI
         Clay.CloseElement();
     }
 
+    // ============ Menu Bar ============
+
+    /// <summary>
+    /// Begins a menu bar region. Between BeginMenuBar/EndMenuBar, BeginMenu calls render
+    /// as top-bar buttons that support hover-to-switch when any sibling menu is already open.
+    /// </summary>
+    /// <param name="style">Optional button style for menu bar items.</param>
+    public static void BeginMenuBar(ButtonStyle? style = null)
+    {
+        _context.InsideMenuBar = true;
+        _context.MenuBarStyle = style;
+
+        // Swap current → previous, then clear current for this frame's registration
+        _context.PrevMenuBarPopupIds.Clear();
+        foreach (var id in _context.MenuBarPopupIds)
+            _context.PrevMenuBarPopupIds.Add(id);
+        _context.MenuBarPopupIds.Clear();
+
+        // Detect which menu bar popup (if any) is still open from last frame
+        _context.ActiveMenuBarPopupId = null;
+        foreach (var id in _context.PrevMenuBarPopupIds)
+        {
+            if (IsPopupOpen(id))
+            {
+                _context.ActiveMenuBarPopupId = id;
+                break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Ends a menu bar region.
+    /// </summary>
+    public static void EndMenuBar()
+    {
+        _context.InsideMenuBar = false;
+    }
+
     /// <summary>
     /// Helper to show a context menu popup on right-click.
     /// Returns true if the context menu should be opened.
@@ -3977,15 +4025,114 @@ public static class ClayUI
     }
 
     /// <summary>
-    /// Begins a submenu inside a popup. Renders a menu item with a ">" arrow that
-    /// opens a child popup to the right when hovered (with a short delay).
-    /// Returns true if the submenu is open and content should be rendered.
+    /// Begins a menu. Behavior depends on context:
+    /// <list type="bullet">
+    /// <item>Inside BeginMenuBar: renders a top-bar button that opens a dropdown popup below.
+    /// Click to toggle; hover to switch when any sibling menu is already open.</item>
+    /// <item>Inside a popup: renders a submenu row with ">" arrow that opens a child popup
+    /// to the right after a short hover delay.</item>
+    /// </list>
+    /// Returns true if the menu is open and content should be rendered.
     /// Call EndMenu() when done (only if this returns true).
     /// </summary>
-    /// <param name="label">Submenu label.</param>
-    /// <param name="enabled">Whether the submenu can be opened.</param>
-    /// <returns>True if the submenu is open.</returns>
+    /// <param name="label">Menu label.</param>
+    /// <param name="enabled">Whether the menu can be opened.</param>
+    /// <returns>True if the menu is open.</returns>
     public static bool BeginMenu(string label, bool enabled = true)
+    {
+        if (_context.InsideMenuBar)
+            return BeginMenuBarMenu(label, enabled);
+        return BeginSubmenu(label, enabled);
+    }
+
+    private static bool BeginMenuBarMenu(string label, bool enabled)
+    {
+        string menuKey = $"SubMenu_{label}";
+        _context.MenuBarPopupIds.Add(menuKey);
+
+        var s = _context.MenuBarStyle.HasValue
+            ? _context.MenuBarStyle.Value.MergeOver(Style.Button)
+            : Style.Button;
+        var itemId = StableId(menuKey);
+        bool isHovered = IsHovered(itemId) && enabled;
+        bool isOpen = IsPopupOpen(menuKey);
+
+        // Check if any menu bar popup is currently open
+        bool anyMenuBarPopupOpen = _context.ActiveMenuBarPopupId != null
+            && IsPopupOpen(_context.ActiveMenuBarPopupId);
+
+        bool clicked = isHovered && ShouldProcessClick;
+
+        // Hover-to-switch: if another menu bar popup is open and we hover this item, switch
+        if (isHovered && anyMenuBarPopupOpen && !isOpen && enabled)
+        {
+            if (_context.ActiveMenuBarPopupId != null)
+                ClosePopup(_context.ActiveMenuBarPopupId);
+
+            var itemData = Clay.GetElementData(itemId);
+            if (itemData.Found)
+                OpenPopupBelow(menuKey, itemData.BoundingBox);
+            else
+                OpenPopup(menuKey);
+            _context.ActiveMenuBarPopupId = menuKey;
+        }
+        else if (clicked && enabled)
+        {
+            // Click-to-toggle
+            if (isOpen)
+            {
+                ClosePopup(menuKey);
+                _context.ActiveMenuBarPopupId = null;
+            }
+            else
+            {
+                var itemData = Clay.GetElementData(itemId);
+                if (itemData.Found)
+                    OpenPopupBelow(menuKey, itemData.BoundingBox);
+                else
+                    OpenPopup(menuKey);
+                _context.ActiveMenuBarPopupId = menuKey;
+            }
+        }
+
+        // Render as a button-style element
+        bool isPressed = isHovered && _context.MousePressed;
+        var textColor = enabled ? s.TextColor : Color.Rgba(120, 120, 125);
+        var bgColor = (isOpen || isPressed) ? s.PressedColor
+            : isHovered ? s.HoverColor
+            : s.BackgroundColor;
+
+        using (Clay.Element(new ElementDeclaration
+        {
+            Id = itemId,
+            Layout = new LayoutConfig
+            {
+                Padding = s.Padding,
+                ChildAlignment = ChildAlignment.Center
+            },
+            BackgroundColor = bgColor,
+            CornerRadius = s.CornerRadius
+        }))
+        {
+            Clay.Text(ElementId.GetDisplayLabel(label), new TextConfig
+            {
+                FontId = s.FontId,
+                FontSize = s.FontSize,
+                TextColor = textColor
+            });
+        }
+
+        // Exit menu bar mode so nested BeginMenu calls inside the popup act as submenus
+        bool result = BeginPopup(menuKey);
+        if (result)
+        {
+            _context.InsideMenuBar = false;
+            _context.MenuBarMenuDepth++;
+        }
+        return result;
+    }
+
+    private static bool BeginSubmenu(string label, bool enabled)
     {
         string menuKey = $"SubMenu_{label}";
         var itemId = StableId(menuKey);
@@ -4107,11 +4254,18 @@ public static class ClayUI
     }
 
     /// <summary>
-    /// Ends a submenu. Must be called if BeginMenu returned true.
+    /// Ends a menu. Must be called if BeginMenu returned true.
     /// </summary>
     public static void EndMenu()
     {
         EndPopup();
+        // If this was a top-level menu bar menu, restore menu bar mode
+        if (_context.MenuBarMenuDepth > 0)
+        {
+            _context.MenuBarMenuDepth--;
+            if (_context.MenuBarMenuDepth == 0)
+                _context.InsideMenuBar = true;
+        }
     }
 
     /// <summary>

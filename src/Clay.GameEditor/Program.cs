@@ -312,21 +312,9 @@ void RenderMenuBar()
         FontSize = 13
     };
 
-    if (ClayUI.Button("File##menu", menuBtnStyle)) ClayUI.OpenPopup("FileMenu");
-    if (ClayUI.Button("Edit##menu", menuBtnStyle)) ClayUI.OpenPopup("EditMenu");
-    if (ClayUI.Button("Assets##menu", menuBtnStyle)) ClayUI.OpenPopup("AssetsMenu");
-    if (ClayUI.Button("GameObject##menu", menuBtnStyle)) ClayUI.OpenPopup("GameObjectMenu");
-    if (ClayUI.Button("Component##menu", menuBtnStyle)) ClayUI.OpenPopup("ComponentMenu");
-    if (ClayUI.Button("Window##menu", menuBtnStyle)) ClayUI.OpenPopup("WindowMenu");
-    if (ClayUI.Button("Help##menu", menuBtnStyle)) ClayUI.OpenPopup("HelpMenu");
+    ClayUI.BeginMenuBar(menuBtnStyle);
 
-    ClayUI.Spacer();
-
-    // Layout selector
-    ClayUI.Label("Layout: Default", new LabelStyle { TextColor = colTextDim, FontSize = 12 });
-
-    // File menu
-    if (ClayUI.BeginPopup("FileMenu"))
+    if (ClayUI.BeginMenu("File"))
     {
         if (ClayUI.MenuItem("New Scene")) Console.WriteLine("File > New Scene");
         if (ClayUI.MenuItem("Open Scene...")) Console.WriteLine("File > Open Scene");
@@ -340,11 +328,10 @@ void RenderMenuBar()
         if (ClayUI.MenuItem("Build & Run")) Console.WriteLine("File > Build & Run");
         ClayUI.MenuSeparator();
         if (ClayUI.MenuItem("Exit")) Environment.Exit(0);
-        ClayUI.EndPopup();
+        ClayUI.EndMenu();
     }
 
-    // Edit menu
-    if (ClayUI.BeginPopup("EditMenu"))
+    if (ClayUI.BeginMenu("Edit"))
     {
         if (ClayUI.MenuItem("Undo")) Console.WriteLine("Edit > Undo");
         if (ClayUI.MenuItem("Redo")) Console.WriteLine("Edit > Redo");
@@ -358,11 +345,10 @@ void RenderMenuBar()
         if (ClayUI.MenuItem("Select All")) Console.WriteLine("Edit > Select All");
         ClayUI.MenuSeparator();
         if (ClayUI.MenuItem("Preferences...")) preferencesWindowOpen = true;
-        ClayUI.EndPopup();
+        ClayUI.EndMenu();
     }
 
-    // Assets menu
-    if (ClayUI.BeginPopup("AssetsMenu"))
+    if (ClayUI.BeginMenu("Assets"))
     {
         if (ClayUI.BeginMenu("Create"))
         {
@@ -377,11 +363,10 @@ void RenderMenuBar()
         ClayUI.MenuSeparator();
         if (ClayUI.MenuItem("Refresh")) Console.WriteLine("Assets > Refresh");
         if (ClayUI.MenuItem("Reimport All")) Console.WriteLine("Assets > Reimport All");
-        ClayUI.EndPopup();
+        ClayUI.EndMenu();
     }
 
-    // GameObject menu
-    if (ClayUI.BeginPopup("GameObjectMenu"))
+    if (ClayUI.BeginMenu("GameObject"))
     {
         if (ClayUI.MenuItem("Create Empty")) Console.WriteLine("GameObject > Create Empty");
         if (ClayUI.BeginMenu("3D Object"))
@@ -407,11 +392,10 @@ void RenderMenuBar()
             ClayUI.EndMenu();
         }
         if (ClayUI.MenuItem("Camera")) Console.WriteLine("GameObject > Camera");
-        ClayUI.EndPopup();
+        ClayUI.EndMenu();
     }
 
-    // Component menu
-    if (ClayUI.BeginPopup("ComponentMenu"))
+    if (ClayUI.BeginMenu("Component"))
     {
         if (ClayUI.BeginMenu("Physics"))
         {
@@ -435,28 +419,33 @@ void RenderMenuBar()
             ClayUI.EndMenu();
         }
         if (ClayUI.MenuItem("New Script...")) Console.WriteLine("Component > New Script");
-        ClayUI.EndPopup();
+        ClayUI.EndMenu();
     }
 
-    // Window menu
-    if (ClayUI.BeginPopup("WindowMenu"))
+    if (ClayUI.BeginMenu("Window"))
     {
         if (ClayUI.MenuItem(showConsole ? "Console  [*]" : "Console")) showConsole = !showConsole;
         if (ClayUI.MenuItem(showAssetBrowser ? "Asset Browser  [*]" : "Asset Browser")) showAssetBrowser = !showAssetBrowser;
         ClayUI.MenuSeparator();
         if (ClayUI.MenuItem(debugWindowOpen ? "Debug Inspector  [*]" : "Debug Inspector (F12)")) debugWindowOpen = !debugWindowOpen;
-        ClayUI.EndPopup();
+        ClayUI.EndMenu();
     }
 
-    // Help menu
-    if (ClayUI.BeginPopup("HelpMenu"))
+    if (ClayUI.BeginMenu("Help"))
     {
         if (ClayUI.MenuItem("Documentation")) Console.WriteLine("Help > Docs");
         if (ClayUI.MenuItem("API Reference")) Console.WriteLine("Help > API");
         ClayUI.MenuSeparator();
         if (ClayUI.MenuItem("About")) aboutWindowOpen = true;
-        ClayUI.EndPopup();
+        ClayUI.EndMenu();
     }
+
+    ClayUI.EndMenuBar();
+
+    ClayUI.Spacer();
+
+    // Layout selector
+    ClayUI.Label("Layout: Default", new LabelStyle { TextColor = colTextDim, FontSize = 12 });
 
     ClayUI.EndHorizontal();
 }
@@ -1038,7 +1027,8 @@ void RenderFloatingWindows()
     if (aboutWindowOpen)
     {
         if (ClayUI.BeginWindow("About##editor", ref aboutWindowOpen,
-            defaultPosition: new Vector2(400, 250), defaultSize: new Vector2(360, 200)))
+            defaultPosition: new Vector2(400, 250), defaultSize: new Vector2(360, 200),
+            flags: WindowFlags.NoDocking))
         {
             ClayUI.Heading("Raylib Game Engine Editor", new HeadingStyle { TextColor = colAccent, FontSize = 16 });
             ClayUI.Space(8);
@@ -1058,7 +1048,8 @@ void RenderFloatingWindows()
     if (buildWindowOpen)
     {
         if (ClayUI.BeginWindow("Build Settings##editor", ref buildWindowOpen,
-            defaultPosition: new Vector2(300, 150), defaultSize: new Vector2(420, 320)))
+            defaultPosition: new Vector2(300, 150), defaultSize: new Vector2(420, 320),
+            flags: WindowFlags.NoDocking))
         {
             ClayUI.Combo("Platform", ref buildPlatformIndex, buildPlatforms);
             ClayUI.Space(8);
@@ -1088,7 +1079,8 @@ void RenderFloatingWindows()
     if (preferencesWindowOpen)
     {
         if (ClayUI.BeginWindow("Preferences##editor", ref preferencesWindowOpen,
-            defaultPosition: new Vector2(350, 180), defaultSize: new Vector2(380, 280)))
+            defaultPosition: new Vector2(350, 180), defaultSize: new Vector2(380, 280),
+            flags: WindowFlags.NoDocking))
         {
             ClayUI.Heading("Editor", new HeadingStyle { TextColor = colTextBright, FontSize = 14 });
             ClayUI.Space(4);
