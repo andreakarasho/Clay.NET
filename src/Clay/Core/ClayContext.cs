@@ -790,6 +790,27 @@ public class ClayContext : IDisposable
                     availableSpace -= Math.Max(0, parent.Children.Length - 1) * layoutConfig.ChildGap;
                 }
 
+                // Pre-pass: sum Fixed/Fit children along the main axis so that
+                // Percent children are computed relative to the remaining space
+                // (i.e. parent minus non-flexible siblings like splitters).
+                float fixedFitUsedSpace = 0;
+                if (sizingAlongAxis)
+                {
+                    for (int i = 0; i < parent.Children.Length; i++)
+                    {
+                        int ci = LayoutElementChildren[parent.Children.StartIndex + i];
+                        ref var ch = ref LayoutElements[ci];
+                        ref var chLayout = ref LayoutConfigs[ch.LayoutConfigIndex];
+                        var chSizing = xAxis ? chLayout.Sizing.Width : chLayout.Sizing.Height;
+                        if (chSizing.Type != SizingType.Grow && chSizing.Type != SizingType.Percent)
+                        {
+                            fixedFitUsedSpace += xAxis ? ch.Dimensions.Width : ch.Dimensions.Height;
+                        }
+                    }
+                }
+
+                float percentAvailableSpace = availableSpace - fixedFitUsedSpace;
+
                 // First pass: calculate space used by non-grow elements and count grow elements
                 float usedSpace = 0;
                 int growCount = 0;
@@ -819,7 +840,7 @@ public class ClayContext : IDisposable
                         }
                         else if (childSizing.Type == SizingType.Percent)
                         {
-                            float size = availableSpace * childSizing.Percent;
+                            float size = percentAvailableSpace * childSizing.Percent;
                             if (xAxis)
                                 child.Dimensions.Width = size;
                             else
