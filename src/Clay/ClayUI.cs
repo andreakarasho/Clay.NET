@@ -132,6 +132,7 @@ internal class ClayUIContext
     // Dock space persistent state
     internal readonly Dictionary<uint, DockSpaceState> DockSpaceStates = new();
     internal readonly Dictionary<uint, string> DockedWindowTitles = new(); // windowId -> title
+    internal readonly Dictionary<uint, ElementId> DockedWindowScrollIds = new(); // windowId -> scroll container ID
 
     // Dock space stack (for BeginDockSpace/EndDockSpace)
     internal readonly Stack<uint> DockSpaceStack = new();
@@ -2138,6 +2139,13 @@ public static class ClayUI
 
                 var ds = Style.DockSpace;
                 var scrollId = ElementId.Hash($"DockWinScroll_{id.Id}");
+                bool showScrollbar = !flags.HasFlag(WindowFlags.NoScroll);
+
+                // Store scroll info so EmitDockLeaf can render the scrollbar
+                if (showScrollbar)
+                    _context.DockedWindowScrollIds[id.Id] = scrollId;
+                else
+                    _context.DockedWindowScrollIds.Remove(id.Id);
 
                 // Open content as a floating element positioned at the leaf content area
                 Clay.Element(new ElementDeclaration
@@ -2536,8 +2544,8 @@ public static class ClayUI
 
                 if (isDocked)
                 {
-                    // Docked window: close scroll container + window container (2 elements)
-                    // Only if frameInfo indicates content was rendered (active tab)
+                    // Docked window: close scroll container + window container
+                    // Scrollbar is rendered by EmitDockLeaf in the dock tree layout
                     if (frameInfo.HasValue)
                     {
                         Clay.CloseElement(); // scroll container
@@ -2948,6 +2956,19 @@ public static class ClayUI
     {
         var leafId = ElementId.Hash($"DockLeaf_{leaf.Id}");
 
+        // Determine if the active tab's window has a scrollbar
+        ElementId activeScrollId = default;
+        bool hasScrollbar = false;
+        if (leaf.ActiveTabIndex >= 0 && leaf.ActiveTabIndex < leaf.DockedWindowIds.Count)
+        {
+            var activeWindowId = leaf.DockedWindowIds[leaf.ActiveTabIndex];
+            if (_context.DockedWindowScrollIds.TryGetValue(activeWindowId, out var scrollId))
+            {
+                activeScrollId = scrollId;
+                hasScrollbar = true;
+            }
+        }
+
         // Vertical container: tab bar on top, content area below
         using (Clay.Element(new ElementDeclaration
         {
@@ -2962,18 +2983,54 @@ public static class ClayUI
             // Tab bar
             RenderDockLeafTabBar(leaf, space, s);
 
-            // Content area placeholder (active tab's BeginWindow will fill this via floating element)
-            var contentId = ElementId.Hash($"DockLeafArea_{leaf.Id}");
+            // Content row: content area + optional scrollbar
             using (Clay.Element(new ElementDeclaration
             {
-                Id = contentId,
                 Layout = new LayoutConfig
                 {
-                    Direction = LayoutDirection.TopToBottom,
+                    Direction = LayoutDirection.LeftToRight,
                     Sizing = Sizing.Fill()
-                },
-                BackgroundColor = s.ContentBackgroundColor
-            })) { }
+                }
+            }))
+            {
+                // Content area placeholder (active tab's BeginWindow will fill this via floating element)
+                var contentId = ElementId.Hash($"DockLeafArea_{leaf.Id}");
+                using (Clay.Element(new ElementDeclaration
+                {
+                    Id = contentId,
+                    Layout = new LayoutConfig
+                    {
+                        Direction = LayoutDirection.TopToBottom,
+                        Sizing = Sizing.Fill()
+                    },
+                    BackgroundColor = s.ContentBackgroundColor
+                })) { }
+
+                // Scrollbar column (part of dock layout, not floating window)
+                if (hasScrollbar)
+                {
+                    var rightColumnId = ElementId.Hash($"DockWinRCol_{leaf.Id}");
+                    using (Clay.Element(new ElementDeclaration
+                    {
+                        Id = rightColumnId,
+                        Layout = new LayoutConfig
+                        {
+                            Direction = LayoutDirection.TopToBottom,
+                            Sizing = new Sizing
+                            {
+                                Width = SizingAxis.Fixed(Style.Scrollbar.Width),
+                                Height = SizingAxis.Grow()
+                            }
+                        },
+                        BackgroundColor = s.ContentBackgroundColor
+                    }))
+                    {
+                        _context.ScrollbarHitAreaId = rightColumnId;
+                        VerticalScrollbar(activeScrollId);
+                        _context.ScrollbarHitAreaId = default;
+                    }
+                }
+            }
 
             // Track leaf bounds for drop zone hit testing
             var leafData = Clay.GetElementData(leafId);
@@ -3119,6 +3176,26 @@ public static class ClayUI
 
         var windowId = _context.PendingDockWindowId;
         var zone = _context.PendingDockDropZone;
+
+        // Remove window from its current source leaf (if already docked somewhere)
+        if (space.WindowToNode.TryGetValue(windowId, out var sourceLeaf) && sourceLeaf != targetNode)
+        {
+            var idx = sourceLeaf.DockedWindowIds.IndexOf(windowId);
+            if (idx >= 0)
+            {
+                sourceLeaf.DockedWindowIds.RemoveAt(idx);
+                if (sourceLeaf.ActiveTabIndex >= sourceLeaf.DockedWindowIds.Count)
+                    sourceLeaf.ActiveTabIndex = Math.Max(0, sourceLeaf.DockedWindowIds.Count - 1);
+            }
+
+            if (sourceLeaf.IsEmpty)
+            {
+                PruneEmptyLeaf(sourceLeaf, space);
+                // Re-find target node since tree structure may have changed
+                targetNode = space.RootNode.FindNode(_context.PendingDockTargetNodeId);
+                if (targetNode == null || !targetNode.IsLeaf) return;
+            }
+        }
 
         if (zone == DockDropZone.Center)
         {
