@@ -3,6 +3,7 @@ using Clay.GameEditor;
 using ZeroElectric.Vinculum;
 using Color = Clay.Color;
 using Vector2 = System.Numerics.Vector2;
+using RayColor = ZeroElectric.Vinculum.Color;
 
 // Window configuration
 const int InitialWidth = 1440;
@@ -193,6 +194,37 @@ bool inspectorOpen = true;
 bool assetBrowserOpen = true;
 bool consoleOpen = true;
 
+// ============ 3D Scene Setup ============
+
+// Render texture for 3D viewport (resized each frame to match viewport panel)
+var viewportRT = Raylib.LoadRenderTexture(InitialWidth, InitialHeight);
+var viewportData = new ViewportTextureData { RenderTexture = viewportRT };
+
+// Orbit camera state
+var cameraYaw = 45f * MathF.PI / 180f;
+var cameraPitch = 30f * MathF.PI / 180f;
+var cameraDistance = 20f;
+var cameraTarget = new System.Numerics.Vector3(0, 1, 0);
+bool viewportHovered = false;
+bool orbitDragging = false;
+bool panDragging = false;
+var lastMousePos = new Vector2(0, 0);
+
+// Entity 3D shape types for rendering
+string[] entityShapes =
+[
+    "camera", "light", "capsule", "capsule", "capsule",
+    "plane", "cone", "cone", "cube", "sphere", "none", "none"
+];
+
+System.Numerics.Vector3 CameraPosition()
+{
+    float x = cameraTarget.X + cameraDistance * MathF.Cos(cameraPitch) * MathF.Cos(cameraYaw);
+    float y = cameraTarget.Y + cameraDistance * MathF.Sin(cameraPitch);
+    float z = cameraTarget.Z + cameraDistance * MathF.Cos(cameraPitch) * MathF.Sin(cameraYaw);
+    return new System.Numerics.Vector3(x, y, z);
+}
+
 // Main loop
 while (!Raylib.WindowShouldClose())
 {
@@ -212,6 +244,183 @@ while (!Raylib.WindowShouldClose())
         ClayUI.ToggleDebugWindow();
 
     ForwardKeyboardInput();
+
+    // ===== Camera Controls (when viewport is hovered) =====
+    var currentMousePos = new Vector2(mousePos.X, mousePos.Y);
+    var mouseDelta = new Vector2(currentMousePos.X - lastMousePos.X, currentMousePos.Y - lastMousePos.Y);
+    lastMousePos = currentMousePos;
+
+    if (viewportHovered)
+    {
+        // Right-click drag to orbit
+        if (Raylib.IsMouseButtonDown(MouseButton.MOUSE_BUTTON_RIGHT))
+        {
+            if (!orbitDragging) orbitDragging = true;
+            cameraYaw -= mouseDelta.X * 0.005f;
+            cameraPitch += mouseDelta.Y * 0.005f;
+            cameraPitch = Math.Clamp(cameraPitch, -1.4f, 1.4f);
+        }
+        else orbitDragging = false;
+
+        // Middle-click drag to pan
+        if (Raylib.IsMouseButtonDown(MouseButton.MOUSE_BUTTON_MIDDLE))
+        {
+            if (!panDragging) panDragging = true;
+            float panSpeed = cameraDistance * 0.003f;
+            var right = new System.Numerics.Vector3(MathF.Sin(cameraYaw), 0, -MathF.Cos(cameraYaw));
+            cameraTarget.X -= right.X * mouseDelta.X * panSpeed;
+            cameraTarget.Z -= right.Z * mouseDelta.X * panSpeed;
+            cameraTarget.Y += mouseDelta.Y * panSpeed;
+        }
+        else panDragging = false;
+
+        // Scroll to zoom
+        if (scrollDelta.Y != 0)
+        {
+            cameraDistance -= scrollDelta.Y * cameraDistance * 0.1f;
+            cameraDistance = Math.Clamp(cameraDistance, 2f, 100f);
+        }
+    }
+    else
+    {
+        orbitDragging = false;
+        panDragging = false;
+    }
+
+    // ===== Resize viewport render texture if needed =====
+    {
+        int vpW = Math.Max(1, Raylib.GetScreenWidth());
+        int vpH = Math.Max(1, Raylib.GetScreenHeight());
+        if (viewportRT.texture.width != vpW || viewportRT.texture.height != vpH)
+        {
+            Raylib.UnloadRenderTexture(viewportRT);
+            viewportRT = Raylib.LoadRenderTexture(vpW, vpH);
+            viewportData.RenderTexture = viewportRT;
+        }
+    }
+
+    // ===== Render 3D Scene to Texture =====
+    {
+        var camPos = CameraPosition();
+        var camera = new Camera3D
+        {
+            position = camPos,
+            target = cameraTarget,
+            up = new System.Numerics.Vector3(0, 1, 0),
+            fovy = 60f,
+            Projection = CameraProjection.CAMERA_PERSPECTIVE
+        };
+
+        Raylib.BeginTextureMode(viewportRT);
+        Raylib.ClearBackground(new RayColor { r = 30, g = 32, b = 38, a = 255 });
+        Raylib.BeginMode3D(camera);
+
+        // Draw grid
+        if (editorShowGrid)
+        {
+            Raylib.DrawGrid(40, 1.0f);
+        }
+
+        // Draw entities
+        for (int i = 0; i < sceneEntities.Length; i++)
+        {
+            if (!entityActive[i]) continue;
+            var pos = new System.Numerics.Vector3(entityPosX[i], entityPosY[i], entityPosZ[i]);
+            var scale = new System.Numerics.Vector3(entityScaleX[i], entityScaleY[i], entityScaleZ[i]);
+            bool isSel = i == selectedEntity;
+            var baseColor = entityTags[i] switch
+            {
+                "Player" => new RayColor { r = 50, g = 150, b = 255, a = 255 },
+                "Enemy" => new RayColor { r = 220, g = 60, b = 60, a = 255 },
+                "Environment" => new RayColor { r = 80, g = 180, b = 80, a = 255 },
+                "FX" => new RayColor { r = 255, g = 160, b = 40, a = 255 },
+                "Light" => new RayColor { r = 255, g = 240, b = 150, a = 255 },
+                "MainCamera" => new RayColor { r = 180, g = 180, b = 200, a = 255 },
+                "UI" => new RayColor { r = 150, g = 100, b = 220, a = 255 },
+                "Audio" => new RayColor { r = 100, g = 200, b = 200, a = 255 },
+                _ => new RayColor { r = 160, g = 160, b = 160, a = 255 }
+            };
+
+            switch (entityShapes[i])
+            {
+                case "capsule":
+                    Raylib.DrawCapsule(
+                        new System.Numerics.Vector3(pos.X, pos.Y, pos.Z),
+                        new System.Numerics.Vector3(pos.X, pos.Y + scale.Y * 1.5f, pos.Z),
+                        0.4f * scale.X, 8, 4, baseColor);
+                    if (isSel)
+                        Raylib.DrawCapsuleWires(
+                            new System.Numerics.Vector3(pos.X, pos.Y, pos.Z),
+                            new System.Numerics.Vector3(pos.X, pos.Y + scale.Y * 1.5f, pos.Z),
+                            0.42f * scale.X, 8, 4, Raylib.YELLOW);
+                    break;
+                case "cube":
+                    Raylib.DrawCube(pos, scale.X, scale.Y, scale.Z, baseColor);
+                    if (isSel) Raylib.DrawCubeWires(pos, scale.X + 0.05f, scale.Y + 0.05f, scale.Z + 0.05f, Raylib.YELLOW);
+                    break;
+                case "sphere":
+                    Raylib.DrawSphere(pos, 0.5f * scale.X, baseColor);
+                    if (isSel) Raylib.DrawSphereWires(pos, 0.52f * scale.X, 12, 12, Raylib.YELLOW);
+                    break;
+                case "plane":
+                    Raylib.DrawPlane(pos, new Vector2(scale.X, scale.Z), baseColor);
+                    if (isSel) Raylib.DrawCubeWires(pos, scale.X, 0.02f, scale.Z, Raylib.YELLOW);
+                    break;
+                case "cone":
+                    Raylib.DrawCylinder(pos, 0, 0.6f * scale.X, scale.Y * 2f, 8, baseColor);
+                    if (isSel) Raylib.DrawCylinderWires(pos, 0, 0.62f * scale.X, scale.Y * 2f + 0.04f, 8, Raylib.YELLOW);
+                    break;
+                case "light":
+                    // Draw a small sphere for light
+                    Raylib.DrawSphere(pos, 0.3f, baseColor);
+                    if (isSel) Raylib.DrawSphereWires(pos, 0.32f, 8, 8, Raylib.YELLOW);
+                    // Draw light direction line
+                    Raylib.DrawLine3D(pos, new System.Numerics.Vector3(pos.X, pos.Y - 3, pos.Z), baseColor);
+                    break;
+                case "camera":
+                    // Draw camera as a small wireframe box
+                    Raylib.DrawCube(pos, 0.6f, 0.4f, 0.8f, baseColor);
+                    Raylib.DrawCubeWires(pos, 0.6f, 0.4f, 0.8f, isSel ? Raylib.YELLOW : Raylib.DARKGRAY);
+                    // Lens cone
+                    Raylib.DrawCylinder(
+                        new System.Numerics.Vector3(pos.X, pos.Y, pos.Z - 0.5f),
+                        0.15f, 0.3f, 0.3f, 6, baseColor);
+                    break;
+            }
+
+            // Draw gizmo for selected entity
+            if (isSel && editorShowGizmos)
+            {
+                float gizLen = 1.5f;
+                // X axis - red
+                Raylib.DrawLine3D(pos, new System.Numerics.Vector3(pos.X + gizLen, pos.Y, pos.Z),
+                    new RayColor { r = 230, g = 50, b = 50, a = 255 });
+                // Y axis - green
+                Raylib.DrawLine3D(pos, new System.Numerics.Vector3(pos.X, pos.Y + gizLen, pos.Z),
+                    new RayColor { r = 50, g = 230, b = 50, a = 255 });
+                // Z axis - blue
+                Raylib.DrawLine3D(pos, new System.Numerics.Vector3(pos.X, pos.Y, pos.Z + gizLen),
+                    new RayColor { r = 50, g = 100, b = 230, a = 255 });
+            }
+        }
+
+        Raylib.EndMode3D();
+
+        // Draw viewport overlay text
+        Raylib.DrawText($"FPS: {Raylib.GetFPS()}", 10, 10,
+            16, new RayColor { r = 200, g = 200, b = 200, a = 180 });
+
+        if (isPlaying)
+        {
+            Raylib.DrawText("PLAY MODE", viewportRT.texture.width / 2 - 60, 10,
+                20, new RayColor { r = 60, g = 200, b = 80, a = 220 });
+            if (isPaused)
+                Raylib.DrawText("PAUSED", viewportRT.texture.width / 2 - 40, 34,
+                    16, new RayColor { r = 230, g = 180, b = 50, a = 220 });
+        }
+
+        Raylib.EndTextureMode();
+    }
 
     // ===== Root Layout =====
     ClayUI.BeginVertical(gap: 0, style: new LayoutStyle
@@ -292,6 +501,7 @@ while (!Raylib.WindowShouldClose())
     Raylib.EndDrawing();
 }
 
+Raylib.UnloadRenderTexture(viewportRT);
 Clay.Clay.Shutdown();
 Raylib.CloseWindow();
 
@@ -604,48 +814,20 @@ void RenderHierarchyContent()
 
 void RenderViewportContent()
 {
-    // Viewport content area (simulated 3D view)
-    ClayUI.Spacer();
-
-    // Center info overlay
-    ClayUI.BeginHorizontal(alignment: ChildAlignment.Center, style: new LayoutStyle
+    // Emit a Custom element that fills the viewport — the renderer will blit the 3D texture here
+    var vpId = Clay.Clay.Id("ViewportTexture");
+    using (Clay.Clay.Element(new ElementDeclaration
     {
-        Sizing = new Sizing(SizingAxis.Grow(), SizingAxis.Fit())
-    });
-    ClayUI.BeginVertical(gap: 8, alignment: ChildAlignment.Center, style: new LayoutStyle
+        Id = vpId,
+        Layout = new LayoutConfig { Sizing = Sizing.Fill() },
+        Custom = CustomConfig.Create(viewportData)
+    }))
     {
-        Padding = Padding.All(20),
-        BackgroundColor = Color.Rgba(0, 0, 0, 80),
-        CornerRadius = CornerRadius.All(8),
-        ClipContent = true
-    });
-
-    if (isPlaying)
-    {
-        ClayUI.Heading("PLAY MODE", new HeadingStyle { TextColor = colSuccess, FontSize = 18 });
-        ClayUI.Label($"Scene: MainScene  |  Time: {playTime:F2}s  |  FPS: {Raylib.GetFPS()}", new LabelStyle { TextColor = colText, FontSize = 13 });
-        if (isPaused)
-            ClayUI.Label("PAUSED", new LabelStyle { TextColor = colWarning, FontSize = 14 });
-    }
-    else
-    {
-        ClayUI.Label("3D Scene Viewport", new LabelStyle { TextColor = colTextDim, FontSize = 14 });
-        ClayUI.Label($"Selected: {sceneEntities[selectedEntity]}  |  FPS: {Raylib.GetFPS()}", new LabelStyle { TextColor = colText, FontSize = 13 });
-        ClayUI.Label($"Tool: {(gizmoMode == 0 ? "Move" : gizmoMode == 1 ? "Rotate" : "Scale")} ({(gizmoLocal ? "Local" : "Global")})", new LabelStyle { TextColor = colTextDim, FontSize = 12 });
+        // No children — the Custom render handler draws the 3D scene texture
     }
 
-    ClayUI.EndVertical();
-    ClayUI.EndHorizontal();
-
-    ClayUI.Spacer();
-
-    // Bottom-left camera info
-    ClayUI.BeginHorizontal(style: new LayoutStyle
-    {
-        Padding = Padding.Symmetric(8, 4)
-    });
-    ClayUI.Label("Persp  |  Free Camera  |  FOV: 60", new LabelStyle { TextColor = Color.Rgba(100, 100, 110), FontSize = 11 });
-    ClayUI.EndHorizontal();
+    // Track hover state for camera controls
+    viewportHovered = Clay.Clay.PointerOver(vpId);
 }
 
 // ============ Inspector Panel ============

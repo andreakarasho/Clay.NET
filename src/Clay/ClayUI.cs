@@ -922,14 +922,21 @@ public static class ClayUI
 
         var skinImg = sk.Background.HasImages ? sk.Background.ForState(isPressed, isHovered) : default;
 
+        var layout = new LayoutConfig
+        {
+            Padding = s.Padding,
+            ChildAlignment = ChildAlignment.Center
+        };
+        if (s.HasSizing)
+        {
+            layout.Sizing = s.Sizing;
+            layout.ClipContent = true;
+        }
+
         using (Clay.Element(new ElementDeclaration
         {
             Id = id,
-            Layout = new LayoutConfig
-            {
-                Padding = s.Padding,
-                ChildAlignment = ChildAlignment.Center
-            },
+            Layout = layout,
             BackgroundColor = skinImg.HasImage ? Color.Transparent : DisabledColor(bgColor),
             CornerRadius = skinImg.HasImage ? CornerRadius.Zero : s.CornerRadius,
             Image = skinImg.HasImage ? SkinToImageConfig(skinImg) : default
@@ -6526,6 +6533,9 @@ public struct ButtonStyle
     private ushort _fontSize = 14;
     public ushort FontSize { get => _fontSize; set { _fontSize = value; _set |= 1u << 7; } }
 
+    private Sizing _sizing;
+    public Sizing Sizing { get => _sizing; set { _sizing = value; _set |= 1u << 8; } }
+
     public ButtonStyle MergeOver(ButtonStyle @base)
     {
         var result = @base;
@@ -6537,8 +6547,12 @@ public struct ButtonStyle
         if ((_set & (1u << 5)) != 0) result._cornerRadius = _cornerRadius;
         if ((_set & (1u << 6)) != 0) result._fontId = _fontId;
         if ((_set & (1u << 7)) != 0) result._fontSize = _fontSize;
+        if ((_set & (1u << 8)) != 0) result._sizing = _sizing;
+        result._set = @base._set | _set;
         return result;
     }
+
+    internal bool HasSizing => (_set & (1u << 8)) != 0;
 }
 
 public struct ImageStyle

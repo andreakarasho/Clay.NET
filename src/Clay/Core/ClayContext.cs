@@ -1245,6 +1245,28 @@ public class ClayContext : IDisposable
             });
         }
 
+        // Image (skin background — drawn behind children/text)
+        int imageIndex = FindConfigIndex(ref element, ElementConfigType.Image);
+        if (imageIndex >= 0)
+        {
+            ref var imageConfig = ref ImageElementConfigs[imageIndex];
+            RenderCommands.Add(new RenderCommand
+            {
+                BoundingBox = boundingBox,
+                CommandType = RenderCommandType.Image,
+                Id = element.Id,
+                ZIndex = zIndex,
+                Image = new ImageRenderData
+                {
+                    ImageData = imageConfig.ImageData,
+                    SourceDimensions = imageConfig.SourceDimensions,
+                    BackgroundColor = imageConfig.Tint.A > 0 ? imageConfig.Tint : sharedConfig.BackgroundColor,
+                    CornerRadius = sharedConfig.CornerRadius,
+                    Slice = imageConfig.Slice
+                }
+            });
+        }
+
         // Scissor start (for scroll containers or ClipContent elements)
         bool needsScissor = scrollIndex >= 0 ||
             LayoutConfigs[element.LayoutConfigIndex].ClipContent;
@@ -1368,28 +1390,6 @@ public class ClayContext : IDisposable
                     }
                 });
             }
-        }
-
-        // Image
-        int imageIndex = FindConfigIndex(ref element, ElementConfigType.Image);
-        if (imageIndex >= 0)
-        {
-            ref var imageConfig = ref ImageElementConfigs[imageIndex];
-            RenderCommands.Add(new RenderCommand
-            {
-                BoundingBox = boundingBox,
-                CommandType = RenderCommandType.Image,
-                Id = element.Id,
-                ZIndex = zIndex,
-                Image = new ImageRenderData
-                {
-                    ImageData = imageConfig.ImageData,
-                    SourceDimensions = imageConfig.SourceDimensions,
-                    BackgroundColor = imageConfig.Tint.A > 0 ? imageConfig.Tint : sharedConfig.BackgroundColor,
-                    CornerRadius = sharedConfig.CornerRadius,
-                    Slice = imageConfig.Slice
-                }
-            });
         }
 
         // Custom
