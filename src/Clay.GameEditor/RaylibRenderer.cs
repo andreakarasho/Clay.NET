@@ -255,6 +255,18 @@ public class RaylibRenderer : IClayRenderer
             RenderTextInput(box, widget);
         else if (data.CustomData is HsvGradientData gradient)
             RenderHsvGradient(box, gradient);
+        else if (data.CustomData is ViewportTextureData viewport)
+            RenderViewportTexture(box, viewport);
+    }
+
+    public void RenderViewportTexture(BoundingBox box, ViewportTextureData viewport)
+    {
+        if (viewport.RenderTexture is not RenderTexture rt) return;
+        var texture = rt.texture;
+        // RenderTexture is flipped vertically, so we use negative height in source rect
+        var source = new Rectangle(0, 0, texture.width, -texture.height);
+        var dest = new Rectangle(box.X, box.Y, box.Width, box.Height);
+        Raylib.DrawTexturePro(texture, source, dest, new System.Numerics.Vector2(0, 0), 0, Raylib.WHITE);
     }
 
     private unsafe void RenderHsvGradient(BoundingBox box, HsvGradientData gradient)
@@ -349,7 +361,7 @@ public class RaylibRenderer : IClayRenderer
             int selEnd = Math.Max(widget.SelectionStart, widget.SelectionEnd);
             var selColor = ToRayColor(style.SelectionColor);
             int pos = 0, row = 0;
-            string text = widget.Text;
+            string text = widget.DisplayText;
             while (pos <= text.Length && pos < selEnd)
             {
                 int lineStart = pos;
@@ -375,7 +387,7 @@ public class RaylibRenderer : IClayRenderer
         {
             var font = _fonts[style.FontId];
             var textColor = ToRayColor(style.TextColor);
-            string text = widget.Text;
+            string text = widget.DisplayText;
             int lineStart = 0, row = 0;
             while (row < firstVisibleRow && lineStart <= text.Length)
             {

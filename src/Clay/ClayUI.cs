@@ -1380,9 +1380,10 @@ public static class ClayUI
     /// <param name="text">Reference to the text string. Updated when the user edits it.</param>
     /// <param name="style">Visual style. Use <see cref="TextInputStyle.Default"/> or customize.</param>
     /// <param name="singleLine">Block newlines and make up/down act as left/right.</param>
-    public static bool TextInput(string label, ref string text, TextInputStyle? style = null, bool singleLine = true)
+    public static bool TextInput(string label, ref string text, TextInputStyle? style = null, bool singleLine = true, bool password = false)
     {
         var s = style ?? DefaultTextInputStyle;
+        if (password) s.Password = true;
         var id = StableId(label);
 
         if (IsDisabled)

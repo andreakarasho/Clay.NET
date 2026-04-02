@@ -55,6 +55,17 @@ public struct TextInputStyle
     public Func<char, bool>? CharFilter;
 
     /// <summary>
+    /// When true, displays mask characters instead of the actual text (for password fields).
+    /// The underlying text value is unaffected.
+    /// </summary>
+    public bool Password;
+
+    /// <summary>
+    /// The character used to mask text when <see cref="Password"/> is true. Defaults to '*'.
+    /// </summary>
+    public char PasswordChar;
+
+    /// <summary>
     /// When true, the text input ignores all pointer interaction (click-to-focus, drag selection).
     /// Set by ClayUI when inside a disabled region.
     /// </summary>
