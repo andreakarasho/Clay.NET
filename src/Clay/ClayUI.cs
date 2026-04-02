@@ -3972,6 +3972,13 @@ public static class ClayUI
         bool isHovered = IsHovered(id) && enabled;
         bool clicked = isHovered && ShouldProcessClick;
 
+        // Participate in the hovered-menu-item system so sibling submenus close
+        if (isHovered && _context.HoveredMenuItemId != id.Id)
+        {
+            _context.HoveredMenuItemId = id.Id;
+            _context.HoveredMenuItemTime = 0;
+        }
+
         var s = Style.Popup;
         var textColor = enabled ? Color.White : Color.Rgba(120, 120, 125);
         var bgColor = isHovered ? Color.Rgba(60, 60, 70) : Color.Transparent;
@@ -4257,7 +4264,13 @@ public static class ClayUI
             });
         }
 
-        return BeginPopup(menuKey, s with { Offset = default });
+        bool result = BeginPopup(menuKey, s with { Offset = default });
+        if (result)
+        {
+            // Track depth so EndMenu doesn't prematurely restore InsideMenuBar
+            _context.MenuBarMenuDepth++;
+        }
+        return result;
     }
 
     /// <summary>
