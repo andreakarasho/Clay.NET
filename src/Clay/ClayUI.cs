@@ -1633,7 +1633,11 @@ public static class ClayUI
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static bool IsHovered(ElementId id)
     {
-        return !IsDisabled && Clay.PointerOver(id);
+        if (IsDisabled) return false;
+        if (!IsInsidePopup && IsMouseOverAnyPopup) return false;
+        if (IsInsideWindow && !IsCurrentWindowTopmost) return false;
+        if (!IsInsideWindow && !IsInsidePopup && IsMouseOverAnyWindow) return false;
+        return Clay.PointerOver(id);
     }
 
     /// <summary>
