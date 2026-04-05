@@ -89,29 +89,38 @@ public class ClayUITreeNodeTests : IDisposable
     [Fact]
     public void TreeNode_Click_TogglesExpanded()
     {
-        bool expandedFrame2 = false;
+        bool expandedFrame3 = false;
 
-        // Frame 1: node is collapsed (default)
-        _fixture.RunFrame(() =>
+        Action buildUi = () =>
         {
             var expanded = ClayUI.BeginTreeNode("Toggle Node");
-            if (expanded) ClayUI.EndTreeNode();
-        });
+            if (expanded)
+            {
+                ClayUI.Label("Now visible");
+                ClayUI.EndTreeNode();
+            }
+        };
 
-        // Frame 2: click on the node header to expand it
+        // Frame 1: establish bounding boxes (collapsed, no interaction)
+        _fixture.RunFrame(buildUi);
+
+        // Frame 2: press down on the node header
+        _fixture.RunFrame(buildUi, mousePos: new Vector2(30, 5), mouseDown: true);
+
+        // Frame 3: release — click fires on mouse release
         _fixture.RunFrame(() =>
         {
-            expandedFrame2 = ClayUI.BeginTreeNode("Toggle Node");
-            if (expandedFrame2)
+            expandedFrame3 = ClayUI.BeginTreeNode("Toggle Node");
+            if (expandedFrame3)
             {
                 ClayUI.Label("Now visible");
                 ClayUI.EndTreeNode();
             }
         },
         mousePos: new Vector2(30, 5),
-        mouseDown: true);
+        mouseDown: false);
 
-        Assert.True(expandedFrame2, "Clicking tree node header should expand it");
+        Assert.True(expandedFrame3, "Clicking tree node header should expand it");
     }
 
     [Fact]

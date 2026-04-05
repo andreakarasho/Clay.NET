@@ -59,21 +59,21 @@ public class ClayUIListBoxComboTests : IDisposable
     public void ListBoxItem_Clicked_ReturnsTrue()
     {
         bool clicked = false;
-        // First frame: establish layout
-        _fixture.RunFrame(() =>
-        {
-            ClayUI.BeginListBox("ClickList2");
-            ClayUI.ListBoxItem("Item A##cl2_a", isSelected: false);
-            ClayUI.EndListBox();
-        });
-
-        // Second frame: click on the item area (top-left region)
-        _fixture.RunFrame(() =>
+        Action buildUi = () =>
         {
             ClayUI.BeginListBox("ClickList2");
             clicked = ClayUI.ListBoxItem("Item A##cl2_a", isSelected: false);
             ClayUI.EndListBox();
-        }, mousePos: new Vector2(30, 30), mouseDown: true);
+        };
+
+        // Frame 1: establish layout
+        _fixture.RunFrame(buildUi);
+
+        // Frame 2: press down on the item
+        _fixture.RunFrame(buildUi, mousePos: new Vector2(30, 30), mouseDown: true);
+
+        // Frame 3: release — click fires on mouse release
+        _fixture.RunFrame(buildUi, mousePos: new Vector2(30, 30), mouseDown: false);
 
         Assert.True(clicked);
     }

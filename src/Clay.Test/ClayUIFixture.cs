@@ -62,12 +62,20 @@ public sealed class ClayUIFixture : IDisposable
     }
 
     /// <summary>
-    /// Simulates a click: runs frame 1 (no press), frame 2 (press down), returns frame 2 commands.
+    /// Simulates a click: runs frame 1 (establish bounds), frame 2 (press down),
+    /// frame 3 (release — triggers click). Returns frame 3 commands.
     /// The buildUi action can capture return values via closures.
     /// </summary>
     public ReadOnlySpan<RenderCommand> Click(Action buildUi, Vector2 mousePos)
     {
-        return RunTwoFrames(buildUi, mousePos, mouseDown: true);
+        // Frame 1: establish bounding boxes (no interaction)
+        RunFrame(buildUi, mousePos, mouseDown: false);
+
+        // Frame 2: press down
+        RunFrame(buildUi, mousePos, mouseDown: true);
+
+        // Frame 3: release — ShouldProcessClick fires on mouse release
+        return RunFrame(buildUi, mousePos, mouseDown: false);
     }
 
     public void Dispose()
