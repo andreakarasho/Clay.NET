@@ -44,13 +44,21 @@ public struct ErrorData
 public delegate void ErrorHandler(ErrorData errorData);
 
 /// <summary>
+/// Callback invoked during hover detection to allow custom hit-testing (e.g., pixel-perfect picking).
+/// Return true if the point should count as hitting the element, false to discard.
+/// </summary>
+public delegate bool HitTestHandler(ElementId id, BoundingBox bounds, Vector2 point);
+
+/// <summary>
 /// The main Clay context containing all state for layout computation.
 /// </summary>
+
 public class ClayContext : IDisposable
 {
     // Configuration
     public int MaxElementCount;
     public ErrorHandler? OnError;
+    public HitTestHandler? CustomHitTest;
 
     // State
     public BooleanWarnings Warnings;
@@ -1453,6 +1461,9 @@ public class ClayContext : IDisposable
         // be within the scroll container's clip bounds (scissor region).
         if (item.HasClipBounds && !item.ClipBounds.Contains(PointerInfo.Position))
             return false;
+
+        if (CustomHitTest != null)
+            return CustomHitTest(elementId, item.BoundingBox, PointerInfo.Position);
 
         return true;
     }

@@ -144,6 +144,17 @@ public static partial class Clay
     }
 
     /// <summary>
+    /// Global custom hit-test callback. When set, invoked for every PointerOver check
+    /// after the bounding box test passes. Return false to discard the hover
+    /// (e.g., for pixel-perfect picking of transparent pixels).
+    /// </summary>
+    public static HitTestHandler? CustomHitTest
+    {
+        get => _context?.CustomHitTest;
+        set { if (_context != null) _context.CustomHitTest = value; }
+    }
+
+    /// <summary>
     /// Returns true if the pointer is currently over the element with the given ID.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
