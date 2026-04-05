@@ -223,3 +223,148 @@ public class ElementDeclarationTests
         Assert.True(decl.CornerRadius.HasRadius);
     }
 }
+
+public class ShadowConfigTests
+{
+    [Fact]
+    public void Default_HasNoShadow()
+    {
+        Assert.False(new ShadowConfig().HasShadow);
+    }
+
+    [Fact]
+    public void Drop_HasShadow()
+    {
+        var s = ShadowConfig.Drop(2, 4, 8, Color.Black);
+        Assert.True(s.HasShadow);
+        Assert.Equal(2f, s.OffsetX);
+        Assert.Equal(4f, s.OffsetY);
+        Assert.Equal(8f, s.BlurRadius);
+    }
+
+    [Fact]
+    public void Uniform_SetsEqualOffset()
+    {
+        var s = ShadowConfig.Uniform(5, 10, Color.Black);
+        Assert.Equal(5f, s.OffsetX);
+        Assert.Equal(5f, s.OffsetY);
+        Assert.Equal(10f, s.BlurRadius);
+    }
+
+    [Fact]
+    public void Ambient_HasZeroOffset()
+    {
+        var s = ShadowConfig.Ambient(12, Color.Black);
+        Assert.Equal(0f, s.OffsetX);
+        Assert.Equal(0f, s.OffsetY);
+        Assert.Equal(12f, s.BlurRadius);
+    }
+
+    [Fact]
+    public void Create_SetsAllFields()
+    {
+        var s = ShadowConfig.Create(1, 2, 3, 4, Color.Red);
+        Assert.Equal(1f, s.OffsetX);
+        Assert.Equal(2f, s.OffsetY);
+        Assert.Equal(3f, s.BlurRadius);
+        Assert.Equal(4f, s.SpreadRadius);
+    }
+
+    [Fact]
+    public void HasShadow_TransparentColor_ReturnsFalse()
+    {
+        var s = ShadowConfig.Drop(5, 5, 10, Color.Transparent);
+        Assert.False(s.HasShadow);
+    }
+}
+
+public class FloatingAttachPointsTests
+{
+    [Fact]
+    public void TopLeft_HasCorrectValues()
+    {
+        Assert.Equal(FloatingAttachPoint.LeftTop, FloatingAttachPoints.TopLeft.Element);
+        Assert.Equal(FloatingAttachPoint.LeftTop, FloatingAttachPoints.TopLeft.Parent);
+    }
+
+    [Fact]
+    public void Center_HasCorrectValues()
+    {
+        Assert.Equal(FloatingAttachPoint.CenterCenter, FloatingAttachPoints.Center.Element);
+        Assert.Equal(FloatingAttachPoint.CenterCenter, FloatingAttachPoints.Center.Parent);
+    }
+
+    [Fact]
+    public void BottomRight_HasCorrectValues()
+    {
+        Assert.Equal(FloatingAttachPoint.RightBottom, FloatingAttachPoints.BottomRight.Element);
+        Assert.Equal(FloatingAttachPoint.RightBottom, FloatingAttachPoints.BottomRight.Parent);
+    }
+}
+
+public class FloatingConfigExtendedTests
+{
+    [Fact]
+    public void AttachToElement_SetsParentId()
+    {
+        var c = FloatingConfig.AttachToElement(42, zIndex: 3);
+        Assert.True(c.IsFloating);
+        Assert.Equal(FloatingAttachTo.ElementWithId, c.AttachTo);
+        Assert.Equal(42u, c.ParentId);
+        Assert.Equal(3, c.ZIndex);
+    }
+
+    [Fact]
+    public void Absolute_SetsRootAttach()
+    {
+        var c = FloatingConfig.Absolute(100, 200, zIndex: 1);
+        Assert.True(c.IsFloating);
+        Assert.Equal(FloatingAttachTo.Root, c.AttachTo);
+        Assert.Equal(100f, c.Offset.X);
+        Assert.Equal(200f, c.Offset.Y);
+        Assert.Equal(1, c.ZIndex);
+    }
+
+    [Fact]
+    public void IsFloating_None_ReturnsFalse()
+    {
+        Assert.False(new FloatingConfig { AttachTo = FloatingAttachTo.None }.IsFloating);
+    }
+
+    [Fact]
+    public void IsFloating_Parent_ReturnsTrue()
+    {
+        Assert.True(new FloatingConfig { AttachTo = FloatingAttachTo.Parent }.IsFloating);
+    }
+}
+
+public class SharedElementConfigTests
+{
+    [Fact]
+    public void HasBackgroundColor_Transparent_ReturnsFalse()
+    {
+        var c = new SharedElementConfig { BackgroundColor = Color.Transparent };
+        Assert.False(c.HasBackgroundColor);
+    }
+
+    [Fact]
+    public void HasBackgroundColor_Opaque_ReturnsTrue()
+    {
+        var c = new SharedElementConfig { BackgroundColor = Color.Red };
+        Assert.True(c.HasBackgroundColor);
+    }
+
+    [Fact]
+    public void HasCornerRadius_Zero_ReturnsFalse()
+    {
+        var c = new SharedElementConfig { CornerRadius = CornerRadius.Zero };
+        Assert.False(c.HasCornerRadius);
+    }
+
+    [Fact]
+    public void HasCornerRadius_NonZero_ReturnsTrue()
+    {
+        var c = new SharedElementConfig { CornerRadius = CornerRadius.All(5) };
+        Assert.True(c.HasCornerRadius);
+    }
+}

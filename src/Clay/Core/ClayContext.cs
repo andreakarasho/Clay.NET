@@ -65,6 +65,7 @@ public class ClayContext : IDisposable
     public PointerData PointerInfo;
     public Dimensions LayoutDimensions;
     public uint Generation;
+    public float DeltaTime;
     public bool DebugModeEnabled;
     public bool CullingDisabled;
 
@@ -144,8 +145,9 @@ public class ClayContext : IDisposable
     /// <summary>
     /// Begins a new layout frame.
     /// </summary>
-    public void BeginLayout()
+    public void BeginLayout(float deltaTime = 0)
     {
+        DeltaTime = deltaTime;
         TextInput?.BeginFrame();
         Warnings = default;
         Generation++;

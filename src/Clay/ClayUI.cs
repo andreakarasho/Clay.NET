@@ -576,7 +576,7 @@ public static class ClayUI
         }
 
         // Begin layout pass (this calls TextInput.BeginFrame which resets per-frame state)
-        Clay.BeginLayout();
+        Clay.BeginLayout(deltaTime);
 
         // Forward scroll delta to text inputs AFTER BeginLayout so it isn't cleared
         // by TextInput.BeginFrame() which runs inside BeginLayout.

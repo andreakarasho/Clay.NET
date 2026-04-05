@@ -48,10 +48,11 @@ public static partial class Clay
     /// <summary>
     /// Begins a new layout frame.
     /// </summary>
+    /// <param name="deltaTime">Time since last frame in seconds (used for caret blinking, animations).</param>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static void BeginLayout()
+    public static void BeginLayout(float deltaTime = 0)
     {
-        _context?.BeginLayout();
+        _context?.BeginLayout(deltaTime);
     }
 
     /// <summary>

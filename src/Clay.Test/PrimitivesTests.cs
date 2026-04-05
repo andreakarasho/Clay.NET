@@ -335,3 +335,193 @@ public class ElementIdTests
         Assert.Equal("A", display.ToString());
     }
 }
+
+public class NineSliceTests
+{
+    [Fact]
+    public void Uniform_SetsAllSides()
+    {
+        var ns = NineSlice.Uniform(10);
+        Assert.Equal(10f, ns.Top);
+        Assert.Equal(10f, ns.Right);
+        Assert.Equal(10f, ns.Bottom);
+        Assert.Equal(10f, ns.Left);
+    }
+
+    [Fact]
+    public void Symmetric_SetsHorizontalVertical()
+    {
+        var ns = NineSlice.Symmetric(10, 20);
+        Assert.Equal(20f, ns.Top);
+        Assert.Equal(10f, ns.Right);
+        Assert.Equal(20f, ns.Bottom);
+        Assert.Equal(10f, ns.Left);
+    }
+
+    [Fact]
+    public void TRBL_SetsIndividualSides()
+    {
+        var ns = NineSlice.TRBL(1, 2, 3, 4);
+        Assert.Equal(1f, ns.Top);
+        Assert.Equal(2f, ns.Right);
+        Assert.Equal(3f, ns.Bottom);
+        Assert.Equal(4f, ns.Left);
+    }
+
+    [Fact]
+    public void HasSlice_ZeroReturnsFalse()
+    {
+        Assert.False(NineSlice.Zero.HasSlice);
+    }
+
+    [Fact]
+    public void HasSlice_NonZeroReturnsTrue()
+    {
+        Assert.True(NineSlice.Uniform(5).HasSlice);
+    }
+
+    [Fact]
+    public void HasSlice_SingleSideReturnsTrue()
+    {
+        Assert.True(new NineSlice(0, 0, 0, 1).HasSlice);
+    }
+
+    [Fact]
+    public void Constructor_SetsAllFields()
+    {
+        var ns = new NineSlice(1, 2, 3, 4);
+        Assert.Equal(1f, ns.Top);
+        Assert.Equal(2f, ns.Right);
+        Assert.Equal(3f, ns.Bottom);
+        Assert.Equal(4f, ns.Left);
+    }
+}
+
+public class ColorExtendedTests
+{
+    [Fact]
+    public void FromNormalized_ScalesTo255()
+    {
+        var c = Color.FromNormalized(1f, 0.5f, 0f, 1f);
+        Assert.Equal(255f, c.R);
+        Assert.InRange(c.G, 127f, 128f);
+        Assert.Equal(0f, c.B);
+        Assert.Equal(255f, c.A);
+    }
+
+    [Fact]
+    public void FromHex_6Digit_AddsFullAlpha()
+    {
+        var c = Color.FromHex(0xFF0000);
+        Assert.Equal(255f, c.R);
+        Assert.Equal(0f, c.G);
+        Assert.Equal(0f, c.B);
+        Assert.Equal(255f, c.A);
+    }
+
+    [Fact]
+    public void FromHsv_Red()
+    {
+        var c = Color.FromHsv(0, 1, 1);
+        Assert.InRange(c.R, 254f, 255f);
+        Assert.InRange(c.G, 0f, 1f);
+        Assert.InRange(c.B, 0f, 1f);
+    }
+
+    [Fact]
+    public void FromHsv_Green()
+    {
+        var c = Color.FromHsv(120, 1, 1);
+        Assert.InRange(c.G, 254f, 255f);
+    }
+
+    [Fact]
+    public void FromHsv_Blue()
+    {
+        var c = Color.FromHsv(240, 1, 1);
+        Assert.InRange(c.B, 254f, 255f);
+    }
+
+    [Fact]
+    public void FromHsv_Cyan()
+    {
+        var c = Color.FromHsv(180, 1, 1);
+        Assert.InRange(c.G, 254f, 255f);
+        Assert.InRange(c.B, 254f, 255f);
+    }
+
+    [Fact]
+    public void FromHsv_Yellow()
+    {
+        var c = Color.FromHsv(60, 1, 1);
+        Assert.InRange(c.R, 254f, 255f);
+        Assert.InRange(c.G, 254f, 255f);
+    }
+
+    [Fact]
+    public void FromHsv_Magenta()
+    {
+        var c = Color.FromHsv(300, 1, 1);
+        Assert.InRange(c.R, 254f, 255f);
+        Assert.InRange(c.B, 254f, 255f);
+    }
+
+    [Fact]
+    public void ToHsv_Red_ReturnsCorrectHue()
+    {
+        var (h, s, v) = Color.Red.ToHsv();
+        Assert.InRange(h, 0f, 1f);
+        Assert.InRange(s, 0.99f, 1f);
+        Assert.InRange(v, 0.99f, 1f);
+    }
+
+    [Fact]
+    public void ToHsv_Black_ReturnsZeroSV()
+    {
+        var (_, s, v) = Color.Black.ToHsv();
+        Assert.Equal(0f, s);
+        Assert.Equal(0f, v);
+    }
+
+    [Fact]
+    public void ToHsv_White_ReturnsZeroSaturation()
+    {
+        var (_, s, v) = Color.White.ToHsv();
+        Assert.Equal(0f, s);
+        Assert.InRange(v, 0.99f, 1f);
+    }
+
+    [Fact]
+    public void ToHsv_Gray_ReturnsZeroSaturation()
+    {
+        var (_, s, _) = Color.Gray.ToHsv();
+        Assert.Equal(0f, s);
+    }
+
+    [Fact]
+    public void Constructor_DefaultAlpha255()
+    {
+        var c = new Color(100, 50, 25);
+        Assert.Equal(255f, c.A);
+    }
+
+    [Fact]
+    public void ToString_FormatsCorrectly()
+    {
+        Assert.Equal("rgba(255, 0, 0, 255)", Color.Red.ToString());
+    }
+
+    [Fact]
+    public void StaticColors_AreOpaque()
+    {
+        Assert.True(Color.White.IsVisible);
+        Assert.True(Color.Black.IsVisible);
+        Assert.True(Color.Red.IsVisible);
+        Assert.True(Color.Green.IsVisible);
+        Assert.True(Color.Blue.IsVisible);
+        Assert.True(Color.Yellow.IsVisible);
+        Assert.True(Color.Cyan.IsVisible);
+        Assert.True(Color.Magenta.IsVisible);
+        Assert.True(Color.Gray.IsVisible);
+    }
+}

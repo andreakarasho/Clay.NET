@@ -521,4 +521,349 @@ public class ClayUIDockTests : IDisposable
         });
         Assert.NotEqual(0u, dockId);
     }
+
+    // ============ DockLayout (setup callback API) ============
+
+    [Fact]
+    public void DockLayout_SetupCallback_WindowOnRoot()
+    {
+        bool open = true;
+        _fixture.RunFrame(() =>
+        {
+            ClayUI.BeginDockSpace("DLRoot", layout =>
+            {
+                layout.Window("SingleWindow");
+            });
+
+            ClayUI.BeginWindow("SingleWindow", ref open);
+            ClayUI.Label("Content");
+            ClayUI.EndWindow();
+
+            ClayUI.EndDockSpace();
+        });
+
+        Assert.True(DockBuilder.HasLayout("DLRoot"));
+        Assert.True(ClayUI.IsWindowDocked("SingleWindow"));
+    }
+
+    [Fact]
+    public void DockLayout_SetupCallback_SplitRoot()
+    {
+        bool leftOpen = true, rightOpen = true;
+        _fixture.RunFrame(() =>
+        {
+            ClayUI.BeginDockSpace("DLSplit", layout =>
+            {
+                var (left, right) = layout.Split(DockSplitDirection.Horizontal, 0.5f);
+                layout.Window(left, "LeftWin");
+                layout.Window(right, "RightWin");
+            });
+
+            ClayUI.BeginWindow("LeftWin", ref leftOpen);
+            ClayUI.Label("Left");
+            ClayUI.EndWindow();
+
+            ClayUI.BeginWindow("RightWin", ref rightOpen);
+            ClayUI.Label("Right");
+            ClayUI.EndWindow();
+
+            ClayUI.EndDockSpace();
+        });
+
+        Assert.True(DockBuilder.HasLayout("DLSplit"));
+        Assert.True(ClayUI.IsWindowDocked("LeftWin"));
+        Assert.True(ClayUI.IsWindowDocked("RightWin"));
+    }
+
+    [Fact]
+    public void DockLayout_SetupCallback_NestedSplits()
+    {
+        bool w1 = true, w2 = true, w3 = true;
+        _fixture.RunFrame(() =>
+        {
+            ClayUI.BeginDockSpace("DLNested", layout =>
+            {
+                var (top, bottom) = layout.Split(DockSplitDirection.Vertical, 0.7f);
+                var (topLeft, topRight) = layout.Split(top, DockSplitDirection.Horizontal, 0.4f);
+                layout.Window(topLeft, "Explorer");
+                layout.Window(topRight, "Editor");
+                layout.Window(bottom, "Console");
+            });
+
+            ClayUI.BeginWindow("Explorer", ref w1);
+            ClayUI.Label("Explorer");
+            ClayUI.EndWindow();
+
+            ClayUI.BeginWindow("Editor", ref w2);
+            ClayUI.Label("Editor");
+            ClayUI.EndWindow();
+
+            ClayUI.BeginWindow("Console", ref w3);
+            ClayUI.Label("Console");
+            ClayUI.EndWindow();
+
+            ClayUI.EndDockSpace();
+        });
+
+        Assert.True(DockBuilder.HasLayout("DLNested"));
+    }
+
+    [Fact]
+    public void DockLayout_SetupCallback_MultipleWindowsSameLeaf()
+    {
+        bool w1 = true, w2 = true;
+        _fixture.RunFrame(() =>
+        {
+            ClayUI.BeginDockSpace("DLMulti", layout =>
+            {
+                layout.Window("Tab1");
+                layout.Window("Tab2");
+            });
+
+            ClayUI.BeginWindow("Tab1", ref w1);
+            ClayUI.Label("Tab1");
+            ClayUI.EndWindow();
+
+            ClayUI.BeginWindow("Tab2", ref w2);
+            ClayUI.Label("Tab2");
+            ClayUI.EndWindow();
+
+            ClayUI.EndDockSpace();
+        });
+
+        Assert.True(DockBuilder.HasLayout("DLMulti"));
+    }
+
+    [Fact]
+    public void DockLayout_SetupCallback_RunsOnlyOnce()
+    {
+        int callCount = 0;
+        bool open = true;
+
+        for (int i = 0; i < 3; i++)
+        {
+            _fixture.RunFrame(() =>
+            {
+                ClayUI.BeginDockSpace("DLOnce", layout =>
+                {
+                    callCount++;
+                    layout.Window("Win");
+                });
+
+                ClayUI.BeginWindow("Win", ref open);
+                ClayUI.Label("Content");
+                ClayUI.EndWindow();
+
+                ClayUI.EndDockSpace();
+            });
+        }
+
+        Assert.Equal(1, callCount);
+    }
+
+    [Fact]
+    public void DockLayout_Split_InvalidNodeId_Throws()
+    {
+        _fixture.RunFrame(() =>
+        {
+            ClayUI.BeginDockSpace("DLErr", layout =>
+            {
+                Assert.Throws<InvalidOperationException>(() =>
+                    layout.Split(999999, DockSplitDirection.Horizontal, 0.5f));
+            });
+
+            ClayUI.EndDockSpace();
+        });
+    }
+
+    [Fact]
+    public void DockLayout_Window_InvalidNodeId_Throws()
+    {
+        _fixture.RunFrame(() =>
+        {
+            ClayUI.BeginDockSpace("DLErr2", layout =>
+            {
+                Assert.Throws<InvalidOperationException>(() =>
+                    layout.Window(999999, "BadWindow"));
+            });
+
+            ClayUI.EndDockSpace();
+        });
+    }
+
+    [Fact]
+    public void DockLayout_Split_NonLeafNode_Throws()
+    {
+        _fixture.RunFrame(() =>
+        {
+            ClayUI.BeginDockSpace("DLErr3", layout =>
+            {
+                var (a, b) = layout.Split(DockSplitDirection.Horizontal, 0.5f);
+                // Root is now a split node, splitting it again via the root Split overload
+                // should fail since root is no longer a leaf
+                // But we need to split a specific non-leaf node, so use the by-id overload
+                // 'a' and 'b' are leaves, so split 'a' first, then try to split 'a' again
+                layout.Split(a, DockSplitDirection.Vertical, 0.5f);
+                Assert.Throws<InvalidOperationException>(() =>
+                    layout.Split(a, DockSplitDirection.Horizontal, 0.5f));
+            });
+
+            ClayUI.EndDockSpace();
+        });
+    }
+
+    [Fact]
+    public void DockLayout_Window_NonLeafNode_Throws()
+    {
+        _fixture.RunFrame(() =>
+        {
+            ClayUI.BeginDockSpace("DLErr4", layout =>
+            {
+                var (a, b) = layout.Split(DockSplitDirection.Horizontal, 0.5f);
+                // Root is now non-leaf, try to dock a window to root via convenience method
+                // But convenience Window(title) uses _rootId — root is now non-leaf
+                // Let's use the full overload
+                // We split 'a' to make it non-leaf, then try to dock into 'a'
+                var (a1, a2) = layout.Split(a, DockSplitDirection.Vertical, 0.5f);
+                Assert.Throws<InvalidOperationException>(() =>
+                    layout.Window(a, "BadWindow"));
+            });
+
+            ClayUI.EndDockSpace();
+        });
+    }
+
+    [Fact]
+    public void DockLayout_SplitRatio_IsClamped()
+    {
+        _fixture.RunFrame(() =>
+        {
+            ClayUI.BeginDockSpace("DLClamp", layout =>
+            {
+                // Extreme ratio values should be clamped, not throw
+                var (a, b) = layout.Split(DockSplitDirection.Horizontal, 0.001f);
+                layout.Window(a, "WinA");
+                layout.Window(b, "WinB");
+            });
+
+            bool o1 = true, o2 = true;
+            ClayUI.BeginWindow("WinA", ref o1);
+            ClayUI.EndWindow();
+            ClayUI.BeginWindow("WinB", ref o2);
+            ClayUI.EndWindow();
+
+            ClayUI.EndDockSpace();
+        });
+
+        Assert.True(DockBuilder.HasLayout("DLClamp"));
+    }
+
+    // ============ Serialization round-trip with DockLayout ============
+
+    [Fact]
+    public void SaveLoadLayout_RoundTrip_PreservesWindows()
+    {
+        // Build layout via DockLayout callback
+        bool o1 = true, o2 = true, o3 = true;
+        _fixture.RunFrame(() =>
+        {
+            ClayUI.BeginDockSpace("DLSerialize", layout =>
+            {
+                var (left, right) = layout.Split(DockSplitDirection.Horizontal, 0.3f);
+                layout.Window(left, "Nav");
+                layout.Window(right, "Main");
+                layout.Window(right, "Debug");
+            });
+
+            ClayUI.BeginWindow("Nav", ref o1);
+            ClayUI.EndWindow();
+            ClayUI.BeginWindow("Main", ref o2);
+            ClayUI.EndWindow();
+            ClayUI.BeginWindow("Debug", ref o3);
+            ClayUI.EndWindow();
+
+            ClayUI.EndDockSpace();
+        });
+
+        // Save
+        var json = DockBuilder.SaveLayout("DLSerialize");
+        Assert.Contains("Nav", json);
+        Assert.Contains("Main", json);
+        Assert.Contains("Debug", json);
+        Assert.Contains("Horizontal", json);
+
+        // Reset and restore
+        DockBuilder.Reset("DLSerialize");
+        Assert.False(DockBuilder.HasLayout("DLSerialize"));
+
+        DockBuilder.LoadLayout("DLSerialize", json);
+        Assert.True(DockBuilder.HasLayout("DLSerialize"));
+    }
+
+    [Fact]
+    public void SaveLayout_EmptyDockSpace_ReturnsEmptyJson()
+    {
+        var json = DockBuilder.SaveLayout("NonExistent");
+        Assert.Equal("{}", json);
+    }
+
+    [Fact]
+    public void DockBuilder_SplitDirection_None_Throws()
+    {
+        var rootId = DockBuilder.Reset("DirNone");
+        Assert.Throws<ArgumentException>(() =>
+            DockBuilder.SplitNode(rootId, DockSplitDirection.None, 0.5f));
+    }
+
+    [Fact]
+    public void DockBuilder_SplitNonExistentNode_Throws()
+    {
+        DockBuilder.Reset("SplitMissing");
+        Assert.Throws<InvalidOperationException>(() =>
+            DockBuilder.SplitNode(999999, DockSplitDirection.Horizontal, 0.5f));
+    }
+
+    [Fact]
+    public void DockBuilder_DockWindow_NonExistentNode_Throws()
+    {
+        DockBuilder.Reset("DockMissing");
+        Assert.Throws<InvalidOperationException>(() =>
+            DockBuilder.DockWindow(999999, "Ghost"));
+    }
+
+    [Fact]
+    public void DockBuilder_DockWindow_NonLeaf_Throws()
+    {
+        var rootId = DockBuilder.Reset("DockNonLeaf");
+        DockBuilder.SplitNode(rootId, DockSplitDirection.Horizontal, 0.5f);
+        Assert.Throws<InvalidOperationException>(() =>
+            DockBuilder.DockWindow(rootId, "Fail"));
+    }
+
+    [Fact]
+    public void SaveLayout_VerticalSplit_SerializesDirection()
+    {
+        var rootId = DockBuilder.Reset("VertSer");
+        var (a, b) = DockBuilder.SplitNode(rootId, DockSplitDirection.Vertical, 0.6f);
+        DockBuilder.DockWindow(a, "Top");
+        DockBuilder.DockWindow(b, "Bottom");
+
+        var json = DockBuilder.SaveLayout("VertSer");
+        Assert.Contains("Vertical", json);
+    }
+
+    [Fact]
+    public void LoadLayout_VerticalSplit_Restores()
+    {
+        var rootId = DockBuilder.Reset("VertLoad");
+        var (a, b) = DockBuilder.SplitNode(rootId, DockSplitDirection.Vertical, 0.6f);
+        DockBuilder.DockWindow(a, "Top");
+        DockBuilder.DockWindow(b, "Bottom");
+
+        var json = DockBuilder.SaveLayout("VertLoad");
+        DockBuilder.Reset("VertLoad");
+        DockBuilder.LoadLayout("VertLoad", json);
+
+        Assert.True(DockBuilder.HasLayout("VertLoad"));
+    }
 }
