@@ -251,7 +251,9 @@ public class RaylibRenderer : IClayRenderer
 
     private void RenderCustom(BoundingBox box, CustomRenderData data)
     {
-        if (data.CustomData is HsvGradientData gradient)
+        if (data.CustomData is TextInputWidget widget)
+            RenderTextInput(box, widget);
+        else if (data.CustomData is HsvGradientData gradient)
             RenderHsvGradient(box, gradient);
         else if (data.CustomData is ViewportTextureData viewport)
             RenderViewportTexture(box, viewport);
@@ -313,6 +315,113 @@ public class RaylibRenderer : IClayRenderer
             Raylib.DrawTexturePro(_hueBarTexture, new Rectangle(0, 0, w, h),
                 new Rectangle(box.X, box.Y, box.Width, box.Height), new System.Numerics.Vector2(0, 0), 0, Raylib.WHITE);
         }
+    }
+
+    private void RenderTextInput(BoundingBox box, TextInputWidget widget)
+    {
+        var style = widget.CurrentStyle;
+        var padding = style.Padding;
+
+        var bgRect = new Rectangle(box.X, box.Y, box.Width, box.Height);
+        var bgColor = widget.IsFocused ? style.FocusedBackgroundColor : style.BackgroundColor;
+        if (style.CornerRadius.TopLeft > 0)
+        {
+            float minDim = Math.Min(box.Width, box.Height);
+            float roundness = Math.Clamp((style.CornerRadius.TopLeft * 2) / minDim, 0, 1);
+            Raylib.DrawRectangleRounded(bgRect, roundness, 8, ToRayColor(bgColor));
+        }
+        else
+        {
+            Raylib.DrawRectangleRec(bgRect, ToRayColor(bgColor));
+        }
+
+        if (style.Border.Width.Top > 0 || style.Border.Width.Left > 0)
+        {
+            float minDim = Math.Min(box.Width, box.Height);
+            float roundness = style.CornerRadius.TopLeft > 0
+                ? Math.Clamp((style.CornerRadius.TopLeft * 2) / minDim, 0, 1) : 0;
+            float lineThick = Math.Max(
+                Math.Max(style.Border.Width.Top, style.Border.Width.Bottom),
+                Math.Max(style.Border.Width.Left, style.Border.Width.Right));
+            Raylib.DrawRectangleRoundedLines(bgRect, roundness, 8, lineThick, ToRayColor(style.Border.Color));
+        }
+
+        PushScissor(box);
+
+        float textX = box.X + padding.Left;
+        float textY = box.Y + padding.Top - widget.ScrollY;
+        float lineHeight = widget.ComputedLineHeight;
+
+        int firstVisibleRow = Math.Max(0, (int)(widget.ScrollY / lineHeight) - 1);
+        int lastVisibleRow = (int)((widget.ScrollY + box.Height) / lineHeight) + 1;
+
+        if (widget.IsFocused && widget.HasSelection)
+        {
+            int selStart = Math.Min(widget.SelectionStart, widget.SelectionEnd);
+            int selEnd = Math.Max(widget.SelectionStart, widget.SelectionEnd);
+            var selColor = ToRayColor(style.SelectionColor);
+            int pos = 0, row = 0;
+            string text = widget.DisplayText;
+            while (pos <= text.Length && pos < selEnd)
+            {
+                int lineStart = pos;
+                int lineEnd = text.IndexOf('\n', pos);
+                if (lineEnd < 0) lineEnd = text.Length;
+                if (row > lastVisibleRow) break;
+                if (row >= firstVisibleRow && lineEnd > selStart && lineStart < selEnd)
+                {
+                    int hlStart = Math.Max(lineStart, selStart);
+                    int hlEnd = Math.Min(lineEnd, selEnd);
+                    float x1 = textX + widget.MeasureSubstring(lineStart, hlStart);
+                    float x2 = textX + widget.MeasureSubstring(lineStart, hlEnd);
+                    float w = x2 - x1;
+                    if (selEnd > lineEnd && w < 1f) w = 1f;
+                    Raylib.DrawRectangleRec(new Rectangle(x1, textY + row * lineHeight, w, lineHeight), selColor);
+                }
+                pos = lineEnd + 1;
+                row++;
+            }
+        }
+
+        if (widget.Text.Length > 0 && style.FontId < _fonts.Length)
+        {
+            var font = _fonts[style.FontId];
+            var textColor = ToRayColor(style.TextColor);
+            string text = widget.DisplayText;
+            int lineStart = 0, row = 0;
+            while (row < firstVisibleRow && lineStart <= text.Length)
+            {
+                int lineEnd = text.IndexOf('\n', lineStart);
+                if (lineEnd < 0) { lineStart = text.Length + 1; break; }
+                lineStart = lineEnd + 1;
+                row++;
+            }
+            while (lineStart <= text.Length && row <= lastVisibleRow)
+            {
+                int lineEnd = text.IndexOf('\n', lineStart);
+                if (lineEnd < 0) lineEnd = text.Length;
+                if (lineEnd > lineStart)
+                {
+                    string line = text.Substring(lineStart, lineEnd - lineStart);
+                    Raylib.DrawTextEx(font, line,
+                        new System.Numerics.Vector2(textX, textY + row * lineHeight),
+                        style.FontSize, style.LetterSpacing, textColor);
+                }
+                lineStart = lineEnd + 1;
+                row++;
+            }
+        }
+
+        if (widget.IsFocused && (int)(Raylib.GetTime() * 2) % 2 == 0)
+        {
+            var (cursorRow, cursorCol) = widget.GetRowCol(widget.CursorIndex);
+            int lineStart = widget.FindLineStart(widget.CursorIndex);
+            float cursorX = textX + widget.MeasureSubstring(lineStart, widget.CursorIndex);
+            float cursorY = textY + cursorRow * lineHeight;
+            Raylib.DrawRectangleRec(new Rectangle(cursorX, cursorY, 1.5f, lineHeight), ToRayColor(style.CursorColor));
+        }
+
+        PopScissor();
     }
 
     private void RenderShadow(BoundingBox box, ShadowRenderData data)

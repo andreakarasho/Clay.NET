@@ -7,8 +7,8 @@ namespace Clay.Widgets;
 /// <summary>
 /// A text editing widget powered by StbTextEdit, integrated with Clay's layout and rendering system.
 /// <para>
-/// Emits standard render commands (Rectangle, Text, ScissorStart/End) for background,
-/// selection highlights, text lines, and the caret. No special Custom command handling needed.
+/// Creates a <see cref="RenderCommandType.Custom"/> render command. The renderer should check
+/// <c>cmd.Custom.CustomData is TextInputWidget</c> and draw background, selection, text, and cursor.
 /// </para>
 /// <para>
 /// Usage:
@@ -36,8 +36,6 @@ public sealed class TextInputWidget : ITextEditHandler
     private float _cachedLineHeight;
     private float _scrollY;
     private int _lastCursorForScroll = -1;
-    private float _caretBlinkTimer;
-    private int _lastCursorForBlink = -1;
 
     // ── Construction ──────────────────────────────────────────────────
 
@@ -241,9 +239,9 @@ public sealed class TextInputWidget : ITextEditHandler
     /// <summary>
     /// Creates a Clay element for this text input. Call inside BeginLayout/EndLayout.
     /// <para>
-    /// Emits standard render commands (Rectangle, Text, ScissorStart/End) so that
-    /// backends can render the text input without special-casing Custom commands.
-    /// Selection highlights, text lines, and the caret are all emitted as standard commands.
+    /// Emits a <see cref="RenderCommandType.Custom"/> command with this widget as
+    /// <see cref="CustomRenderData.CustomData"/>. The renderer should draw background,
+    /// selection highlights, text, and cursor.
     /// </para>
     /// </summary>
     public void Element(ElementId id, TextInputStyle style, float scrollDeltaY = 0)
@@ -257,19 +255,6 @@ public sealed class TextInputWidget : ITextEditHandler
 
         // Handle pointer input (uses previous frame's element data)
         HandlePointerInput(id, style);
-
-        // Update caret blink timer
-        float dt = Clay.Context?.DeltaTime ?? 0;
-        int currentCursor = _editState.Cursor;
-        if (currentCursor != _lastCursorForBlink)
-        {
-            _caretBlinkTimer = 0;
-            _lastCursorForBlink = currentCursor;
-        }
-        else
-        {
-            _caretBlinkTimer += dt;
-        }
 
         // Compute sizing
         Sizing sizing = style.Sizing;
@@ -301,6 +286,7 @@ public sealed class TextInputWidget : ITextEditHandler
 
             // Keep cursor in view when it moves (typing, arrow keys, click),
             // but not when the user is just scrolling with the mouse wheel
+            int currentCursor = _editState.Cursor;
             if (currentCursor != _lastCursorForScroll)
             {
                 EnsureCursorVisible(visibleHeight);
@@ -321,11 +307,7 @@ public sealed class TextInputWidget : ITextEditHandler
             _scrollY = 0;
         }
 
-        // Get the bounding box from the previous frame for rendering
-        var elementData = Clay.GetElementData(id);
-        BoundingBox box = elementData.Found ? elementData.BoundingBox : default;
-
-        // Create the outer Clay element (background + border)
+        // Create Clay element with Custom config
         using (Clay.Element(new ElementDeclaration
         {
             Id = id,
@@ -334,161 +316,11 @@ public sealed class TextInputWidget : ITextEditHandler
                 Sizing = sizing,
                 Padding = style.Padding,
             },
-            BackgroundColor = IsFocused ? style.FocusedBackgroundColor : style.BackgroundColor,
-            CornerRadius = style.CornerRadius,
-            Border = style.Border,
+            Custom = CustomConfig.Create(this),
         }))
         {
-            // Emit selection, text, and caret as render commands
-            if (elementData.Found)
-                EmitTextInputCommands(box, style, id);
+            // No children. The Custom render handler draws text, cursor, selection.
         }
-    }
-
-    /// <summary>
-    /// Appends selection, text, and caret render commands to the context's command list.
-    /// </summary>
-    private void EmitTextInputCommands(BoundingBox box, TextInputStyle style, ElementId id)
-    {
-        var ctx = Clay.Context;
-        if (ctx == null) return;
-
-        var padding = style.Padding;
-        float textX = box.X + padding.Left;
-        float textY = box.Y + padding.Top - _scrollY;
-        float lineHeight = _cachedLineHeight;
-
-        // Visible row range for culling
-        int firstVisibleRow = Math.Max(0, (int)(_scrollY / lineHeight) - 1);
-        int lastVisibleRow = (int)((_scrollY + box.Height) / lineHeight) + 1;
-
-        // Scissor to clip content within bounds
-        ctx.RenderCommands.Add(new RenderCommand
-        {
-            BoundingBox = box,
-            CommandType = RenderCommandType.ScissorStart,
-            Id = id.Id,
-        });
-
-        // Selection highlights
-        if (IsFocused && HasSelection)
-        {
-            int selStart = Math.Min(SelectionStart, SelectionEnd);
-            int selEnd = Math.Max(SelectionStart, SelectionEnd);
-            string text = DisplayText;
-            int pos = 0;
-            int row = 0;
-
-            while (pos <= text.Length && pos < selEnd)
-            {
-                int lineStart = pos;
-                int lineEnd = text.IndexOf('\n', pos);
-                if (lineEnd < 0) lineEnd = text.Length;
-
-                if (row > lastVisibleRow) break;
-                if (row >= firstVisibleRow && lineEnd > selStart && lineStart < selEnd)
-                {
-                    int hlStart = Math.Max(lineStart, selStart);
-                    int hlEnd = Math.Min(lineEnd, selEnd);
-                    float x1 = textX + MeasureSubstring(lineStart, hlStart);
-                    float x2 = textX + MeasureSubstring(lineStart, hlEnd);
-                    float w = x2 - x1;
-
-                    if (selEnd > lineEnd && w < 1f)
-                        w = 1f;
-
-                    ctx.RenderCommands.Add(new RenderCommand
-                    {
-                        BoundingBox = new BoundingBox(x1, textY + row * lineHeight, w, lineHeight),
-                        CommandType = RenderCommandType.Rectangle,
-                        Id = id.Id,
-                        Rectangle = new RectangleRenderData
-                        {
-                            BackgroundColor = style.SelectionColor,
-                        },
-                    });
-                }
-
-                pos = lineEnd + 1;
-                row++;
-            }
-        }
-
-        // Text lines
-        if (_chars.Count > 0)
-        {
-            string text = DisplayText;
-            int lineStart = 0;
-            int row = 0;
-
-            // Skip to first visible row
-            while (row < firstVisibleRow && lineStart <= text.Length)
-            {
-                int lineEnd = text.IndexOf('\n', lineStart);
-                if (lineEnd < 0) { lineStart = text.Length + 1; break; }
-                lineStart = lineEnd + 1;
-                row++;
-            }
-
-            // Emit visible rows
-            while (lineStart <= text.Length && row <= lastVisibleRow)
-            {
-                int lineEnd = text.IndexOf('\n', lineStart);
-                if (lineEnd < 0) lineEnd = text.Length;
-
-                if (lineEnd > lineStart)
-                {
-                    string line = text.Substring(lineStart, lineEnd - lineStart);
-                    float lineWidth = MeasureSubstring(lineStart, lineEnd);
-
-                    ctx.RenderCommands.Add(new RenderCommand
-                    {
-                        BoundingBox = new BoundingBox(textX, textY + row * lineHeight, lineWidth, lineHeight),
-                        CommandType = RenderCommandType.Text,
-                        Id = id.Id,
-                        Text = new TextRenderData
-                        {
-                            Text = line,
-                            TextColor = style.TextColor,
-                            FontId = style.FontId,
-                            FontSize = style.FontSize,
-                            LetterSpacing = style.LetterSpacing,
-                            LineHeight = style.LineHeight,
-                        },
-                    });
-                }
-
-                lineStart = lineEnd + 1;
-                row++;
-            }
-        }
-
-        // Caret (blinks every 0.5s)
-        if (IsFocused && (int)(_caretBlinkTimer * 2) % 2 == 0)
-        {
-            var (cursorRow, _) = GetRowCol(CursorIndex);
-            int cursorLineStart = FindLineStart(CursorIndex);
-            float cursorX = textX + MeasureSubstring(cursorLineStart, CursorIndex);
-            float cursorY = textY + cursorRow * lineHeight;
-
-            ctx.RenderCommands.Add(new RenderCommand
-            {
-                BoundingBox = new BoundingBox(cursorX, cursorY, 1.5f, lineHeight),
-                CommandType = RenderCommandType.Rectangle,
-                Id = id.Id,
-                Rectangle = new RectangleRenderData
-                {
-                    BackgroundColor = style.CursorColor,
-                },
-            });
-        }
-
-        ctx.RenderCommands.Add(new RenderCommand
-        {
-            BoundingBox = box,
-            CommandType = RenderCommandType.ScissorEnd,
-            Id = id.Id,
-        });
     }
 
     // ── ITextEditHandler implementation ───────────────────────────────
