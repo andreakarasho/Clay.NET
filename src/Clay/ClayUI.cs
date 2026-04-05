@@ -769,6 +769,11 @@ public static class ClayUI
     public static bool IsMouseJustPressed => _context.MousePressed && !_context.MouseWasPressed;
 
     /// <summary>
+    /// Returns true if the mouse was just released (mouse was down, now up).
+    /// </summary>
+    public static bool IsMouseJustReleased => !_context.MousePressed && _context.MouseWasPressed;
+
+    /// <summary>
     /// Returns true if the mouse is currently over any open window.
     /// Use this to block input to elements behind windows.
     /// </summary>
@@ -845,6 +850,7 @@ public static class ClayUI
 
     /// <summary>
     /// Returns true if a click should be processed for this widget.
+    /// Triggers on mouse release (matching UO's button behavior).
     /// Widgets inside topmost windows process clicks; widgets outside are blocked if mouse is over any window.
     /// Widgets behind open popups are blocked unless the widget is inside the popup.
     /// </summary>
@@ -852,7 +858,7 @@ public static class ClayUI
     {
         get
         {
-            if (!IsMouseJustPressed) return false;
+            if (!IsMouseJustReleased) return false;
 
             // Block all interaction in disabled regions
             if (IsDisabled) return false;
@@ -942,11 +948,14 @@ public static class ClayUI
             Image = skinImg.HasImage ? SkinToImageConfig(skinImg) : default
         }))
         {
+            var textFontSize = (isHovered && s.HasHoverFontSize) ? s.HoverFontSize : s.FontSize;
+            var textColor = (isHovered && s.HasHoverTextColor) ? s.HoverTextColor : s.TextColor;
+
             Clay.Text(ElementId.GetDisplayLabel(label), new TextConfig
             {
                 FontId = s.FontId,
-                FontSize = s.FontSize,
-                TextColor = DisabledColor(s.TextColor)
+                FontSize = textFontSize,
+                TextColor = DisabledColor(textColor)
             });
         }
 
@@ -1161,7 +1170,7 @@ public static class ClayUI
         var trackData = Clay.GetElementData(trackId);
 
         // Check if this slider should become active (mouse just pressed on it)
-        if (isHovered && ShouldProcessClick && trackData.Found)
+        if (isHovered && IsMouseJustPressed && trackData.Found)
         {
             _context.ActiveSliderTrackId = trackId.Id;
             _context.ActiveSliderMin = min;
@@ -1508,7 +1517,7 @@ public static class ClayUI
         var s = style.HasValue ? style.Value.MergeOver(Style.Splitter) : Style.Splitter;
         var id = StableId(label);
         bool isHovered = !IsDisabled && Clay.PointerOver(id);
-        bool justPressed = isHovered && ShouldProcessClick;
+        bool justPressed = isHovered && IsMouseJustPressed;
 
         if (isHovered) _context.HoveredThisFrame.Add(id.Id);
 
@@ -3092,7 +3101,7 @@ public static class ClayUI
                 bool isHovered = !IsDisabled && Clay.PointerOver(tabId);
 
                 // Handle tab click / drag start
-                if (isHovered && ShouldProcessClick)
+                if (isHovered && IsMouseJustPressed)
                 {
                     leaf.ActiveTabIndex = i;
                     isActive = true;
@@ -3470,7 +3479,7 @@ public static class ClayUI
         var splitterId = ElementId.HashComposite("DockSplitter_", parentNode.Id);
 
         bool isHovered = !IsDisabled && Clay.PointerOver(splitterId);
-        bool justPressed = isHovered && ShouldProcessClick;
+        bool justPressed = isHovered && IsMouseJustPressed;
 
         if (justPressed)
         {
@@ -6536,6 +6545,12 @@ public struct ButtonStyle
     private Sizing _sizing;
     public Sizing Sizing { get => _sizing; set { _sizing = value; _set |= 1u << 8; } }
 
+    private ushort _hoverFontSize;
+    public ushort HoverFontSize { get => _hoverFontSize; set { _hoverFontSize = value; _set |= 1u << 9; } }
+
+    private Color _hoverTextColor;
+    public Color HoverTextColor { get => _hoverTextColor; set { _hoverTextColor = value; _set |= 1u << 10; } }
+
     public ButtonStyle MergeOver(ButtonStyle @base)
     {
         var result = @base;
@@ -6548,11 +6563,15 @@ public struct ButtonStyle
         if ((_set & (1u << 6)) != 0) result._fontId = _fontId;
         if ((_set & (1u << 7)) != 0) result._fontSize = _fontSize;
         if ((_set & (1u << 8)) != 0) result._sizing = _sizing;
+        if ((_set & (1u << 9)) != 0) result._hoverFontSize = _hoverFontSize;
+        if ((_set & (1u << 10)) != 0) result._hoverTextColor = _hoverTextColor;
         result._set = @base._set | _set;
         return result;
     }
 
     internal bool HasSizing => (_set & (1u << 8)) != 0;
+    internal bool HasHoverFontSize => (_set & (1u << 9)) != 0;
+    internal bool HasHoverTextColor => (_set & (1u << 10)) != 0;
 }
 
 public struct ImageStyle
