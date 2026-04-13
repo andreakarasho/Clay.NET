@@ -51,6 +51,13 @@ public class ClayUISliderTests : IDisposable
     }
 
     [Fact]
+    public void Slider_ZeroRange_DoesNotCrash()
+    {
+        float val = 10f;
+        _fixture.RunFrame(() => ClayUI.Slider("SZero", ref val, min: 10f, max: 10f));
+    }
+
+    [Fact]
     public void Slider_EmptyLabel_Renders()
     {
         float val = 0.5f;

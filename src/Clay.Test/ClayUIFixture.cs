@@ -22,9 +22,10 @@ public sealed class ClayUIFixture : IDisposable
         Vector2 mousePos = default,
         bool mouseDown = false,
         Vector2 scrollDelta = default,
-        float deltaTime = 1f / 60f)
+        float deltaTime = 1f / 60f,
+        bool rightMouseDown = false)
     {
-        ClayUI.BeginFrame(new Dimensions(800, 600), mouseDown, mousePos, scrollDelta, deltaTime);
+        ClayUI.BeginFrame(new Dimensions(800, 600), mouseDown, mousePos, scrollDelta, deltaTime, rightMouseDown);
 
         // Root container so widgets have a parent with known size
         using (ClayApi.Element(new ElementDeclaration
@@ -52,13 +53,14 @@ public sealed class ClayUIFixture : IDisposable
         Action buildUi,
         Vector2 mousePos = default,
         bool mouseDown = false,
-        Vector2 scrollDelta = default)
+        Vector2 scrollDelta = default,
+        bool rightMouseDown = false)
     {
         // Frame 1: establish bounding boxes (no interaction)
         RunFrame(buildUi, mousePos, mouseDown: false);
 
         // Frame 2: with actual mouse state for interaction
-        return RunFrame(buildUi, mousePos, mouseDown, scrollDelta);
+        return RunFrame(buildUi, mousePos, mouseDown, scrollDelta, rightMouseDown: rightMouseDown);
     }
 
     /// <summary>
@@ -76,6 +78,16 @@ public sealed class ClayUIFixture : IDisposable
 
         // Frame 3: release — ShouldProcessClick fires on mouse release
         return RunFrame(buildUi, mousePos, mouseDown: false);
+    }
+
+    /// <summary>
+    /// Simulates a secondary-button click: establish bounds, press right button, release.
+    /// </summary>
+    public ReadOnlySpan<RenderCommand> RightClick(Action buildUi, Vector2 mousePos)
+    {
+        RunFrame(buildUi, mousePos, mouseDown: false, rightMouseDown: false);
+        RunFrame(buildUi, mousePos, mouseDown: false, rightMouseDown: true);
+        return RunFrame(buildUi, mousePos, mouseDown: false, rightMouseDown: false);
     }
 
     public void Dispose()

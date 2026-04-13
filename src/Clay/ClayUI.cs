@@ -31,6 +31,7 @@ internal class ClayUIContext
     internal Vector2 PopupOpenPosition; // Position for the popup to open at
     internal uint PopupOpenParentId; // Parent element for the popup
     internal readonly HashSet<uint> ModalPopups = new(); // Popups that are modal (no click-outside-close)
+    internal readonly Stack<bool> ContextMenuOpenStack = new();
 
     // Window focus order (last element = topmost/focused window)
     internal readonly List<uint> WindowFocusOrder = new();
@@ -67,6 +68,8 @@ internal class ClayUIContext
     // Mouse state
     internal bool MouseWasPressed;
     internal bool MousePressed;
+    internal bool RightMouseWasPressed;
+    internal bool RightMousePressed;
     internal Vector2 MousePosition;
 
     // Active slider tracking for drag behavior
@@ -180,7 +183,7 @@ internal class ClayUIContext
     /// <summary>
     /// Clears per-frame state. Called at the start of each frame.
     /// </summary>
-    internal void BeginFrame(bool mouseDown, Vector2 mousePosition)
+    internal void BeginFrame(bool mouseDown, Vector2 mousePosition, bool rightMouseDown = false)
     {
         PressedThisFrame.Clear();
         HoveredThisFrame.Clear();
@@ -204,6 +207,8 @@ internal class ClayUIContext
         IdCounter = 0;
         MouseWasPressed = MousePressed;
         MousePressed = mouseDown;
+        RightMouseWasPressed = RightMousePressed;
+        RightMousePressed = rightMouseDown;
         MousePosition = mousePosition;
         ScrollConsumedByWindow = false;
         ClickConsumedThisFrame = false;
@@ -294,6 +299,7 @@ internal class ClayUIContext
         PopupStates.Clear();
         OpenPopupStack.Clear();
         ModalPopups.Clear();
+        ContextMenuOpenStack.Clear();
         DockSpaceStates.Clear();
         DockedWindowTitles.Clear();
     }
@@ -532,18 +538,19 @@ public static class ClayUI
     /// Call at the start of each frame before using ClayUI widgets.
     /// Updates scroll containers, handles active scrollbar/window dragging/resizing.
     /// </summary>
-    /// <param name="mouseDown">Whether the mouse button is currently pressed.</param>
+    /// <param name="mouseDown">Whether the primary mouse button is currently pressed.</param>
     /// <param name="mousePosition">Current mouse position.</param>
     /// <param name="scrollDelta">Mouse wheel scroll delta (optional, for window scrolling).</param>
     /// <param name="deltaTime">Frame delta time in seconds (for scroll momentum).</param>
+    /// <param name="rightMouseDown">Whether the secondary mouse button is currently pressed.</param>
     /// <param name="layoutDimensions">Layout dimensions (e.g., screen size). If default, dimensions are unchanged.</param>
-    public static void BeginFrame(Dimensions layoutDimensions, bool mouseDown, Vector2 mousePosition = default, Vector2 scrollDelta = default, float deltaTime = 1f / 60f)
+    public static void BeginFrame(Dimensions layoutDimensions, bool mouseDown, Vector2 mousePosition = default, Vector2 scrollDelta = default, float deltaTime = 1f / 60f, bool rightMouseDown = false)
     {
         // Forward state to the layout engine
         Clay.SetLayoutDimensions(layoutDimensions);
         Clay.SetPointerState(mousePosition, mouseDown);
 
-        _context.BeginFrame(mouseDown, mousePosition);
+        _context.BeginFrame(mouseDown, mousePosition, rightMouseDown);
         _context.ScrollDelta = scrollDelta;
         _context.DeltaTime = deltaTime;
 
@@ -769,6 +776,11 @@ public static class ClayUI
     public static bool IsMouseJustPressed => _context.MousePressed && !_context.MouseWasPressed;
 
     /// <summary>
+    /// Returns true if the secondary mouse button was just pressed this frame.
+    /// </summary>
+    public static bool IsRightMouseJustPressed => _context.RightMousePressed && !_context.RightMouseWasPressed;
+
+    /// <summary>
     /// Returns true if the mouse was just released (mouse was down, now up).
     /// </summary>
     public static bool IsMouseJustReleased => !_context.MousePressed && _context.MouseWasPressed;
@@ -880,6 +892,22 @@ public static class ClayUI
         }
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static uint GetQueryStateId(string label)
+        => ElementId.Hash(label, seed: IdSeed).Id;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void RecordQueryState(string label, bool isHovered, bool clicked)
+    {
+        uint queryId = GetQueryStateId(label);
+        if (isHovered) _context.HoveredThisFrame.Add(queryId);
+        if (clicked) _context.PressedThisFrame.Add(queryId);
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void TrackLastWidget(ElementId id)
+        => _context.LastWidgetId = id;
+
     // ============ ID Generation ============
 
     /// <summary>
@@ -919,8 +947,7 @@ public static class ClayUI
         bool isPressed = isHovered && _context.MousePressed;  // Mouse held down on button
         bool clicked = isHovered && ShouldProcessClick;  // Mouse just clicked (blocked by windows if outside)
 
-        if (isHovered) _context.HoveredThisFrame.Add(id.Id);
-        if (clicked) _context.PressedThisFrame.Add(id.Id);
+        RecordQueryState(label, isHovered, clicked);
 
         var bgColor = isPressed ? s.PressedColor
             : isHovered ? s.HoverColor
@@ -1073,8 +1100,9 @@ public static class ClayUI
         {
             value = !value;
             changed = true;
-            _context.PressedThisFrame.Add(id.Id);
         }
+
+        RecordQueryState(label, isHovered, clicked);
 
         var bgColor = isPressed ? s.PressedColor
             : isHovered ? s.HoverColor
@@ -1165,6 +1193,8 @@ public static class ClayUI
         var trackId = ElementId.HashComposite("SlTrack_", id.Id);
         bool isHovered = IsHovered(trackId);
         bool changed = false;
+        float range = max - min;
+        bool hasValidRange = range > 0f;
 
         // Get track bounds for dragging
         var trackData = Clay.GetElementData(trackId);
@@ -1179,7 +1209,7 @@ public static class ClayUI
 
         // Update value if this is the active slider and mouse is down
         bool isActiveSlider = _context.ActiveSliderTrackId == trackId.Id;
-        if (isActiveSlider && _context.MousePressed && trackData.Found)
+        if (hasValidRange && isActiveSlider && _context.MousePressed && trackData.Found)
         {
             var pointerData = Clay.GetPointerState();
             float relativeX = pointerData.Position.X - trackData.BoundingBox.X;
@@ -1193,7 +1223,8 @@ public static class ClayUI
             }
         }
 
-        float fillPercent = (value - min) / (max - min);
+        RecordQueryState(label, isHovered, false);
+        float fillPercent = hasValidRange ? Math.Clamp((value - min) / range, 0f, 1f) : 0f;
 
         using (Clay.Element(new ElementDeclaration
         {
@@ -1284,6 +1315,8 @@ public static class ClayUI
             changed = true;
         }
 
+        RecordQueryState(label, isHovered, clicked);
+
         var bgColor = isPressed ? s.PressedColor
             : isHovered ? s.HoverColor
             : Color.Transparent;
@@ -1353,7 +1386,8 @@ public static class ClayUI
     {
         var s = style.HasValue ? style.Value.MergeOver(Style.ProgressBar) : Style.ProgressBar;
         var sk = skin ?? Skin?.ProgressBar ?? default;
-        float fillPercent = Math.Clamp((value - min) / (max - min), 0f, 1f);
+        float range = max - min;
+        float fillPercent = range > 0f ? Math.Clamp((value - min) / range, 0f, 1f) : 0f;
 
         using (Clay.Element(new ElementDeclaration
         {
@@ -1401,6 +1435,7 @@ public static class ClayUI
         var s = style ?? DefaultTextInputStyle;
         if (password) s.Password = true;
         var id = StableId(label);
+        TrackLastWidget(id);
 
         if (IsDisabled)
         {
@@ -1516,10 +1551,11 @@ public static class ClayUI
     {
         var s = style.HasValue ? style.Value.MergeOver(Style.Splitter) : Style.Splitter;
         var id = StableId(label);
+        TrackLastWidget(id);
         bool isHovered = !IsDisabled && Clay.PointerOver(id);
         bool justPressed = isHovered && IsMouseJustPressed;
 
-        if (isHovered) _context.HoveredThisFrame.Add(id.Id);
+        RecordQueryState(label, isHovered, false);
 
         // Check if this splitter should become active (mouse just pressed on it)
         if (justPressed)
@@ -3958,17 +3994,16 @@ public static class ClayUI
     /// <returns>True if context menu was just opened.</returns>
     public static bool BeginContextMenu(string id, ElementId triggerId)
     {
-        // Check for right-click on trigger element
-        bool rightClicked = IsHovered(triggerId) && _context.MousePressed && !_context.MouseWasPressed;
-
-        // For now, treat any click as potential context menu trigger
-        // In a real implementation, you'd check for right-click specifically
+        // Open only on a secondary-button press.
+        bool rightClicked = IsHovered(triggerId) && IsRightMouseJustPressed;
         if (rightClicked)
         {
             OpenPopup(id);
         }
 
-        return BeginPopup(id);
+        bool opened = BeginPopup(id);
+        _context.ContextMenuOpenStack.Push(opened);
+        return opened;
     }
 
     /// <summary>
@@ -3976,8 +4011,11 @@ public static class ClayUI
     /// </summary>
     public static void EndContextMenu()
     {
-        // Only close element if popup was actually open
-        // BeginPopup returns false when closed, so we don't need to close anything
+        if (_context.ContextMenuOpenStack.Count == 0)
+            return;
+
+        if (_context.ContextMenuOpenStack.Pop())
+            EndPopup();
     }
 
     /// <summary>
@@ -3990,6 +4028,7 @@ public static class ClayUI
     public static bool MenuItem(string label, bool enabled = true)
     {
         var id = StableId($"MenuItem_{label}");
+        TrackLastWidget(id);
         bool isHovered = IsHovered(id) && enabled;
         bool clicked = isHovered && ShouldProcessClick;
 
@@ -4089,6 +4128,7 @@ public static class ClayUI
             ? _context.MenuBarStyle.Value.MergeOver(Style.Button)
             : Style.Button;
         var itemId = StableId(menuKey);
+        TrackLastWidget(itemId);
         bool isHovered = IsHovered(itemId) && enabled;
         bool isOpen = IsPopupOpen(menuKey);
 
@@ -4171,6 +4211,7 @@ public static class ClayUI
     {
         string menuKey = $"SubMenu_{label}";
         var itemId = StableId(menuKey);
+        TrackLastWidget(itemId);
         bool isHovered = IsHovered(itemId) && enabled;
         bool isOpen = IsPopupOpen(menuKey);
 
@@ -4530,6 +4571,7 @@ public static class ClayUI
     {
         var s = style.HasValue ? style.Value.MergeOver(Style.TreeNode) : Style.TreeNode;
         var id = StableId($"TreeNode_{label}");
+        TrackLastWidget(id);
         bool isHovered = IsHovered(id);
         bool clicked = isHovered && ShouldProcessClick;
 
@@ -5533,8 +5575,7 @@ public static class ClayUI
     /// </summary>
     public static bool WasHovered(string label)
     {
-        var id = StableId(label);
-        return _context.HoveredThisFrame.Contains(id.Id);
+        return _context.HoveredThisFrame.Contains(GetQueryStateId(label));
     }
 
     /// <summary>
@@ -5542,8 +5583,7 @@ public static class ClayUI
     /// </summary>
     public static bool WasClicked(string label)
     {
-        var id = StableId(label);
-        return _context.PressedThisFrame.Contains(id.Id);
+        return _context.PressedThisFrame.Contains(GetQueryStateId(label));
     }
 
     /// <summary>
@@ -5909,7 +5949,7 @@ public static class ClayUI
     {
         string popupId = $"cpPopup_{label}";
         var swatchId = Id($"cpSwatch_{label}");
-        uint stateKey = swatchId.Id;
+        uint stateKey = GetQueryStateId($"cpState_{label}");
 
         // Initialize editing state from the passed-in color if not yet tracked
         if (!_context.ColorPickerStates.ContainsKey(stateKey))

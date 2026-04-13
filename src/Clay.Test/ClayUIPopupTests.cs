@@ -234,6 +234,56 @@ public class ClayUIPopupTests : IDisposable
         Assert.False(opened);
     }
 
+    [Fact]
+    public void BeginContextMenu_LeftClick_DoesNotOpen()
+    {
+        var triggerId = ClayApi.Id("trigger_left");
+        bool opened = true;
+
+        _fixture.Click(() =>
+        {
+            using (ClayApi.Element(new ElementDeclaration
+            {
+                Id = triggerId,
+                Layout = new LayoutConfig { Sizing = Sizing.FixedSize(100, 100) },
+                BackgroundColor = Color.Gray
+            })) { }
+
+            opened = ClayUI.BeginContextMenu("ctx_left", triggerId);
+            if (opened)
+                ClayUI.MenuItem("Should stay closed");
+            ClayUI.EndContextMenu();
+        }, mousePos: new Vector2(20, 20));
+
+        Assert.False(opened);
+        Assert.False(ClayUI.IsPopupOpen("ctx_left"));
+    }
+
+    [Fact]
+    public void BeginContextMenu_RightClick_OpensAndClosesCleanly()
+    {
+        var triggerId = ClayApi.Id("trigger_right");
+        bool opened = false;
+
+        _fixture.RightClick(() =>
+        {
+            using (ClayApi.Element(new ElementDeclaration
+            {
+                Id = triggerId,
+                Layout = new LayoutConfig { Sizing = Sizing.FixedSize(100, 100) },
+                BackgroundColor = Color.Gray
+            })) { }
+
+            opened = ClayUI.BeginContextMenu("ctx_right", triggerId);
+            if (opened)
+                ClayUI.MenuItem("Action");
+            ClayUI.EndContextMenu();
+        }, mousePos: new Vector2(20, 20));
+
+        Assert.True(opened);
+        Assert.True(ClayUI.IsPopupOpen("ctx_right"));
+    }
+
     // ============ OpenPopupBelow ============
 
     [Fact]

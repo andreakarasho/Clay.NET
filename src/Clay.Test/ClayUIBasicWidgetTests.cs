@@ -47,6 +47,17 @@ public class ClayUIBasicWidgetTests : IDisposable
     }
 
     [Fact]
+    public void Button_Clicked_UpdatesQueryState()
+    {
+        _fixture.Click(
+            () => ClayUI.Button("QueryBtn"),
+            mousePos: new Vector2(40, 10));
+
+        Assert.True(ClayUI.WasHovered("QueryBtn"));
+        Assert.True(ClayUI.WasClicked("QueryBtn"));
+    }
+
+    [Fact]
     public void Button_ClickOutside_ReturnsFalse()
     {
         bool clicked = false;
@@ -275,6 +286,12 @@ public class ClayUIBasicWidgetTests : IDisposable
     public void ProgressBar_CustomRange()
     {
         _fixture.RunFrame(() => ClayUI.ProgressBar(50f, min: 0f, max: 100f));
+    }
+
+    [Fact]
+    public void ProgressBar_ZeroRange_DoesNotCrash()
+    {
+        _fixture.RunFrame(() => ClayUI.ProgressBar(10f, min: 10f, max: 10f));
     }
 
     // ============ Image ============

@@ -180,6 +180,40 @@ public class ClayUITooltipTests : IDisposable
     }
 
     [Fact]
+    public void Tooltip_TextInputTarget_Renders_AfterDelay()
+    {
+        string text = "hello";
+
+        _fixture.RunFrame(() =>
+        {
+            ClayUI.TextInput("InputTip", ref text);
+            ClayUI.Tooltip("Input tip");
+        }, mousePos: new Vector2(20, 10));
+
+        ReadOnlySpan<RenderCommand> commands = default;
+        for (int i = 0; i < 5; i++)
+        {
+            commands = _fixture.RunFrame(() =>
+            {
+                ClayUI.TextInput("InputTip", ref text);
+                ClayUI.Tooltip("Input tip");
+            }, mousePos: new Vector2(20, 10), deltaTime: 0.2f);
+        }
+
+        bool hasTooltipText = false;
+        foreach (var cmd in commands)
+        {
+            if (cmd.CommandType == RenderCommandType.Text && cmd.Text.Text == "Input tip")
+            {
+                hasTooltipText = true;
+                break;
+            }
+        }
+
+        Assert.True(hasTooltipText, "Tooltip should render for stable-ID widgets like TextInput");
+    }
+
+    [Fact]
     public void Tooltip_OnlyOnePerFrame()
     {
         // Establish bounding boxes
