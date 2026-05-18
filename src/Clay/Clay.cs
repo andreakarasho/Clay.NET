@@ -165,6 +165,23 @@ public static partial class Clay
     }
 
     /// <summary>
+    /// All element IDs whose bounding box contains the current pointer, ordered
+    /// topmost-first (highest-ZIndex root first; within a root, deepest last-child
+    /// before its ancestors). Empty when no layout has been built.
+    /// Refreshed by <see cref="SetPointerState"/>.
+    /// </summary>
+    public static ReadOnlySpan<ElementId> PointerOverIds
+        => _context is null ? ReadOnlySpan<ElementId>.Empty : _context.PointerOverIds.AsReadOnlySpan();
+
+    /// <summary>
+    /// Rebuilds <see cref="PointerOverIds"/> against the current pointer position
+    /// without advancing pointer state. Call after <see cref="EndLayout"/> if
+    /// hit-testing must reflect the freshly computed layout.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static void RefreshPointerOverIds() => _context?.RefreshPointerOverIds();
+
+    /// <summary>
     /// Gets element data for the element with the given ID.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

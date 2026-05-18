@@ -106,9 +106,16 @@ public class ClayContext : IDisposable
     public ClayList<int> OpenClipElementStack;
     public ClayList<ScrollContainerDataInternal> ScrollContainerDatas;
 
+    // IDs whose bounding box contains the pointer this frame.
+    // Ordered topmost-first: highest-ZIndex root first, and within a root the
+    // deepest last-child appears before its ancestors (postorder + forward-child push).
+    public ClayList<ElementId> PointerOverIds;
+
     // Reusable temporary collections (avoid per-frame allocations)
     private readonly List<int> _bfsQueue = new(256);
     private readonly Dictionary<uint, int> _scrollContainerIndex = new();
+    private ClayList<int> _pointerDfsStack = new(256);
+    private ClayList<bool> _pointerDfsVisited = new(256);
 
     public ClayContext(int maxElementCount = 8192)
     {
@@ -140,6 +147,7 @@ public class ClayContext : IDisposable
         LayoutElementsHashMap = new ClayList<int>(maxElementCount);
         OpenClipElementStack = new ClayList<int>(64);
         ScrollContainerDatas = new ClayList<ScrollContainerDataInternal>(16);
+        PointerOverIds = new ClayList<ElementId>(maxElementCount);
     }
 
     /// <summary>
@@ -1441,6 +1449,88 @@ public class ClayContext : IDisposable
                                 previousState == PointerInteractionState.PressedThisFrame
                 ? PointerInteractionState.ReleasedThisFrame
                 : PointerInteractionState.Released;
+        }
+
+        RebuildPointerOverIds(position);
+    }
+
+    /// <summary>
+    /// Rebuilds <see cref="PointerOverIds"/> for the current pointer position
+    /// without advancing the pointer state machine. Call after <see cref="EndLayout"/>
+    /// when hit-testing must run against the freshly computed layout.
+    /// </summary>
+    public void RefreshPointerOverIds() => RebuildPointerOverIds(PointerInfo.Position);
+
+    private void RebuildPointerOverIds(Vector2 position)
+    {
+        PointerOverIds.Clear();
+        if (LayoutElementTreeRoots.Length == 0 || LayoutElements.Length == 0)
+            return;
+
+        // Iterate roots topmost-first. EndLayout sorts roots ascending by ZIndex,
+        // so reverse iteration visits highest-ZIndex root first.
+        for (int rootIndex = LayoutElementTreeRoots.Length - 1; rootIndex >= 0; rootIndex--)
+        {
+            ref var root = ref LayoutElementTreeRoots[rootIndex];
+            var pointerOffset = root.PointerOffset;
+            var adjustedPos = new Vector2(position.X + pointerOffset.X, position.Y + pointerOffset.Y);
+
+            _pointerDfsStack.Clear();
+            _pointerDfsVisited.Clear();
+            _pointerDfsStack.Add(root.LayoutElementIndex);
+            _pointerDfsVisited.Add(false);
+
+            bool found = false;
+            while (_pointerDfsStack.Length > 0)
+            {
+                int depth = _pointerDfsStack.Length - 1;
+                int elementIndex = _pointerDfsStack[depth];
+
+                if (_pointerDfsVisited[depth])
+                {
+                    // Post-order add: children already processed.
+                    int hashIdx = GetHashMapItemIndex(LayoutElements[elementIndex].Id);
+                    if (hashIdx >= 0)
+                    {
+                        ref var item = ref LayoutElementsHashMapInternal[hashIdx];
+                        if (item.BoundingBox.Contains(adjustedPos))
+                        {
+                            PointerOverIds.Add(item.ElementId);
+                            found = true;
+                        }
+                    }
+                    _pointerDfsStack.Length--;
+                    _pointerDfsVisited.Length--;
+                    continue;
+                }
+
+                _pointerDfsVisited[depth] = true;
+                ref var element = ref LayoutElements[elementIndex];
+
+                // Text leaves: no children to descend into.
+                if (HasConfig(ref element, ElementConfigType.Text))
+                    continue;
+
+                // Push children forward so last-child pops first (topmost subtree first).
+                int childStart = element.Children.StartIndex;
+                int childLen = element.Children.Length;
+                for (int i = 0; i < childLen; i++)
+                {
+                    _pointerDfsStack.Add(LayoutElementChildren[childStart + i]);
+                    _pointerDfsVisited.Add(false);
+                }
+            }
+
+            // Floating root with Capture mode swallows pointer events: don't continue
+            // into roots underneath it.
+            if (!found) continue;
+            ref var rootElement = ref LayoutElements[root.LayoutElementIndex];
+            int floatingIdx = FindConfigIndex(ref rootElement, ElementConfigType.Floating);
+            if (floatingIdx >= 0 &&
+                FloatingElementConfigs[floatingIdx].PointerCaptureMode == PointerCaptureMode.Capture)
+            {
+                break;
+            }
         }
     }
 
