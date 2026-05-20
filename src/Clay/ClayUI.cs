@@ -1039,7 +1039,7 @@ public static class ClayUI
             },
             Image = ImageConfig.Create(imageData, width, height),
             CornerRadius = s.CornerRadius,
-            Border = s.Border
+            Border = s.Border.HasBorder ? s.Border : null
         })) { }
     }
 
@@ -1711,8 +1711,8 @@ public static class ClayUI
                 },
                 BackgroundColor = hasStyle ? s.BackgroundColor : default,
                 CornerRadius = hasStyle ? s.CornerRadius : default,
-                Border = hasStyle ? s.Border : default,
-                Shadow = hasStyle ? s.Shadow : default
+                Border = hasStyle && s.Border.HasBorder ? s.Border : null,
+                Shadow = hasStyle && s.Shadow.HasShadow ? s.Shadow : null
             });
             _context.LayoutDepth++;
 
@@ -1756,8 +1756,8 @@ public static class ClayUI
                 },
                 BackgroundColor = hasStyle ? s.BackgroundColor : default,
                 CornerRadius = hasStyle ? s.CornerRadius : default,
-                Border = hasStyle ? s.Border : default,
-                Shadow = hasStyle ? s.Shadow : default
+                Border = hasStyle && s.Border.HasBorder ? s.Border : null,
+                Shadow = hasStyle && s.Shadow.HasShadow ? s.Shadow : null
             });
             _context.LayoutDepth++;
         }
@@ -1827,8 +1827,8 @@ public static class ClayUI
                 },
                 BackgroundColor = hasStyle ? s.BackgroundColor : default,
                 CornerRadius = hasStyle ? s.CornerRadius : default,
-                Border = hasStyle ? s.Border : default,
-                Shadow = hasStyle ? s.Shadow : default
+                Border = hasStyle && s.Border.HasBorder ? s.Border : null,
+                Shadow = hasStyle && s.Shadow.HasShadow ? s.Shadow : null
             });
             _context.LayoutDepth++;
 
@@ -1872,8 +1872,8 @@ public static class ClayUI
                 },
                 BackgroundColor = hasStyle ? s.BackgroundColor : default,
                 CornerRadius = hasStyle ? s.CornerRadius : default,
-                Border = hasStyle ? s.Border : default,
-                Shadow = hasStyle ? s.Shadow : default
+                Border = hasStyle && s.Border.HasBorder ? s.Border : null,
+                Shadow = hasStyle && s.Shadow.HasShadow ? s.Shadow : null
             });
             _context.LayoutDepth++;
         }
@@ -1948,7 +1948,7 @@ public static class ClayUI
                 CornerRadius = sk.Background.HasImage ? CornerRadius.Zero : s.CornerRadius,
                 Border = sk.Background.HasImage ? default : s.Border,
                 Image = sk.Background.HasImage ? SkinToImageConfig(sk.Background) : default,
-                Shadow = s.Shadow
+                Shadow = s.Shadow.HasShadow ? s.Shadow : null
             });
             _context.PanelDepth++;
 
@@ -2042,7 +2042,7 @@ public static class ClayUI
                 CornerRadius = sk.Background.HasImage ? CornerRadius.Zero : s.CornerRadius,
                 Border = sk.Background.HasImage ? default : s.Border,
                 Image = sk.Background.HasImage ? SkinToImageConfig(sk.Background) : default,
-                Shadow = s.Shadow
+                Shadow = s.Shadow.HasShadow ? s.Shadow : null
             });
             _context.PanelDepth++;
 
@@ -2447,7 +2447,7 @@ public static class ClayUI
             CornerRadius = sk.Body.HasImage ? CornerRadius.Zero : s.CornerRadius,
             Border = sk.Body.HasImage ? default : s.Border,
             Image = sk.Body.HasImage ? SkinToImageConfig(sk.Body) : default,
-            Shadow = s.Shadow
+            Shadow = s.Shadow.HasShadow ? s.Shadow : null
         });
 
         // Title bar
@@ -3638,7 +3638,7 @@ public static class ClayUI
             },
             BackgroundColor = s.BackgroundColor,
             CornerRadius = s.CornerRadius,
-            Border = s.Border,
+            Border = s.Border.HasBorder ? s.Border : null,
             Floating = new FloatingConfig
             {
                 AttachTo = FloatingAttachTo.Root,
@@ -3729,7 +3729,7 @@ public static class ClayUI
             },
             BackgroundColor = s.BackgroundColor,
             CornerRadius = s.CornerRadius,
-            Border = s.Border,
+            Border = s.Border.HasBorder ? s.Border : null,
             Floating = new FloatingConfig
             {
                 AttachTo = FloatingAttachTo.Root,
@@ -3909,7 +3909,7 @@ public static class ClayUI
             },
             BackgroundColor = s.BackgroundColor,
             CornerRadius = s.CornerRadius,
-            Border = s.Border,
+            Border = s.Border.HasBorder ? s.Border : null,
             Floating = new FloatingConfig
             {
                 AttachTo = FloatingAttachTo.Root,
@@ -4473,7 +4473,7 @@ public static class ClayUI
             },
             BackgroundColor = s.BackgroundColor,
             CornerRadius = s.CornerRadius,
-            Border = s.Border,
+            Border = s.Border.HasBorder ? s.Border : null,
             Floating = new FloatingConfig
             {
                 AttachTo = FloatingAttachTo.Root,
@@ -5034,7 +5034,7 @@ public static class ClayUI
                 },
                 BackgroundColor = s.BackgroundColor,
                 CornerRadius = s.CornerRadius,
-                Shadow = s.Shadow
+                Shadow = s.Shadow.HasShadow ? s.Shadow : null
             });
             _context.LayoutDepth++;
 
@@ -5083,7 +5083,7 @@ public static class ClayUI
                 },
                 BackgroundColor = s.BackgroundColor,
                 CornerRadius = s.CornerRadius,
-                Shadow = s.Shadow
+                Shadow = s.Shadow.HasShadow ? s.Shadow : null
             });
             _context.LayoutDepth++;
 
@@ -5210,7 +5210,7 @@ public static class ClayUI
             },
             BackgroundColor = s.BackgroundColor,
             CornerRadius = s.CornerRadius,
-            Border = s.Border
+            Border = s.Border.HasBorder ? s.Border : null
         });
         _context.LayoutDepth++;
         _context.LayoutScrollInfo.Push(new ClayUIContext.ScrollWrapperInfo(scrollId, IsVertical: true, HasWrapper: true));
@@ -5365,7 +5365,7 @@ public static class ClayUI
                 },
                 BackgroundColor = isHovered ? s.HoverColor : s.BackgroundColor,
                 CornerRadius = s.CornerRadius,
-                Border = s.Border
+                Border = s.Border.HasBorder ? s.Border : null
             }))
             {
                 // Selected text

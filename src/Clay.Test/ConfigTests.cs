@@ -206,21 +206,21 @@ public class ElementDeclarationTests
     {
         var layout = LayoutConfig.FillRow(gap: 8);
         var decl = ElementDeclaration.Container(layout);
-        Assert.Equal(8, decl.Layout.ChildGap);
+        Assert.Equal(8, decl.Layout!.Value.ChildGap);
     }
 
     [Fact]
     public void Box_SetsLayoutAndColor()
     {
         var decl = ElementDeclaration.Box(LayoutConfig.FillRow(), Color.Red);
-        Assert.Equal(Color.Red.R, decl.BackgroundColor.R);
+        Assert.Equal(Color.Red.R, decl.BackgroundColor!.Value.R);
     }
 
     [Fact]
     public void RoundedBox_SetsCornerRadius()
     {
         var decl = ElementDeclaration.RoundedBox(LayoutConfig.FillRow(), Color.Red, 8f);
-        Assert.True(decl.CornerRadius.HasRadius);
+        Assert.True(decl.CornerRadius!.Value.HasRadius);
     }
 }
 

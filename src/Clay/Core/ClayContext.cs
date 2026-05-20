@@ -251,13 +251,14 @@ public class ClayContext : IDisposable
 
         ref var openLayoutElement = ref GetOpenLayoutElement();
 
-        // Store layout config
-        int layoutConfigIndex = LayoutConfigs.Add(declaration.Layout);
+        // Store layout config (default when not provided)
+        var layout = declaration.Layout ?? default;
+        int layoutConfigIndex = LayoutConfigs.Add(layout);
         openLayoutElement.LayoutConfigIndex = layoutConfigIndex;
 
         // Validate percent sizing
-        if ((declaration.Layout.Sizing.Width.Type == SizingType.Percent && declaration.Layout.Sizing.Width.Percent > 1) ||
-            (declaration.Layout.Sizing.Height.Type == SizingType.Percent && declaration.Layout.Sizing.Height.Percent > 1))
+        if ((layout.Sizing.Width.Type == SizingType.Percent && layout.Sizing.Width.Percent > 1) ||
+            (layout.Sizing.Height.Type == SizingType.Percent && layout.Sizing.Height.Percent > 1))
         {
             OnError?.Invoke(new ErrorData
             {
@@ -270,30 +271,30 @@ public class ClayContext : IDisposable
         openLayoutElement.ElementConfigsStart = ElementConfigs.Length;
 
         // Process shared config (background color, corner radius, user data)
-        if (declaration.BackgroundColor.A > 0 || declaration.CornerRadius.HasRadius || declaration.UserData != 0)
+        if (declaration.BackgroundColor is not null || declaration.CornerRadius is not null || declaration.UserData is not null)
         {
             int sharedIndex = SharedElementConfigs.Add(new SharedElementConfig
             {
-                BackgroundColor = declaration.BackgroundColor,
-                CornerRadius = declaration.CornerRadius,
-                UserData = declaration.UserData
+                BackgroundColor = declaration.BackgroundColor ?? default,
+                CornerRadius = declaration.CornerRadius ?? default,
+                UserData = declaration.UserData ?? 0
             });
             ElementConfigs.Add(new ElementConfig { Type = ElementConfigType.Shared, ConfigIndex = sharedIndex });
             openLayoutElement.ElementConfigsLength++;
         }
 
         // Process image config
-        if (declaration.Image.HasImage)
+        if (declaration.Image is not null)
         {
-            int imageIndex = ImageElementConfigs.Add(declaration.Image);
+            int imageIndex = ImageElementConfigs.Add(declaration.Image.Value);
             ElementConfigs.Add(new ElementConfig { Type = ElementConfigType.Image, ConfigIndex = imageIndex });
             openLayoutElement.ElementConfigsLength++;
         }
 
         // Process floating config
-        if (declaration.Floating.IsFloating)
+        if (declaration.Floating is not null)
         {
-            var floatingConfig = declaration.Floating;
+            var floatingConfig = declaration.Floating.Value;
 
             if (OpenLayoutElementStack.Length >= 2)
             {
@@ -335,9 +336,9 @@ public class ClayContext : IDisposable
         }
 
         // Process custom config
-        if (declaration.Custom.HasCustomData)
+        if (declaration.Custom is not null)
         {
-            int customIndex = CustomElementConfigs.Add(declaration.Custom);
+            int customIndex = CustomElementConfigs.Add(declaration.Custom.Value);
             ElementConfigs.Add(new ElementConfig { Type = ElementConfigType.Custom, ConfigIndex = customIndex });
             openLayoutElement.ElementConfigsLength++;
         }
@@ -353,15 +354,15 @@ public class ClayContext : IDisposable
         }
 
         // Push to clip stack if this element clips children (one entry per element)
-        if (declaration.Layout.ClipContent || declaration.Scroll.IsScrollable)
+        if (layout.ClipContent || declaration.Scroll is not null)
         {
             OpenClipElementStack.Add((int)openLayoutElement.Id);
         }
 
         // Process scroll config
-        if (declaration.Scroll.IsScrollable)
+        if (declaration.Scroll is not null)
         {
-            int scrollIndex = ScrollElementConfigs.Add(declaration.Scroll);
+            int scrollIndex = ScrollElementConfigs.Add(declaration.Scroll.Value);
             ElementConfigs.Add(new ElementConfig { Type = ElementConfigType.Scroll, ConfigIndex = scrollIndex });
             openLayoutElement.ElementConfigsLength++;
 
@@ -392,17 +393,17 @@ public class ClayContext : IDisposable
         }
 
         // Process border config
-        if (declaration.Border.HasBorder)
+        if (declaration.Border is not null)
         {
-            int borderIndex = BorderElementConfigs.Add(declaration.Border);
+            int borderIndex = BorderElementConfigs.Add(declaration.Border.Value);
             ElementConfigs.Add(new ElementConfig { Type = ElementConfigType.Border, ConfigIndex = borderIndex });
             openLayoutElement.ElementConfigsLength++;
         }
 
         // Process shadow config
-        if (declaration.Shadow.HasShadow)
+        if (declaration.Shadow is not null)
         {
-            int shadowIndex = ShadowElementConfigs.Add(declaration.Shadow);
+            int shadowIndex = ShadowElementConfigs.Add(declaration.Shadow.Value);
             ElementConfigs.Add(new ElementConfig { Type = ElementConfigType.Shadow, ConfigIndex = shadowIndex });
             openLayoutElement.ElementConfigsLength++;
         }
