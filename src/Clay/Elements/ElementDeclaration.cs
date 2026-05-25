@@ -9,59 +9,59 @@ namespace Clay;
 public struct ElementDeclaration
 {
     /// <summary>
-    /// Unique identifier for this element.
+    /// Unique identifier for this element. Required.
     /// </summary>
     public ElementId Id;
 
     /// <summary>
     /// Layout configuration (sizing, padding, direction, etc.).
     /// </summary>
-    public LayoutConfig Layout;
+    public LayoutConfig? Layout;
 
     /// <summary>
     /// Background color of the element.
     /// </summary>
-    public Color BackgroundColor;
+    public Color? BackgroundColor;
 
     /// <summary>
     /// Corner radius for rounded corners.
     /// </summary>
-    public CornerRadius CornerRadius;
+    public CornerRadius? CornerRadius;
 
     /// <summary>
     /// Image configuration (if this is an image element).
     /// </summary>
-    public ImageConfig Image;
+    public ImageConfig? Image;
 
     /// <summary>
     /// Floating configuration (for overlay/popup elements).
     /// </summary>
-    public FloatingConfig Floating;
+    public FloatingConfig? Floating;
 
     /// <summary>
     /// Custom element configuration.
     /// </summary>
-    public CustomConfig Custom;
+    public CustomConfig? Custom;
 
     /// <summary>
     /// Scroll container configuration.
     /// </summary>
-    public ScrollConfig Scroll;
+    public ScrollConfig? Scroll;
 
     /// <summary>
     /// Border configuration.
     /// </summary>
-    public BorderConfig Border;
+    public BorderConfig? Border;
 
     /// <summary>
     /// Shadow configuration.
     /// </summary>
-    public ShadowConfig Shadow;
+    public ShadowConfig? Shadow;
 
     /// <summary>
     /// User-defined data (passed through to render commands).
     /// </summary>
-    public nint UserData;
+    public nint? UserData;
 
     /// <summary>
     /// Creates a basic container element.
@@ -83,7 +83,7 @@ public struct ElementDeclaration
         {
             Layout = layout,
             BackgroundColor = backgroundColor,
-            CornerRadius = CornerRadius.All(cornerRadius)
+            CornerRadius = global::Clay.CornerRadius.All(cornerRadius)
         };
 }
 
