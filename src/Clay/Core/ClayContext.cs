@@ -182,6 +182,20 @@ public class ClayContext : IDisposable
 
         LayoutElementTreeRoots.Clear();
 
+        // Rebuild the element hash map from scratch each frame. It is keyed by
+        // element id; left to persist it only grows (AddHashMapItem appends every
+        // new id) until MaxElementCount, after which new elements silently fail to
+        // register (no hash item -> zero bounding box -> culled / "vanish"). Under
+        // entity-index recycling, stale ids also linger and re-collide.
+        // Zero the bucket backing array explicitly: Clear() only resets length,
+        // and Set() of a high bucket leaves the lower un-set gaps holding stale
+        // bucket-head indices that point into the freshly-cleared internal list.
+        // This runs AFTER UpdateScrollContainers (frame start), so that prune
+        // still sees the previous frame's map.
+        System.Array.Clear(LayoutElementsHashMap.InternalArray, 0, LayoutElementsHashMap.InternalArray.Length);
+        LayoutElementsHashMap.Clear();
+        LayoutElementsHashMapInternal.Clear();
+
         // Create root element
         var rootId = ElementId.Hash("Clay__RootContainer");
 
@@ -1576,6 +1590,24 @@ public class ClayContext : IDisposable
 
     public void UpdateScrollContainers(bool enableDragScrolling, Vector2 scrollDelta, float deltaTime)
     {
+        // Prune scroll containers whose element was NOT laid out last frame (ports
+        // upstream Clay_UpdateScrollContainers). ScrollContainerDatas is keyed by
+        // element id and otherwise persists forever — so a recycled entity index
+        // inherits the dead element's scroll offset and renders scrolled out of
+        // view ("vanishes"). This runs at frame start (before BeginLayout), so
+        // OpenThisFrame still reflects the previous frame's layout. Iterate
+        // backwards so RemoveSwapback doesn't skip survivors.
+        for (int i = ScrollContainerDatas.Length - 1; i >= 0; i--)
+        {
+            ref var sc = ref ScrollContainerDatas[i];
+            if (!sc.OpenThisFrame || GetHashMapItemIndex(sc.ElementId) < 0)
+            {
+                ScrollContainerDatas.RemoveSwapback(i);
+                continue;
+            }
+            sc.OpenThisFrame = false;
+        }
+
         // Note: scroll delta for text inputs is forwarded separately after BeginLayout
         // (via TextInputScrollDelta) to avoid being cleared by TextInput.BeginFrame().
 
