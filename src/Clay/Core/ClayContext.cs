@@ -111,6 +111,11 @@ public class ClayContext : IDisposable
     // deepest last-child appears before its ancestors (postorder + forward-child push).
     public ClayList<ElementId> PointerOverIds;
 
+    // Bounding boxes parallel to PointerOverIds, captured at hit-test time so
+    // PointerOver can pass them to CustomHitTest without re-querying the element
+    // hash map (which is cleared each frame at BeginLayout).
+    private ClayList<BoundingBox> _pointerOverBoxes;
+
     // Reusable temporary collections (avoid per-frame allocations)
     private readonly List<int> _bfsQueue = new(256);
     private readonly Dictionary<uint, int> _scrollContainerIndex = new();
@@ -148,6 +153,7 @@ public class ClayContext : IDisposable
         OpenClipElementStack = new ClayList<int>(64);
         ScrollContainerDatas = new ClayList<ScrollContainerDataInternal>(16);
         PointerOverIds = new ClayList<ElementId>(maxElementCount);
+        _pointerOverBoxes = new ClayList<BoundingBox>(maxElementCount);
     }
 
     /// <summary>
@@ -1483,6 +1489,7 @@ public class ClayContext : IDisposable
     private void RebuildPointerOverIds(Vector2 position)
     {
         PointerOverIds.Clear();
+        _pointerOverBoxes.Clear();
         if (LayoutElementTreeRoots.Length == 0 || LayoutElements.Length == 0)
             return;
 
@@ -1512,9 +1519,16 @@ public class ClayContext : IDisposable
                     if (hashIdx >= 0)
                     {
                         ref var item = ref LayoutElementsHashMapInternal[hashIdx];
-                        if (item.BoundingBox.Contains(adjustedPos))
+                        // Bounding box + clip-bounds gate membership here, because the
+                        // element hash map is cleared at BeginLayout and PointerOver can no
+                        // longer re-query it mid-frame. CustomHitTest is NOT applied here —
+                        // it is a per-query callback (PointerOver), so it runs there using
+                        // the bounding box snapshotted alongside the id.
+                        if (item.BoundingBox.Contains(adjustedPos) &&
+                            (!item.HasClipBounds || item.ClipBounds.Contains(adjustedPos)))
                         {
                             PointerOverIds.Add(item.ElementId);
+                            _pointerOverBoxes.Add(item.BoundingBox);
                             found = true;
                         }
                     }
@@ -1560,23 +1574,25 @@ public class ClayContext : IDisposable
 
     public bool PointerOver(ElementId elementId)
     {
-        int hashIndex = GetHashMapItemIndex(elementId.Id);
-        if (hashIndex < 0)
-            return false;
+        // Membership test against the cached hit list. The element hash map is
+        // cleared every frame at BeginLayout, so a fresh GetHashMapItemIndex query
+        // here would miss elements during the build pass (immediate-mode widgets
+        // call PointerOver while laying themselves out). PointerOverIds is built by
+        // SetPointerState against the previous frame's map — bounding box, clip
+        // bounds and CustomHitTest are all applied there. Mirrors Clay_PointerOver.
+        for (int i = 0; i < PointerOverIds.Length; i++)
+        {
+            if (PointerOverIds[i].Id != elementId.Id)
+                continue;
 
-        ref var item = ref LayoutElementsHashMapInternal[hashIndex];
-        if (!item.BoundingBox.Contains(PointerInfo.Position))
-            return false;
+            // Element passed the bounding-box / clip-bounds gate at hit-test time.
+            // CustomHitTest gets the final say, using the snapshotted bounds.
+            if (CustomHitTest != null)
+                return CustomHitTest(elementId, _pointerOverBoxes[i], PointerInfo.Position);
 
-        // If the element is inside a scroll container, the pointer must also
-        // be within the scroll container's clip bounds (scissor region).
-        if (item.HasClipBounds && !item.ClipBounds.Contains(PointerInfo.Position))
-            return false;
-
-        if (CustomHitTest != null)
-            return CustomHitTest(elementId, item.BoundingBox, PointerInfo.Position);
-
-        return true;
+            return true;
+        }
+        return false;
     }
 
     public ElementData GetElementData(ElementId id)
