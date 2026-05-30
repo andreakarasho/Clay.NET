@@ -226,6 +226,22 @@ public static partial class Clay
     }
 
     /// <summary>
+    /// Enables or disables the pointer-highlight debug overlay: the topmost
+    /// element under the pointer is outlined lime, occluded elements beneath
+    /// it at the same point are outlined red.
+    /// </summary>
+    public static void SetPointerHighlightEnabled(bool enabled)
+    {
+        if (_context != null)
+            _context.PointerHighlightEnabled = enabled;
+    }
+
+    /// <summary>
+    /// Returns true if the pointer-highlight debug overlay is enabled.
+    /// </summary>
+    public static bool IsPointerHighlightEnabled() => _context?.PointerHighlightEnabled ?? false;
+
+    /// <summary>
     /// Enables or disables culling.
     /// </summary>
     public static void SetCullingEnabled(bool enabled)

@@ -67,6 +67,9 @@ public class ClayContext : IDisposable
     public uint Generation;
     public float DeltaTime;
     public bool DebugModeEnabled;
+    // Debug overlay: outline the elements under the pointer (topmost lime,
+    // occluded-beneath red). Emitted by GeneratePointerHighlightCommands.
+    public bool PointerHighlightEnabled;
     public bool CullingDisabled;
 
     // Text measurement
@@ -236,7 +239,67 @@ public class ClayContext : IDisposable
         CloseElement();
         ComputeLayout();
         GenerateRenderCommands();
+        GeneratePointerHighlightCommands();
         return RenderCommands.AsReadOnlySpan();
+    }
+
+    // Debug overlay: frame the elements under the pointer. The topmost hit
+    // (PointerOverIds[0]) is outlined lime; every element occluded beneath it
+    // at the same point is outlined red. Appended after the normal commands so
+    // the outlines paint on top. Pure bbox/z hit — the host's per-pixel
+    // CustomHitTest is NOT applied here, so this shows Clay's own stacking pick.
+    private void GeneratePointerHighlightCommands()
+    {
+        if (!PointerHighlightEnabled)
+            return;
+
+        // Gray frame around every element laid out this frame (Generation + 1
+        // is this frame's stamp; the hash map keeps recycled entries from prior
+        // frames). Emitted first so the lime/red pointer outlines paint over it.
+        var gray = new Color(150, 150, 150, 110);
+        for (int i = 0; i < LayoutElementsHashMapInternal.Length; i++)
+        {
+            ref var item = ref LayoutElementsHashMapInternal[i];
+            if (item.Generation != Generation + 1)
+                continue;
+            RenderCommands.Add(new RenderCommand
+            {
+                BoundingBox = item.BoundingBox,
+                CommandType = RenderCommandType.Border,
+                Id = item.ElementId.Id,
+                ZIndex = short.MaxValue,
+                Border = new BorderRenderData
+                {
+                    Color = gray,
+                    Width = BorderWidth.All(1),
+                    CornerRadius = default,
+                }
+            });
+        }
+
+        // Rebuild against the freshly computed layout (SetPointerState earlier
+        // in the frame hit-tested the previous frame's tree).
+        RebuildPointerOverIds(PointerInfo.Position);
+
+        var lime = new Color(0, 255, 0, 255);
+        var red = new Color(255, 0, 0, 255);
+
+        for (int i = 0; i < PointerOverIds.Length; i++)
+        {
+            RenderCommands.Add(new RenderCommand
+            {
+                BoundingBox = _pointerOverBoxes[i],
+                CommandType = RenderCommandType.Border,
+                Id = PointerOverIds[i].Id,
+                ZIndex = short.MaxValue,
+                Border = new BorderRenderData
+                {
+                    Color = i == 0 ? lime : red,
+                    Width = BorderWidth.All(2),
+                    CornerRadius = default,
+                }
+            });
+        }
     }
 
     /// <summary>
