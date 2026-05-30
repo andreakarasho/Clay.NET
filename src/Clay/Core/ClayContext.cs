@@ -1300,6 +1300,30 @@ public class ClayContext : IDisposable
             });
         }
 
+        // Custom (a background fill, e.g. a UO gump sprite) — emitted with the
+        // other backgrounds BEFORE children so the element's own fill paints
+        // behind its children/text. (Border stays after children below, so it
+        // frames them on top.) Previously custom was emitted at the end, which
+        // painted an opaque gump bg over its own labels — blank rows.
+        int customIndex = FindConfigIndex(ref element, ElementConfigType.Custom);
+        if (customIndex >= 0)
+        {
+            ref var customConfig = ref CustomElementConfigs[customIndex];
+            RenderCommands.Add(new RenderCommand
+            {
+                BoundingBox = boundingBox,
+                CommandType = RenderCommandType.Custom,
+                Id = element.Id,
+                ZIndex = zIndex,
+                Custom = new CustomRenderData
+                {
+                    CustomData = customConfig.CustomData,
+                    BackgroundColor = sharedConfig.BackgroundColor,
+                    CornerRadius = sharedConfig.CornerRadius
+                }
+            });
+        }
+
         // Scissor start (for scroll containers or ClipContent elements)
         bool needsScissor = scrollIndex >= 0 ||
             LayoutConfigs[element.LayoutConfigIndex].ClipContent;
@@ -1402,7 +1426,7 @@ public class ClayContext : IDisposable
             });
         }
 
-        // Border
+        // Border — emitted after children so it frames them on top.
         int borderIndex = FindConfigIndex(ref element, ElementConfigType.Border);
         if (borderIndex >= 0)
         {
@@ -1423,26 +1447,6 @@ public class ClayContext : IDisposable
                     }
                 });
             }
-        }
-
-        // Custom
-        int customIndex = FindConfigIndex(ref element, ElementConfigType.Custom);
-        if (customIndex >= 0)
-        {
-            ref var customConfig = ref CustomElementConfigs[customIndex];
-            RenderCommands.Add(new RenderCommand
-            {
-                BoundingBox = boundingBox,
-                CommandType = RenderCommandType.Custom,
-                Id = element.Id,
-                ZIndex = zIndex,
-                Custom = new CustomRenderData
-                {
-                    CustomData = customConfig.CustomData,
-                    BackgroundColor = sharedConfig.BackgroundColor,
-                    CornerRadius = sharedConfig.CornerRadius
-                }
-            });
         }
     }
 
