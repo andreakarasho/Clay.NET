@@ -1018,7 +1018,7 @@ public class ClayContext : IDisposable
                         {
                             ref var td = ref TextElementData[child.TextData.Index];
                             ref var tc = ref TextElementConfigs[tcIndex];
-                            var wrapped = TextMeasurer.MeasureTextWrapped(
+                            var wrapped = TextMeasurer.MeasureText(
                                 td.Text.AsSpan(), tc.FontId, tc.FontSize, tc.LetterSpacing, availableSpace);
                             if (tc.LineHeight > 0 && tc.FontSize > 0)
                                 wrapped.Height *= tc.LineHeight / (float)tc.FontSize;

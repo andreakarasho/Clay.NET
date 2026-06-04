@@ -8,24 +8,20 @@ public interface ITextMeasurer
 {
     /// <summary>
     /// Measures the dimensions of the given text with the specified configuration.
+    /// When <paramref name="maxWidth"/> is greater than 0 the text is wrapped to it:
+    /// the returned width is the widest resulting line (≤ maxWidth) and the height
+    /// grows with the line count. The layout pass passes a maxWidth once an
+    /// element's available width is known so a text run that overflows its
+    /// container reflows instead of running off-box. maxWidth ≤ 0 means no wrap;
+    /// measurers that don't support wrapping ignore it.
     /// </summary>
     /// <param name="text">The text to measure.</param>
     /// <param name="fontId">Font identifier.</param>
     /// <param name="fontSize">Font size in pixels.</param>
     /// <param name="letterSpacing">Extra spacing between characters.</param>
+    /// <param name="maxWidth">Wrap width in pixels, or ≤ 0 for no wrap.</param>
     /// <returns>The dimensions of the rendered text.</returns>
-    Dimensions MeasureText(ReadOnlySpan<char> text, ushort fontId, ushort fontSize, ushort letterSpacing);
-
-    /// <summary>
-    /// Measures text wrapped to <paramref name="maxWidth"/>: the returned width is
-    /// the widest resulting line (≤ maxWidth) and the height grows with the line
-    /// count. The layout pass calls this once an element's available width is
-    /// known so a text run that overflows its container reflows instead of running
-    /// off-box. Default implementation ignores the constraint (no wrap) for
-    /// measurers that don't support it.
-    /// </summary>
-    Dimensions MeasureTextWrapped(ReadOnlySpan<char> text, ushort fontId, ushort fontSize, ushort letterSpacing, float maxWidth)
-        => MeasureText(text, fontId, fontSize, letterSpacing);
+    Dimensions MeasureText(ReadOnlySpan<char> text, ushort fontId, ushort fontSize, ushort letterSpacing, float maxWidth = 0);
 }
 
 /// <summary>
@@ -44,7 +40,7 @@ public class SimpleTextMeasurer : ITextMeasurer
     /// </summary>
     public float LineHeightRatio { get; set; } = 1.2f;
 
-    public Dimensions MeasureText(ReadOnlySpan<char> text, ushort fontId, ushort fontSize, ushort letterSpacing)
+    public Dimensions MeasureText(ReadOnlySpan<char> text, ushort fontId, ushort fontSize, ushort letterSpacing, float maxWidth = 0)
     {
         float lineHeight = fontSize * LineHeightRatio;
 
