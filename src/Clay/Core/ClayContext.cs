@@ -595,10 +595,13 @@ public class ClayContext : IDisposable
             openLayoutElement.MinDimensions.Width = Math.Clamp(openLayoutElement.MinDimensions.Width,
                 layoutConfig.Sizing.Width.MinMax.Min, maxWidth);
         }
-        else
-        {
-            openLayoutElement.Dimensions.Width = 0;
-        }
+        // NOTE: a Percent element keeps the content-derived width computed from
+        // its children here (it is NOT reset to 0). The width pass overwrites it
+        // with the resolved percent against the real parent, so the only effect
+        // of keeping it is that a FIT parent can size to this element's content.
+        // Resetting to 0 collapsed a fit parent whose sole child is percent/grow
+        // width — e.g. a tooltip wrapper around flowing text got 0 width and thus
+        // 0 hit area (no hover). Content sizing matches CSS min-content behaviour.
 
         if (layoutConfig.Sizing.Height.Type != SizingType.Percent)
         {
@@ -873,8 +876,61 @@ public class ClayContext : IDisposable
     private void ComputeLayout()
     {
         SizeContainersAlongAxis(true);
+        // Width pass reflows overflowing text leaves to multiple lines; their FIT
+        // ancestors were height-summed at CloseElement against the pre-wrap single
+        // line, so re-sum them before the height pass / positioning runs.
+        RecomputeFitHeights();
         SizeContainersAlongAxis(false);
         PositionElements();
+    }
+
+    // Bottom-up (post-order) re-accumulation of FIT element heights. Only FIT
+    // containers are touched — Fixed/Percent/Grow heights are owned by other
+    // passes. Mirrors the CloseElement FIT rule: a column sums child heights +
+    // gaps + padding, a row takes the tallest child + padding.
+    private void RecomputeFitHeights()
+    {
+        for (int r = 0; r < LayoutElementTreeRoots.Length; r++)
+            RecomputeFitHeightsRecursive(LayoutElementTreeRoots[r].LayoutElementIndex);
+    }
+
+    private float RecomputeFitHeightsRecursive(int elementIndex)
+    {
+        // Re-fetch by index after recursing (the elements array never resizes
+        // here, but avoid holding a ref across the child calls regardless).
+        if (LayoutElements[elementIndex].IsTextElement)
+            return LayoutElements[elementIndex].Dimensions.Height;
+
+        int childStart = LayoutElements[elementIndex].Children.StartIndex;
+        int childCount = LayoutElements[elementIndex].Children.Length;
+        for (int i = 0; i < childCount; i++)
+            RecomputeFitHeightsRecursive(LayoutElementChildren[childStart + i]);
+
+        ref var el = ref LayoutElements[elementIndex];
+        ref var cfg = ref LayoutConfigs[el.LayoutConfigIndex];
+        if (cfg.Sizing.Height.Type != SizingType.Fit)
+            return el.Dimensions.Height;
+
+        float padV = cfg.Padding.Top + cfg.Padding.Bottom;
+        float height;
+        if (cfg.Direction == LayoutDirection.TopToBottom)
+        {
+            height = padV;
+            for (int i = 0; i < childCount; i++)
+                height += LayoutElements[LayoutElementChildren[childStart + i]].Dimensions.Height;
+            height += Math.Max(childCount - 1, 0) * cfg.ChildGap;
+        }
+        else
+        {
+            float maxChild = 0;
+            for (int i = 0; i < childCount; i++)
+                maxChild = Math.Max(maxChild, LayoutElements[LayoutElementChildren[childStart + i]].Dimensions.Height);
+            height = maxChild + padV;
+        }
+
+        float maxHeight = cfg.Sizing.Height.MinMax.Max > 0 ? cfg.Sizing.Height.MinMax.Max : float.MaxValue;
+        el.Dimensions.Height = Math.Clamp(height, cfg.Sizing.Height.MinMax.Min, maxHeight);
+        return el.Dimensions.Height;
     }
 
     private void SizeContainersAlongAxis(bool xAxis)
@@ -943,6 +999,33 @@ public class ClayContext : IDisposable
                     if (!child.IsTextElement && child.Children.Length > 0)
                     {
                         queue.Add(childIndex);
+                    }
+
+                    // Text reflow: a text leaf is measured single-line at AddText
+                    // time (FIT), so it overflows a narrower container. Now that the
+                    // parent's width is resolved (top-down BFS), re-wrap any text
+                    // child to the available content width — width shrinks to the
+                    // widest wrapped line, height grows with the line count.
+                    // RecomputeFitHeights (run after this pass) propagates the new
+                    // height up through FIT ancestors. Height-only effect here;
+                    // widths of FIT ancestors were already framed by non-text
+                    // siblings / fixed sizing in CloseElement.
+                    if (xAxis && child.IsTextElement && TextMeasurer != null
+                        && availableSpace > 0 && child.Dimensions.Width > availableSpace)
+                    {
+                        int tcIndex = FindConfigIndex(ref child, ElementConfigType.Text);
+                        if (tcIndex >= 0)
+                        {
+                            ref var td = ref TextElementData[child.TextData.Index];
+                            ref var tc = ref TextElementConfigs[tcIndex];
+                            var wrapped = TextMeasurer.MeasureTextWrapped(
+                                td.Text.AsSpan(), tc.FontId, tc.FontSize, tc.LetterSpacing, availableSpace);
+                            if (tc.LineHeight > 0 && tc.FontSize > 0)
+                                wrapped.Height *= tc.LineHeight / (float)tc.FontSize;
+                            child.Dimensions.Width = Math.Min(wrapped.Width, availableSpace);
+                            child.Dimensions.Height = wrapped.Height;
+                            td.PreferredDimensions = child.Dimensions;
+                        }
                     }
 
                     ref var childLayoutConfig = ref LayoutConfigs[child.LayoutConfigIndex];

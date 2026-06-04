@@ -15,6 +15,17 @@ public interface ITextMeasurer
     /// <param name="letterSpacing">Extra spacing between characters.</param>
     /// <returns>The dimensions of the rendered text.</returns>
     Dimensions MeasureText(ReadOnlySpan<char> text, ushort fontId, ushort fontSize, ushort letterSpacing);
+
+    /// <summary>
+    /// Measures text wrapped to <paramref name="maxWidth"/>: the returned width is
+    /// the widest resulting line (≤ maxWidth) and the height grows with the line
+    /// count. The layout pass calls this once an element's available width is
+    /// known so a text run that overflows its container reflows instead of running
+    /// off-box. Default implementation ignores the constraint (no wrap) for
+    /// measurers that don't support it.
+    /// </summary>
+    Dimensions MeasureTextWrapped(ReadOnlySpan<char> text, ushort fontId, ushort fontSize, ushort letterSpacing, float maxWidth)
+        => MeasureText(text, fontId, fontSize, letterSpacing);
 }
 
 /// <summary>
