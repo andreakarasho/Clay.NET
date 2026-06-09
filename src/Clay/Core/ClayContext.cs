@@ -1014,7 +1014,10 @@ public class ClayContext : IDisposable
                         && availableSpace > 0 && child.Dimensions.Width > availableSpace)
                     {
                         int tcIndex = FindConfigIndex(ref child, ElementConfigType.Text);
-                        if (tcIndex >= 0)
+                        // WrapMode.None keeps the single-line AddText measurement:
+                        // the text overflows its container (the parent clips it
+                        // when ClipContent is set) instead of reflowing.
+                        if (tcIndex >= 0 && TextElementConfigs[tcIndex].WrapMode != TextWrapMode.None)
                         {
                             ref var td = ref TextElementData[child.TextData.Index];
                             ref var tc = ref TextElementConfigs[tcIndex];
