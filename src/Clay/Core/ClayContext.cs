@@ -191,19 +191,15 @@ public class ClayContext : IDisposable
 
         LayoutElementTreeRoots.Clear();
 
-        // Rebuild the element hash map from scratch each frame. It is keyed by
-        // element id; left to persist it only grows (AddHashMapItem appends every
-        // new id) until MaxElementCount, after which new elements silently fail to
-        // register (no hash item -> zero bounding box -> culled / "vanish"). Under
-        // entity-index recycling, stale ids also linger and re-collide.
-        // Zero the bucket backing array explicitly: Clear() only resets length,
-        // and Set() of a high bucket leaves the lower un-set gaps holding stale
-        // bucket-head indices that point into the freshly-cleared internal list.
-        // This runs AFTER UpdateScrollContainers (frame start), so that prune
-        // still sees the previous frame's map.
-        System.Array.Clear(LayoutElementsHashMap.InternalArray, 0, LayoutElementsHashMap.InternalArray.Length);
-        LayoutElementsHashMap.Clear();
-        LayoutElementsHashMapInternal.Clear();
+        // Prune the element hash map: drop entries NOT laid out last frame (keyed by
+        // element id) so it stays bounded and recycled/stale ids don't linger, while
+        // KEEPING last-frame survivors and their BoundingBox. The retained bbox is
+        // what cross-frame GetElementData reads return (e.g. docked/floating content
+        // positions itself against its parent leaf's previous-frame box) — a blanket
+        // clear here zeroes those boxes mid-build and collapses such content to the
+        // origin. Runs AFTER UpdateScrollContainers + the Generation++ above, so
+        // survivors are exactly the items with Generation == Generation.
+        PruneStaleHashMapItems();
 
         // Create root element
         var rootId = ElementId.Hash("Clay__RootContainer");
@@ -806,6 +802,42 @@ public class ClayContext : IDisposable
         {
             // Store index+1 so that 0 means empty
             LayoutElementsHashMap.Set(hashBucket, newIndex + 1);
+        }
+    }
+
+    // Compacts LayoutElementsHashMapInternal to the items laid out last frame
+    // (Generation == current Generation, set after the BeginLayout increment) and
+    // rebuilds the bucket array + NextIndex chains from the survivors. Survivors keep
+    // their BoundingBox so GetElementData returns the previous frame's box during this
+    // frame's build. Allocation-free: compacts in place, no temp buffer.
+    private void PruneStaleHashMapItems()
+    {
+        var items = LayoutElementsHashMapInternal;
+
+        int write = 0;
+        for (int read = 0; read < items.Length; read++)
+        {
+            ref var item = ref items[read];
+            if (item.Generation < Generation)
+                continue; // not laid out last frame -> stale, drop
+            if (write != read)
+                items[write] = item;
+            write++;
+        }
+        items.Length = write;
+
+        // Rebuild buckets from the compacted survivors. Zero the backing array first:
+        // Clear() only resets length, leaving stale bucket-head indices in the gaps.
+        System.Array.Clear(LayoutElementsHashMap.InternalArray, 0, LayoutElementsHashMap.InternalArray.Length);
+        LayoutElementsHashMap.Clear();
+        for (int i = 0; i < items.Length; i++)
+        {
+            ref var item = ref items[i];
+            int hashBucket = (int)(item.ElementId.Id % (uint)Math.Max(LayoutElementsHashMap.Capacity, 1024));
+            while (LayoutElementsHashMap.Capacity <= hashBucket)
+                LayoutElementsHashMap.Set(LayoutElementsHashMap.Capacity, 0);
+            item.NextIndex = LayoutElementsHashMap.GetValue(hashBucket) - 1; // prepend to chain
+            LayoutElementsHashMap.Set(hashBucket, i + 1); // store index+1 (0 = empty)
         }
     }
 
