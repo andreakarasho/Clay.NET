@@ -113,9 +113,7 @@ public static partial class Clay
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void Text(string text, TextConfig config = default)
-    {
-        _context?.AddText(text.AsSpan(), config.FontSize > 0 ? config : TextConfig.Default);
-    }
+        => Text(text.AsSpan(), config);
 
     /// <summary>
     /// Adds a text element.

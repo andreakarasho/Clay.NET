@@ -304,6 +304,19 @@ internal class ClayUIContext
         DockedWindowTitles.Clear();
     }
 
+    internal void UpsertPopupBounds(uint popupId, BoundingBox bounds)
+    {
+        for (int i = 0; i < OpenPopupBounds.Count; i++)
+        {
+            if (OpenPopupBounds[i].PopupId == popupId)
+            {
+                OpenPopupBounds[i] = (popupId, bounds);
+                return;
+            }
+        }
+        OpenPopupBounds.Add((popupId, bounds));
+    }
+
     /// <summary>
     /// Checks if a point is inside any open window.
     /// Uses WindowStates to check ALL windows, not just those processed this frame.
@@ -314,8 +327,7 @@ internal class ClayUIContext
         // WindowStates (which persists even when windows aren't rendered this frame).
         foreach (var (_, bounds) in OpenWindowBounds)
         {
-            if (point.X >= bounds.X && point.X <= bounds.X + bounds.Width &&
-                point.Y >= bounds.Y && point.Y <= bounds.Y + bounds.Height)
+            if (bounds.Contains(point))
             {
                 return true;
             }
@@ -334,8 +346,7 @@ internal class ClayUIContext
 
         foreach (var (windowId, bounds) in OpenWindowBounds)
         {
-            if (point.X >= bounds.X && point.X <= bounds.X + bounds.Width &&
-                point.Y >= bounds.Y && point.Y <= bounds.Y + bounds.Height)
+            if (bounds.Contains(point))
             {
                 int order = WindowFocusOrder.IndexOf(windowId);
                 if (order > highestOrder)
@@ -438,8 +449,7 @@ internal class ClayUIContext
     {
         foreach (var (_, bounds) in OpenPopupBounds)
         {
-            if (point.X >= bounds.X && point.X <= bounds.X + bounds.Width &&
-                point.Y >= bounds.Y && point.Y <= bounds.Y + bounds.Height)
+            if (bounds.Contains(point))
             {
                 return true;
             }
@@ -462,8 +472,7 @@ internal class ClayUIContext
             {
                 if (id == popupId)
                 {
-                    if (point.X >= bounds.X && point.X <= bounds.X + bounds.Width &&
-                        point.Y >= bounds.Y && point.Y <= bounds.Y + bounds.Height)
+                    if (bounds.Contains(point))
                     {
                         isOverPopup = true;
                     }
@@ -650,10 +659,7 @@ public static class ClayUI
             return;
 
         var s = Style.Window;
-        var delta = new Vector2(
-            _context.MousePosition.X - _context.ResizeStartMousePos.X,
-            _context.MousePosition.Y - _context.ResizeStartMousePos.Y
-        );
+        var delta = _context.MousePosition - _context.ResizeStartMousePos;
 
         var newSize = _context.ResizeStartSize;
         var newPos = _context.ResizeStartPos;
@@ -699,10 +705,7 @@ public static class ClayUI
         if (!_context.WindowStates.TryGetValue(_context.ActiveDragWindowId, out var state))
             return;
 
-        var newPosition = new Vector2(
-            _context.MousePosition.X - _context.WindowDragOffset.X,
-            _context.MousePosition.Y - _context.WindowDragOffset.Y
-        );
+        var newPosition = _context.MousePosition - _context.WindowDragOffset;
 
         _context.WindowStates[_context.ActiveDragWindowId] = state with { Position = newPosition };
     }
@@ -1639,13 +1642,15 @@ public static class ClayUI
             _context.DisabledDepth--;
     }
 
+    private const float DisabledDimFactor = 0.45f;
+
     /// <summary>
     /// Applies a disabled dim effect to a color (reduces alpha by ~50%).
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static Color DisabledColor(Color color)
     {
-        return IsDisabled ? new Color(color.R, color.G, color.B, color.A * 0.45f) : color;
+        return IsDisabled ? color.ScaleAlpha(DisabledDimFactor) : color;
     }
 
     /// <summary>
@@ -1657,9 +1662,7 @@ public static class ClayUI
             ImageData = img.ImageData,
             SourceDimensions = img.SourceDimensions,
             Slice = img.Slice,
-            Tint = IsDisabled
-                ? new Color(img.Tint.R, img.Tint.G, img.Tint.B, img.Tint.A * 0.45f)
-                : img.Tint
+            Tint = IsDisabled ? img.Tint.ScaleAlpha(DisabledDimFactor) : img.Tint
         };
 
     /// <summary>
@@ -2282,35 +2285,10 @@ public static class ClayUI
 
         // Manual bounds checking for window hover (Clay.PointerOver doesn't respect z-order)
         var mouse = _context.MousePosition;
-        bool isMouseInWindowBounds = mouse.X >= windowBounds.X && mouse.X <= windowBounds.X + windowBounds.Width &&
-                                      mouse.Y >= windowBounds.Y && mouse.Y <= windowBounds.Y + windowBounds.Height;
+        bool isMouseInWindowBounds = windowBounds.Contains(mouse);
 
-        // Check if this window is topmost at mouse position by checking all windows with higher focus order
-        bool isTopmostAtMouse = isMouseInWindowBounds;
-        if (isMouseInWindowBounds)
-        {
-            int myOrder = _context.WindowFocusOrder.IndexOf(id.Id);
-            if (myOrder < 0) myOrder = _context.WindowFocusOrder.Count; // New window, will be added at end
-
-            // Check if any other OPEN window with higher focus order is also under the mouse
-            foreach (var (otherId, otherState) in _context.WindowStates)
-            {
-                if (otherId == id.Id) continue;
-                if (!otherState.Open) continue; // Skip closed windows
-
-                int otherOrder = _context.WindowFocusOrder.IndexOf(otherId);
-                if (otherOrder <= myOrder) continue; // Other window is below us in focus order
-
-                // Check if other window's bounds contain the mouse
-                float otherHeight = otherState.Collapsed ? s.TitleBarHeight : otherState.Size.Y;
-                if (mouse.X >= otherState.Position.X && mouse.X <= otherState.Position.X + otherState.Size.X &&
-                    mouse.Y >= otherState.Position.Y && mouse.Y <= otherState.Position.Y + otherHeight)
-                {
-                    isTopmostAtMouse = false;
-                    break;
-                }
-            }
-        }
+        // Check if this window is topmost at mouse position (z-order aware)
+        bool isTopmostAtMouse = _context.IsWindowTopmostAtMouse(id.Id, s.TitleBarHeight);
 
         bool isBeingDragged = _context.ActiveDragWindowId == id.Id;
 
@@ -2340,10 +2318,7 @@ public static class ClayUI
         {
             _context.ActiveDragWindowId = id.Id;
             // Use actual position for drag offset calculation
-            _context.WindowDragOffset = new Vector2(
-                _context.MousePosition.X - state.Position.X,
-                _context.MousePosition.Y - state.Position.Y
-            );
+            _context.WindowDragOffset = _context.MousePosition - state.Position;
         }
 
         // Handle collapse button
@@ -3220,9 +3195,7 @@ public static class ClayUI
         foreach (var (nodeId, bounds, leafSpaceId) in _context.DockLeafBounds)
         {
             if (leafSpaceId != space.Id) continue;
-            if (mouse.X < bounds.X || mouse.X > bounds.X + bounds.Width ||
-                mouse.Y < bounds.Y || mouse.Y > bounds.Y + bounds.Height)
-                continue;
+            if (!bounds.Contains(mouse)) continue;
 
             _context.DockDropTargetNodeId = nodeId;
             _context.DockDropTargetSpaceId = space.Id;
@@ -3243,6 +3216,32 @@ public static class ClayUI
         }
     }
 
+    private static void SplitLeaf(DockNode target, DockSpaceState space, uint newWindowId, DockSplitDirection dir, bool newNodeIsFirst)
+    {
+        var idA = space.GenerateNodeId();
+        var idB = space.GenerateNodeId();
+
+        var existingChild = new DockNode
+        {
+            Id = newNodeIsFirst ? idB : idA,
+            DockedWindowIds = target.DockedWindowIds,
+            ActiveTabIndex = target.ActiveTabIndex
+        };
+        var newChild = new DockNode
+        {
+            Id = newNodeIsFirst ? idA : idB,
+            DockedWindowIds = new List<uint> { newWindowId },
+            ActiveTabIndex = 0
+        };
+
+        target.SplitDirection = dir;
+        target.ChildA = newNodeIsFirst ? newChild : existingChild;
+        target.ChildB = newNodeIsFirst ? existingChild : newChild;
+        target.SplitRatio = 0.5f;
+        target.DockedWindowIds = new List<uint>();
+        target.ActiveTabIndex = 0;
+    }
+
     private static void ExecuteDockOperation(DockSpaceState space)
     {
         var targetNode = space.RootNode.FindNode(_context.PendingDockTargetNodeId);
@@ -3254,13 +3253,7 @@ public static class ClayUI
         // Remove window from its current source leaf (if already docked somewhere)
         if (space.WindowToNode.TryGetValue(windowId, out var sourceLeaf) && sourceLeaf != targetNode)
         {
-            var idx = sourceLeaf.DockedWindowIds.IndexOf(windowId);
-            if (idx >= 0)
-            {
-                sourceLeaf.DockedWindowIds.RemoveAt(idx);
-                if (sourceLeaf.ActiveTabIndex >= sourceLeaf.DockedWindowIds.Count)
-                    sourceLeaf.ActiveTabIndex = Math.Max(0, sourceLeaf.DockedWindowIds.Count - 1);
-            }
+            RemoveWindowFromLeaf(sourceLeaf, windowId);
 
             if (sourceLeaf.IsEmpty)
             {
@@ -3289,28 +3282,7 @@ public static class ClayUI
 
             bool newNodeIsFirst = (zone == DockDropZone.Left || zone == DockDropZone.Top);
 
-            var idA = space.GenerateNodeId();
-            var idB = space.GenerateNodeId();
-
-            var existingChild = new DockNode
-            {
-                Id = newNodeIsFirst ? idB : idA,
-                DockedWindowIds = targetNode.DockedWindowIds,
-                ActiveTabIndex = targetNode.ActiveTabIndex
-            };
-            var newChild = new DockNode
-            {
-                Id = newNodeIsFirst ? idA : idB,
-                DockedWindowIds = new List<uint> { windowId },
-                ActiveTabIndex = 0
-            };
-
-            targetNode.SplitDirection = direction;
-            targetNode.ChildA = newNodeIsFirst ? newChild : existingChild;
-            targetNode.ChildB = newNodeIsFirst ? existingChild : newChild;
-            targetNode.SplitRatio = 0.5f;
-            targetNode.DockedWindowIds = new List<uint>();
-            targetNode.ActiveTabIndex = 0;
+            SplitLeaf(targetNode, space, windowId, direction, newNodeIsFirst);
         }
 
         // Reset drop state — window will render as docked next frame
@@ -3412,25 +3384,7 @@ public static class ClayUI
         var dir = (depth % 2 == 0) ? DockSplitDirection.Horizontal : DockSplitDirection.Vertical;
 
         // Split the target: existing windows stay in childA, new window in childB
-        var idA = space.GenerateNodeId();
-        var idB = space.GenerateNodeId();
-
-        target.SplitDirection = dir;
-        target.ChildA = new DockNode
-        {
-            Id = idA,
-            DockedWindowIds = target.DockedWindowIds,
-            ActiveTabIndex = target.ActiveTabIndex
-        };
-        target.ChildB = new DockNode
-        {
-            Id = idB,
-            DockedWindowIds = new List<uint> { windowId },
-            ActiveTabIndex = 0
-        };
-        target.SplitRatio = 0.5f;
-        target.DockedWindowIds = new List<uint>();
-        target.ActiveTabIndex = 0;
+        SplitLeaf(target, space, windowId, dir, newNodeIsFirst: false);
 
         space.WindowToNode.Clear();
         space.RootNode.RebuildWindowToNodeMap(space.WindowToNode);
@@ -3456,9 +3410,8 @@ public static class ClayUI
         return root.ChildB != null ? GetNodeDepth(root.ChildB, targetId, depth + 1) : -1;
     }
 
-    private static void UndockWindow(uint windowId, DockNode leaf, DockSpaceState space)
+    private static void RemoveWindowFromLeaf(DockNode leaf, uint windowId)
     {
-        // Remove from leaf
         int idx = leaf.DockedWindowIds.IndexOf(windowId);
         if (idx >= 0)
         {
@@ -3466,6 +3419,12 @@ public static class ClayUI
             if (leaf.ActiveTabIndex >= leaf.DockedWindowIds.Count)
                 leaf.ActiveTabIndex = Math.Max(0, leaf.DockedWindowIds.Count - 1);
         }
+    }
+
+    private static void UndockWindow(uint windowId, DockNode leaf, DockSpaceState space)
+    {
+        // Remove from leaf
+        RemoveWindowFromLeaf(leaf, windowId);
 
         // Create/restore floating window state at mouse position
         if (!_context.WindowStates.ContainsKey(windowId))
@@ -3569,6 +3528,32 @@ public static class ClayUI
 
     // ============ Tooltip ============
 
+    private static bool TryBeginTooltip(TooltipStyle? style, out ElementId tooltipId, out Vector2 pos, out TooltipStyle s)
+    {
+        tooltipId = default; pos = default; s = default;
+        var targetId = _context.LastWidgetId;            // caller already checked TooltipShownThisFrame + Id==0
+        bool isHovered = IsHovered(targetId);
+        if (isHovered)
+        {
+            if (_context.TooltipHoveredId == targetId.Id) _context.TooltipHoverTime += _context.DeltaTime;
+            else { _context.TooltipHoveredId = targetId.Id; _context.TooltipHoverTime = 0; }
+        }
+        else if (_context.TooltipHoveredId == targetId.Id) { _context.TooltipHoveredId = 0; _context.TooltipHoverTime = 0; }
+        if (!isHovered || _context.TooltipHoverTime < ClayUIContext.TooltipDelay) return false;
+        s = style.HasValue ? style.Value.MergeOver(Style.Tooltip) : Style.Tooltip;
+        pos = _context.MousePosition + new Vector2(12, 16);
+        var layoutDims = Clay.GetLayoutDimensions();
+        tooltipId = StableId($"Tooltip_{targetId.Id}");
+        var prevData = Clay.GetElementData(tooltipId);
+        float tipWidth = prevData.Found ? prevData.BoundingBox.Width : 100;
+        float tipHeight = prevData.Found ? prevData.BoundingBox.Height : 20;
+        if (pos.X + tipWidth > layoutDims.Width) pos.X = layoutDims.Width - tipWidth;
+        if (pos.Y + tipHeight > layoutDims.Height) pos.Y = _context.MousePosition.Y - tipHeight - 4;
+        if (pos.X < 0) pos.X = 0;
+        if (pos.Y < 0) pos.Y = 0;
+        return true;
+    }
+
     /// <summary>
     /// Shows a simple text tooltip when the previously rendered widget is hovered.
     /// Call immediately after the widget you want to attach the tooltip to.
@@ -3579,50 +3564,9 @@ public static class ClayUI
     public static void Tooltip(string text, TooltipStyle? style = null)
     {
         if (_context.TooltipShownThisFrame) return;
-        var targetId = _context.LastWidgetId;
-        if (targetId.Id == 0) return;
+        if (_context.LastWidgetId.Id == 0) return;
 
-        bool isHovered = IsHovered(targetId);
-
-        // Track hover time
-        if (isHovered)
-        {
-            if (_context.TooltipHoveredId == targetId.Id)
-            {
-                _context.TooltipHoverTime += _context.DeltaTime;
-            }
-            else
-            {
-                _context.TooltipHoveredId = targetId.Id;
-                _context.TooltipHoverTime = 0;
-            }
-        }
-        else if (_context.TooltipHoveredId == targetId.Id)
-        {
-            _context.TooltipHoveredId = 0;
-            _context.TooltipHoverTime = 0;
-        }
-
-        if (!isHovered || _context.TooltipHoverTime < ClayUIContext.TooltipDelay) return;
-
-        var s = style.HasValue ? style.Value.MergeOver(Style.Tooltip) : Style.Tooltip;
-
-        // Position near mouse cursor with a small offset
-        var pos = _context.MousePosition + new Vector2(12, 16);
-
-        // Clamp to screen
-        var layoutDims = Clay.GetLayoutDimensions();
-        var tooltipId = StableId($"Tooltip_{targetId.Id}");
-        var prevData = Clay.GetElementData(tooltipId);
-        float tipWidth = prevData.Found ? prevData.BoundingBox.Width : 100;
-        float tipHeight = prevData.Found ? prevData.BoundingBox.Height : 20;
-
-        if (pos.X + tipWidth > layoutDims.Width)
-            pos.X = layoutDims.Width - tipWidth;
-        if (pos.Y + tipHeight > layoutDims.Height)
-            pos.Y = _context.MousePosition.Y - tipHeight - 4;
-        if (pos.X < 0) pos.X = 0;
-        if (pos.Y < 0) pos.Y = 0;
+        if (!TryBeginTooltip(style, out var tooltipId, out var pos, out var s)) return;
 
         using (Clay.Element(new ElementDeclaration
         {
@@ -3670,48 +3614,9 @@ public static class ClayUI
     public static bool BeginTooltip(TooltipStyle? style = null)
     {
         if (_context.TooltipShownThisFrame) return false;
-        var targetId = _context.LastWidgetId;
-        if (targetId.Id == 0) return false;
+        if (_context.LastWidgetId.Id == 0) return false;
 
-        bool isHovered = IsHovered(targetId);
-
-        // Track hover time
-        if (isHovered)
-        {
-            if (_context.TooltipHoveredId == targetId.Id)
-            {
-                _context.TooltipHoverTime += _context.DeltaTime;
-            }
-            else
-            {
-                _context.TooltipHoveredId = targetId.Id;
-                _context.TooltipHoverTime = 0;
-            }
-        }
-        else if (_context.TooltipHoveredId == targetId.Id)
-        {
-            _context.TooltipHoveredId = 0;
-            _context.TooltipHoverTime = 0;
-        }
-
-        if (!isHovered || _context.TooltipHoverTime < ClayUIContext.TooltipDelay) return false;
-
-        var s = style.HasValue ? style.Value.MergeOver(Style.Tooltip) : Style.Tooltip;
-
-        var pos = _context.MousePosition + new Vector2(12, 16);
-
-        var layoutDims = Clay.GetLayoutDimensions();
-        var tooltipId = StableId($"Tooltip_{targetId.Id}");
-        var prevData = Clay.GetElementData(tooltipId);
-        float tipWidth = prevData.Found ? prevData.BoundingBox.Width : 100;
-        float tipHeight = prevData.Found ? prevData.BoundingBox.Height : 20;
-
-        if (pos.X + tipWidth > layoutDims.Width)
-            pos.X = layoutDims.Width - tipWidth;
-        if (pos.Y + tipHeight > layoutDims.Height)
-            pos.Y = _context.MousePosition.Y - tipHeight - 4;
-        if (pos.X < 0) pos.X = 0;
-        if (pos.Y < 0) pos.Y = 0;
+        if (!TryBeginTooltip(style, out var tooltipId, out var pos, out var s)) return false;
 
         Clay.Element(new ElementDeclaration
         {
@@ -3920,18 +3825,7 @@ public static class ClayUI
 
         // Update popup bounds for click-outside detection (may already exist from frame-start rebuild)
         var estimatedBounds = new BoundingBox(popupPos.X, popupPos.Y, popupWidth, popupHeight);
-        bool boundsUpdated = false;
-        for (int i = 0; i < _context.OpenPopupBounds.Count; i++)
-        {
-            if (_context.OpenPopupBounds[i].PopupId == popupId.Id)
-            {
-                _context.OpenPopupBounds[i] = (popupId.Id, estimatedBounds);
-                boundsUpdated = true;
-                break;
-            }
-        }
-        if (!boundsUpdated)
-            _context.OpenPopupBounds.Add((popupId.Id, estimatedBounds));
+        _context.UpsertPopupBounds(popupId.Id, estimatedBounds);
 
         _context.PopupDepth++;
         return true;
@@ -4534,18 +4428,7 @@ public static class ClayUI
         float popupHeight = prevData2.Found ? prevData2.BoundingBox.Height : 100;
         var estimatedBounds = new BoundingBox(state.Position.X, state.Position.Y, popupWidth, popupHeight);
 
-        bool boundsUpdated = false;
-        for (int i = 0; i < _context.OpenPopupBounds.Count; i++)
-        {
-            if (_context.OpenPopupBounds[i].PopupId == popupId.Id)
-            {
-                _context.OpenPopupBounds[i] = (popupId.Id, estimatedBounds);
-                boundsUpdated = true;
-                break;
-            }
-        }
-        if (!boundsUpdated)
-            _context.OpenPopupBounds.Add((popupId.Id, estimatedBounds));
+        _context.UpsertPopupBounds(popupId.Id, estimatedBounds);
 
         _context.PopupDepth++;
         return true;
@@ -4684,6 +4567,7 @@ public static class ClayUI
             return;
         }
 
+        var mouse = _context.MousePosition;
         float containerHeight = scrollData.ScrollContainerDimensions.Height;
         float contentHeight = scrollData.ContentDimensions.Height;
         float scrollY = scrollData.ScrollPosition.Y;
@@ -4716,14 +4600,14 @@ public static class ClayUI
             var thumbData = Clay.GetElementData(thumbId);
             if (thumbData.Found)
             {
-                float mouseY = Clay.GetPointerState().Position.Y;
+                float mouseY = mouse.Y;
                 isThumbHovered = mouseY >= thumbData.BoundingBox.Y && mouseY <= thumbData.BoundingBox.Y + thumbData.BoundingBox.Height;
             }
         }
 
         // Check if mouse is within the track's actual bounds (not just the wider hit area)
-        bool isTrackHovered = trackData.Found && Clay.GetPointerState().Position.Y >= trackData.BoundingBox.Y
-            && Clay.GetPointerState().Position.Y <= trackData.BoundingBox.Y + trackData.BoundingBox.Height;
+        bool isTrackHovered = trackData.Found && mouse.Y >= trackData.BoundingBox.Y
+            && mouse.Y <= trackData.BoundingBox.Y + trackData.BoundingBox.Height;
 
         // Handle click — scrollbar takes priority over window resize when both
         // overlap on the right edge, so use IsMouseJustPressed directly and cancel
@@ -4737,17 +4621,16 @@ public static class ClayUI
                 _context.ActiveScrollContainerId = scrollContainerId;
                 _context.IsVerticalScrollbar = true;
 
-                var pointerData = Clay.GetPointerState();
                 var thumbData = Clay.GetElementData(thumbId);
                 if (thumbData.Found)
                 {
-                    _context.ScrollbarDragOffset = pointerData.Position.Y - thumbData.BoundingBox.Y;
+                    _context.ScrollbarDragOffset = mouse.Y - thumbData.BoundingBox.Y;
                 }
             }
             else if (thumbTravel > 0)
             {
                 // Clicked on track — jump thumb center to click position, then start dragging
-                float mouseY = Clay.GetPointerState().Position.Y;
+                float mouseY = mouse.Y;
                 float clickInTrack = mouseY - trackData.BoundingBox.Y - s.TrackPadding - thumbHeight / 2;
                 float normalizedY = Math.Clamp(clickInTrack / thumbTravel, 0f, 1f);
                 Clay.SetScrollPosition(scrollContainerId, new Vector2(scrollData.ScrollPosition.X, normalizedY * maxScrollY));
@@ -4858,6 +4741,7 @@ public static class ClayUI
             return;
         }
 
+        var mouse = _context.MousePosition;
         float containerWidth = scrollData.ScrollContainerDimensions.Width;
         float contentWidth = scrollData.ContentDimensions.Width;
         float scrollX = scrollData.ScrollPosition.X;
@@ -4888,14 +4772,14 @@ public static class ClayUI
             var thumbData = Clay.GetElementData(thumbId);
             if (thumbData.Found)
             {
-                float mouseX = Clay.GetPointerState().Position.X;
+                float mouseX = mouse.X;
                 isThumbHovered = mouseX >= thumbData.BoundingBox.X && mouseX <= thumbData.BoundingBox.X + thumbData.BoundingBox.Width;
             }
         }
 
         // Check if mouse is within the track's actual bounds
-        bool isTrackHovered = trackData.Found && Clay.GetPointerState().Position.X >= trackData.BoundingBox.X
-            && Clay.GetPointerState().Position.X <= trackData.BoundingBox.X + trackData.BoundingBox.Width;
+        bool isTrackHovered = trackData.Found && mouse.X >= trackData.BoundingBox.X
+            && mouse.X <= trackData.BoundingBox.X + trackData.BoundingBox.Width;
 
         // Handle click — scrollbar takes priority over window resize when both
         // overlap, so use IsMouseJustPressed directly and cancel any resize.
@@ -4908,17 +4792,16 @@ public static class ClayUI
                 _context.ActiveScrollContainerId = scrollContainerId;
                 _context.IsVerticalScrollbar = false;
 
-                var pointerData = Clay.GetPointerState();
                 var thumbData = Clay.GetElementData(thumbId);
                 if (thumbData.Found)
                 {
-                    _context.ScrollbarDragOffset = pointerData.Position.X - thumbData.BoundingBox.X;
+                    _context.ScrollbarDragOffset = mouse.X - thumbData.BoundingBox.X;
                 }
             }
             else if (thumbTravel > 0)
             {
                 // Clicked on track — jump thumb center to click position, then start dragging
-                float mouseX = Clay.GetPointerState().Position.X;
+                float mouseX = mouse.X;
                 float clickInTrack = mouseX - trackData.BoundingBox.X - s.TrackPadding - thumbWidth / 2;
                 float normalizedX = Math.Clamp(clickInTrack / thumbTravel, 0f, 1f);
                 Clay.SetScrollPosition(scrollContainerId, new Vector2(normalizedX * maxScrollX, scrollData.ScrollPosition.Y));
@@ -5959,10 +5842,11 @@ public static class ClayUI
         var displayColor = _context.ColorPickerStates[stateKey];
 
         // If the caller changed the color externally (e.g. reset), sync state
-        if (!IsPopupOpen(popupId) &&
-            (displayColor.R != color.R || displayColor.G != color.G ||
-             displayColor.B != color.B || displayColor.A != color.A))
+        if (!IsPopupOpen(popupId) && displayColor != color)
+        {
             _context.ColorPickerStates[stateKey] = color;
+            displayColor = color;
+        }
 
         // === Swatch trigger (label + color rectangle) ===
         BeginHorizontal(gap: 6);
@@ -5973,7 +5857,7 @@ public static class ClayUI
         {
             Id = swatchId,
             Layout = new LayoutConfig { Sizing = Sizing.FixedSize(40, 18) },
-            BackgroundColor = _context.ColorPickerStates[stateKey],
+            BackgroundColor = displayColor,
             CornerRadius = CornerRadius.All(3),
             Border = BorderConfig.Uniform(1, isHovered ? Color.Rgba(140, 140, 150) : Color.Rgba(80, 80, 80))
         })) { }
@@ -6005,7 +5889,7 @@ public static class ClayUI
             ContentGap = 6
         }))
         {
-            var editColor = _context.ColorPickerStates[stateKey];
+            var editColor = displayColor;
             var (h, s, v) = editColor.ToHsv();
             float alpha = editColor.A;
             bool changed = false;
@@ -7739,6 +7623,20 @@ public class DockNode
     }
 
     /// <summary>
+    /// Docks a window with the given title into this leaf node (idempotent).
+    /// Caller must ensure this node is a leaf.
+    /// </summary>
+    public void DockWindow(string title)
+    {
+        var windowId = ElementId.Hash($"Window_{title}", seed: 0x436C6179).Id;
+        if (!DockedWindowIds.Contains(windowId))
+        {
+            DockedWindowIds.Add(windowId);
+            ClayUI.SetDockedWindowTitle(windowId, title);
+        }
+    }
+
+    /// <summary>
     /// Finds the parent of a given node in this subtree.
     /// </summary>
     public DockNode? FindParent(uint childId)
@@ -7785,6 +7683,30 @@ public class DockSpaceState
     internal uint GenerateNodeId()
     {
         return ElementId.Hash($"DockNode_{Id}_{NextNodeId++}").Id;
+    }
+
+    /// <summary>
+    /// Splits a resolved leaf node into two children (ChildA inherits this node's docked windows).
+    /// Caller is responsible for validating the node is a leaf. Returns (idA, idB).
+    /// </summary>
+    internal (uint a, uint b) SplitLeaf(DockNode node, DockSplitDirection direction, float ratio)
+    {
+        var idA = GenerateNodeId();
+        var idB = GenerateNodeId();
+
+        node.ChildA = new DockNode
+        {
+            Id = idA,
+            DockedWindowIds = node.DockedWindowIds,
+            ActiveTabIndex = node.ActiveTabIndex
+        };
+        node.ChildB = new DockNode { Id = idB };
+        node.SplitDirection = direction;
+        node.SplitRatio = Math.Clamp(ratio, 0.1f, 0.9f);
+        node.DockedWindowIds = new List<uint>();
+        node.ActiveTabIndex = 0;
+
+        return (idA, idB);
     }
 }
 
@@ -7908,22 +7830,7 @@ public class DockLayout
         if (node == null || !node.IsLeaf)
             throw new InvalidOperationException($"Node {nodeId} not found or is not a leaf.");
 
-        var idA = _space.GenerateNodeId();
-        var idB = _space.GenerateNodeId();
-
-        node.SplitDirection = direction;
-        node.ChildA = new DockNode
-        {
-            Id = idA,
-            DockedWindowIds = node.DockedWindowIds,
-            ActiveTabIndex = node.ActiveTabIndex
-        };
-        node.ChildB = new DockNode { Id = idB };
-        node.SplitRatio = Math.Clamp(ratio, 0.1f, 0.9f);
-        node.DockedWindowIds = new List<uint>();
-        node.ActiveTabIndex = 0;
-
-        return (idA, idB);
+        return _space.SplitLeaf(node, direction, ratio);
     }
 
     /// <summary>
@@ -7935,12 +7842,7 @@ public class DockLayout
         if (node == null || !node.IsLeaf)
             throw new InvalidOperationException($"Node {nodeId} not found or is not a leaf.");
 
-        var windowId = ElementId.Hash($"Window_{title}", seed: 0x436C6179).Id;
-        if (!node.DockedWindowIds.Contains(windowId))
-        {
-            node.DockedWindowIds.Add(windowId);
-            ClayUI.SetDockedWindowTitle(windowId, title);
-        }
+        node.DockWindow(title);
     }
 
     /// <summary>
@@ -7993,29 +7895,7 @@ public static class DockBuilder
         if (direction == DockSplitDirection.None)
             throw new ArgumentException("Split direction must be Horizontal or Vertical.");
 
-        var idA = space.GenerateNodeId();
-        var idB = space.GenerateNodeId();
-
-        // Move existing docked windows to child A
-        var childA = new DockNode
-        {
-            Id = idA,
-            DockedWindowIds = node.DockedWindowIds,
-            ActiveTabIndex = node.ActiveTabIndex
-        };
-        var childB = new DockNode
-        {
-            Id = idB
-        };
-
-        node.SplitDirection = direction;
-        node.ChildA = childA;
-        node.ChildB = childB;
-        node.SplitRatio = Math.Clamp(sizeRatioForNodeA, 0.1f, 0.9f);
-        node.DockedWindowIds = new List<uint>(); // Clear leaf data
-        node.ActiveTabIndex = 0;
-
-        return (idA, idB);
+        return space.SplitLeaf(node, direction, sizeRatioForNodeA);
     }
 
     /// <summary>
@@ -8029,12 +7909,7 @@ public static class DockBuilder
         if (!node.IsLeaf)
             throw new InvalidOperationException($"Dock node {nodeId} is not a leaf node.");
 
-        var windowId = ElementId.Hash($"Window_{windowTitle}", seed: 0x436C6179).Id;
-        if (!node.DockedWindowIds.Contains(windowId))
-        {
-            node.DockedWindowIds.Add(windowId);
-            ClayUI.SetDockedWindowTitle(windowId, windowTitle);
-        }
+        node.DockWindow(windowTitle);
     }
 
     /// <summary>

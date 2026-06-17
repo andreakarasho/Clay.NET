@@ -99,10 +99,7 @@ public static partial class Clay
 
     /// <summary>Pastes text into the focused text edit widget.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static bool TextEditPaste(string text)
-    {
-        return _context?.TextInput?.Paste(text) ?? false;
-    }
+    public static bool TextEditPaste(string text) => TextEditPaste(text.AsSpan());
 
     /// <summary>Returns the selected text in the focused text edit widget.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

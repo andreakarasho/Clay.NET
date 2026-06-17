@@ -35,17 +35,25 @@ public struct ElementId
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static ElementId Hash(ReadOnlySpan<char> key, uint offset = 0, uint seed = 0)
     {
-        uint hash = 0;
         uint baseHash = seed;
-
         for (int i = 0; i < key.Length; i++)
-        {
-            baseHash += key[i];
-            baseHash += baseHash << 10;
-            baseHash ^= baseHash >> 6;
-        }
+            baseHash = MixChar(baseHash, key[i]);
+        return Finalize(baseHash, offset);
+    }
 
-        hash = baseHash;
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static uint MixChar(uint h, char c)
+    {
+        h += c;
+        h += h << 10;
+        h ^= h >> 6;
+        return h;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static ElementId Finalize(uint baseHash, uint offset)
+    {
+        uint hash = baseHash;
         hash += offset;
         hash += hash << 10;
         hash ^= hash >> 6;
@@ -78,11 +86,7 @@ public struct ElementId
 
         // Hash the prefix characters
         for (int i = 0; i < prefix.Length; i++)
-        {
-            baseHash += prefix[i];
-            baseHash += baseHash << 10;
-            baseHash ^= baseHash >> 6;
-        }
+            baseHash = MixChar(baseHash, prefix[i]);
 
         // Hash the suffix digits (same char sequence as uint.ToString())
         // Build digits in reverse, then hash in forward order
@@ -109,30 +113,9 @@ public struct ElementId
         }
 
         for (int i = 0; i < digitCount; i++)
-        {
-            baseHash += digits[i];
-            baseHash += baseHash << 10;
-            baseHash ^= baseHash >> 6;
-        }
+            baseHash = MixChar(baseHash, digits[i]);
 
-        uint hash = baseHash;
-        hash += offset;
-        hash += hash << 10;
-        hash ^= hash >> 6;
-
-        hash += hash << 3;
-        baseHash += baseHash << 3;
-        hash ^= hash >> 11;
-        baseHash ^= baseHash >> 11;
-        hash += hash << 15;
-        baseHash += baseHash << 15;
-
-        return new ElementId
-        {
-            Id = hash + 1,
-            Offset = offset,
-            BaseId = baseHash + 1
-        };
+        return Finalize(baseHash, offset);
     }
 
     /// <summary>

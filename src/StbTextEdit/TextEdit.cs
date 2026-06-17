@@ -280,6 +280,35 @@ public static class TextEdit
             state.Cursor = state.SelectEnd;
     }
 
+    private static void MoveToLineEdge(ITextEditHandler handler, TextEditState state, bool toEnd, bool shift)
+    {
+        Clamp(handler, state);
+        if (shift)
+            PrepSelectionAtCursor(state);
+        else
+            MoveToFirst(state);
+
+        if (state.SingleLine)
+        {
+            state.Cursor = toEnd ? handler.Length : 0;
+        }
+        else if (toEnd)
+        {
+            int n = handler.Length;
+            while (state.Cursor < n && handler.GetChar(state.Cursor) != Newline)
+                ++state.Cursor;
+        }
+        else
+        {
+            while (state.Cursor > 0 && handler.GetChar(state.Cursor - 1) != Newline)
+                --state.Cursor;
+        }
+
+        if (shift)
+            state.SelectEnd = state.Cursor;
+        state.HasPreferredX = false;
+    }
+
     /////////////////////////////////////////////////////////////////////////
     //
     //  Public API: Cut / Paste
@@ -331,11 +360,12 @@ public static class TextEdit
         if (ch == Newline && state.SingleLine)
             return;
 
+        ReadOnlySpan<char> span = new(in ch);
+
         if (state.InsertMode && !state.HasSelection && state.Cursor < handler.Length)
         {
             MakeUndoReplace(handler, state, state.Cursor, 1, 1);
             handler.DeleteChars(state.Cursor, 1);
-            ReadOnlySpan<char> span = new(in ch);
             if (handler.InsertChars(state.Cursor, span))
             {
                 ++state.Cursor;
@@ -345,7 +375,6 @@ public static class TextEdit
         else
         {
             DeleteSelection(handler, state);
-            ReadOnlySpan<char> span = new(in ch);
             if (handler.InsertChars(state.Cursor, span))
             {
                 MakeUndoInsert(state, state.Cursor, 1);
@@ -531,59 +560,12 @@ public static class TextEdit
                 break;
 
             case TextEditKey.LineStart:
-                if (shift)
-                {
-                    Clamp(handler, state);
-                    PrepSelectionAtCursor(state);
-                    if (state.SingleLine)
-                        state.Cursor = 0;
-                    else
-                        while (state.Cursor > 0 && handler.GetChar(state.Cursor - 1) != Newline)
-                            --state.Cursor;
-                    state.SelectEnd = state.Cursor;
-                    state.HasPreferredX = false;
-                }
-                else
-                {
-                    Clamp(handler, state);
-                    MoveToFirst(state);
-                    if (state.SingleLine)
-                        state.Cursor = 0;
-                    else
-                        while (state.Cursor > 0 && handler.GetChar(state.Cursor - 1) != Newline)
-                            --state.Cursor;
-                    state.HasPreferredX = false;
-                }
+                MoveToLineEdge(handler, state, toEnd: false, shift);
                 break;
 
             case TextEditKey.LineEnd:
-            {
-                int n = handler.Length;
-                if (shift)
-                {
-                    Clamp(handler, state);
-                    PrepSelectionAtCursor(state);
-                    if (state.SingleLine)
-                        state.Cursor = n;
-                    else
-                        while (state.Cursor < n && handler.GetChar(state.Cursor) != Newline)
-                            ++state.Cursor;
-                    state.SelectEnd = state.Cursor;
-                    state.HasPreferredX = false;
-                }
-                else
-                {
-                    Clamp(handler, state);
-                    MoveToFirst(state);
-                    if (state.SingleLine)
-                        state.Cursor = n;
-                    else
-                        while (state.Cursor < n && handler.GetChar(state.Cursor) != Newline)
-                            ++state.Cursor;
-                    state.HasPreferredX = false;
-                }
+                MoveToLineEdge(handler, state, toEnd: true, shift);
                 break;
-            }
         }
     }
 
@@ -620,37 +602,41 @@ public static class TextEdit
 
         int rowCount = isPage ? state.RowCountPerPage : 1;
 
+        // Place cursor on the row starting at rowStartIndex by walking chars
+        // until accumulated x exceeds goalX, then clamp and update preferred-x /
+        // selection. Returns the row's char count.
+        static int PlaceOnRow(ITextEditHandler handler, TextEditState state, bool shift,
+            int rowStartIndex, float goalX)
+        {
+            state.Cursor = rowStartIndex;
+            handler.LayoutRow(out var row, state.Cursor);
+            float x = row.X0;
+            for (int i = 0; i < row.NumChars; ++i)
+            {
+                x += handler.GetCharWidth(rowStartIndex, i);
+                if (x > goalX)
+                    break;
+                ++state.Cursor;
+            }
+            Clamp(handler, state);
+            state.HasPreferredX = true;
+            state.PreferredX = goalX;
+            if (shift)
+                state.SelectEnd = state.Cursor;
+            return row.NumChars;
+        }
+
         if (down)
         {
             for (int j = 0; j < rowCount; ++j)
             {
                 float goalX = state.HasPreferredX ? state.PreferredX : find.X;
-                int start = find.FirstChar + find.Length;
-
                 if (find.Length == 0)
                     break;
-
-                state.Cursor = start;
-                handler.LayoutRow(out var row, state.Cursor);
-                float x = row.X0;
-                for (int i = 0; i < row.NumChars; ++i)
-                {
-                    float dx = handler.GetCharWidth(start, i);
-                    x += dx;
-                    if (x > goalX)
-                        break;
-                    ++state.Cursor;
-                }
-                Clamp(handler, state);
-
-                state.HasPreferredX = true;
-                state.PreferredX = goalX;
-
-                if (shift)
-                    state.SelectEnd = state.Cursor;
-
-                find.FirstChar = find.FirstChar + find.Length;
-                find.Length = row.NumChars;
+                int start = find.FirstChar + find.Length;
+                int numChars = PlaceOnRow(handler, state, shift, start, goalX);
+                find.FirstChar = start;
+                find.Length = numChars;
             }
         }
         else // up
@@ -658,30 +644,9 @@ public static class TextEdit
             for (int j = 0; j < rowCount; ++j)
             {
                 float goalX = state.HasPreferredX ? state.PreferredX : find.X;
-
                 if (find.PrevFirst == find.FirstChar)
                     break;
-
-                state.Cursor = find.PrevFirst;
-                handler.LayoutRow(out var row, state.Cursor);
-                float x = row.X0;
-                for (int i = 0; i < row.NumChars; ++i)
-                {
-                    float dx = handler.GetCharWidth(find.PrevFirst, i);
-                    x += dx;
-                    if (x > goalX)
-                        break;
-                    ++state.Cursor;
-                }
-                Clamp(handler, state);
-
-                state.HasPreferredX = true;
-                state.PreferredX = goalX;
-
-                if (shift)
-                    state.SelectEnd = state.Cursor;
-
-                // Scan for previous line
+                PlaceOnRow(handler, state, shift, find.PrevFirst, goalX);
                 int prevScan = find.PrevFirst > 0 ? find.PrevFirst - 1 : 0;
                 while (prevScan > 0 && handler.GetChar(prevScan - 1) != Newline)
                     --prevScan;

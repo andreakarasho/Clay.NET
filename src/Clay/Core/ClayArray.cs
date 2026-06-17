@@ -61,9 +61,8 @@ public class ClayList<T> where T : struct
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public int Add(T item)
     {
-        EnsureCapacity(_length + 1);
-        _items[_length] = item;
-        return _length++;
+        AddRef(item);
+        return _length - 1;
     }
 
     /// <summary>

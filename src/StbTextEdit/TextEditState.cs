@@ -34,7 +34,6 @@ public sealed class TextEditState
 
     // ── Internal state ────────────────────────────────────────────────
 
-    internal bool CursorAtEndOfLine;
     internal bool HasPreferredX;
     internal float PreferredX;
 
@@ -66,7 +65,6 @@ public sealed class TextEditState
         InsertMode = false;
         RowCountPerPage = 0;
         SingleLine = singleLine;
-        CursorAtEndOfLine = false;
         HasPreferredX = false;
         PreferredX = 0;
         UndoPoint = 0;

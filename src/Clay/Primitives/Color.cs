@@ -7,7 +7,7 @@ namespace Clay;
 /// Represents an RGBA color with float components (0-255 by convention).
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public struct Color
+public struct Color : IEquatable<Color>
 {
     public float R;
     public float G;
@@ -112,6 +112,26 @@ public struct Color
 
         return new Color((r + m) * 255f, (g + m) * 255f, (b + m) * 255f, a);
     }
+
+    /// <summary>
+    /// Returns a copy of this color with its alpha multiplied by the given factor (RGB unchanged).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public readonly Color ScaleAlpha(float factor)
+        => new Color(R, G, B, A * factor);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public readonly bool Equals(Color other) => R == other.R && G == other.G && B == other.B && A == other.A;
+
+    public override readonly bool Equals(object? obj) => obj is Color c && Equals(c);
+
+    public override readonly int GetHashCode() => HashCode.Combine(R, G, B, A);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static bool operator ==(Color left, Color right) => left.Equals(right);
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public static bool operator !=(Color left, Color right) => !left.Equals(right);
 
     public override string ToString() => $"rgba({R}, {G}, {B}, {A})";
 }

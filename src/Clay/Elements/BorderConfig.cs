@@ -44,13 +44,6 @@ public struct BorderWidth
         => new(outer, outer, outer, outer, betweenChildren);
 
     /// <summary>
-    /// Creates border width on outer sides only (no between-children border).
-    /// </summary>
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static BorderWidth Outside(ushort width)
-        => new(width, width, width, width, 0);
-
-    /// <summary>
     /// Creates border width between children only.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

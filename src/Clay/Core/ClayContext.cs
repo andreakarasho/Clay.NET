@@ -298,6 +298,10 @@ public class ClayContext : IDisposable
         }
     }
 
+    private int CurrentClipId => OpenClipElementStack.Length > 0
+        ? OpenClipElementStack[OpenClipElementStack.Length - 1]
+        : 0;
+
     /// <summary>
     /// Opens a new element.
     /// </summary>
@@ -314,9 +318,7 @@ public class ClayContext : IDisposable
         OpenLayoutElementStack.Add(LayoutElements.Length - 1);
 
         // Set clip element ID
-        int clipId = OpenClipElementStack.Length > 0
-            ? OpenClipElementStack[OpenClipElementStack.Length - 1]
-            : 0;
+        int clipId = CurrentClipId;
         LayoutElementClipElementIds.Set(LayoutElements.Length - 1, clipId);
     }
 
@@ -384,10 +386,7 @@ public class ClayContext : IDisposable
                 if (floatingConfig.AttachTo == FloatingAttachTo.Parent)
                 {
                     floatingConfig.ParentId = hierarchicalParent.Id;
-                    if (OpenClipElementStack.Length > 0)
-                    {
-                        clipElementId = (uint)OpenClipElementStack[OpenClipElementStack.Length - 1];
-                    }
+                    clipElementId = (uint)CurrentClipId;
                 }
                 else if (floatingConfig.AttachTo == FloatingAttachTo.Root)
                 {
@@ -526,7 +525,7 @@ public class ClayContext : IDisposable
 
         if (layoutConfig.Direction == LayoutDirection.LeftToRight)
         {
-            openLayoutElement.Dimensions.Width = layoutConfig.Padding.Left + layoutConfig.Padding.Right;
+            openLayoutElement.Dimensions.Width = layoutConfig.Padding.HorizontalTotal;
 
             for (int i = 0; i < openLayoutElement.Children.Length; i++)
             {
@@ -536,13 +535,13 @@ public class ClayContext : IDisposable
 
                 openLayoutElement.Dimensions.Width += child.Dimensions.Width;
                 openLayoutElement.Dimensions.Height = Math.Max(openLayoutElement.Dimensions.Height,
-                    child.Dimensions.Height + layoutConfig.Padding.Top + layoutConfig.Padding.Bottom);
+                    child.Dimensions.Height + layoutConfig.Padding.VerticalTotal);
 
                 if (!elementHasScrollHorizontal)
                     openLayoutElement.MinDimensions.Width += child.MinDimensions.Width;
                 if (!elementHasScrollVertical)
                     openLayoutElement.MinDimensions.Height = Math.Max(openLayoutElement.MinDimensions.Height,
-                        child.MinDimensions.Height + layoutConfig.Padding.Top + layoutConfig.Padding.Bottom);
+                        child.MinDimensions.Height + layoutConfig.Padding.VerticalTotal);
 
                 LayoutElementChildren.Add(childIndex);
             }
@@ -553,7 +552,7 @@ public class ClayContext : IDisposable
         }
         else
         {
-            openLayoutElement.Dimensions.Height = layoutConfig.Padding.Top + layoutConfig.Padding.Bottom;
+            openLayoutElement.Dimensions.Height = layoutConfig.Padding.VerticalTotal;
 
             for (int i = 0; i < openLayoutElement.Children.Length; i++)
             {
@@ -563,13 +562,13 @@ public class ClayContext : IDisposable
 
                 openLayoutElement.Dimensions.Height += child.Dimensions.Height;
                 openLayoutElement.Dimensions.Width = Math.Max(openLayoutElement.Dimensions.Width,
-                    child.Dimensions.Width + layoutConfig.Padding.Left + layoutConfig.Padding.Right);
+                    child.Dimensions.Width + layoutConfig.Padding.HorizontalTotal);
 
                 if (!elementHasScrollVertical)
                     openLayoutElement.MinDimensions.Height += child.MinDimensions.Height;
                 if (!elementHasScrollHorizontal)
                     openLayoutElement.MinDimensions.Width = Math.Max(openLayoutElement.MinDimensions.Width,
-                        child.MinDimensions.Width + layoutConfig.Padding.Left + layoutConfig.Padding.Right);
+                        child.MinDimensions.Width + layoutConfig.Padding.HorizontalTotal);
 
                 LayoutElementChildren.Add(childIndex);
             }
@@ -651,9 +650,7 @@ public class ClayContext : IDisposable
         ref var element = ref LayoutElements[elementIndex];
 
         // Set clip element ID
-        int clipId = OpenClipElementStack.Length > 0
-            ? OpenClipElementStack[OpenClipElementStack.Length - 1]
-            : 0;
+        int clipId = CurrentClipId;
         LayoutElementClipElementIds.Set(elementIndex, clipId);
 
         LayoutElementChildrenBuffer.Add(elementIndex);
@@ -943,7 +940,7 @@ public class ClayContext : IDisposable
         if (cfg.Sizing.Height.Type != SizingType.Fit)
             return el.Dimensions.Height;
 
-        float padV = cfg.Padding.Top + cfg.Padding.Bottom;
+        float padV = cfg.Padding.VerticalTotal;
         float height;
         if (cfg.Direction == LayoutDirection.TopToBottom)
         {
@@ -984,9 +981,7 @@ public class ClayContext : IDisposable
                 ref var layoutConfig = ref LayoutConfigs[parent.LayoutConfigIndex];
 
                 float parentSize = xAxis ? parent.Dimensions.Width : parent.Dimensions.Height;
-                float parentPadding = xAxis
-                    ? layoutConfig.Padding.Left + layoutConfig.Padding.Right
-                    : layoutConfig.Padding.Top + layoutConfig.Padding.Bottom;
+                float parentPadding = xAxis ? layoutConfig.Padding.HorizontalTotal : layoutConfig.Padding.VerticalTotal;
 
                 bool sizingAlongAxis = (xAxis && layoutConfig.Direction == LayoutDirection.LeftToRight) ||
                                        (!xAxis && layoutConfig.Direction == LayoutDirection.TopToBottom);
@@ -1161,7 +1156,8 @@ public class ClayContext : IDisposable
 
             Vector2 rootPosition = Vector2.Zero;
 
-            if (HasConfig(ref rootElement, ElementConfigType.Floating))
+            int floatingConfigIndex = FindConfigIndex(ref rootElement, ElementConfigType.Floating);
+            if (floatingConfigIndex >= 0)
             {
                 int hashIndex = GetHashMapItemIndex(root.ParentId);
                 if (hashIndex >= 0)
@@ -1170,13 +1166,9 @@ public class ClayContext : IDisposable
                 }
 
                 // Apply floating offset from FloatingConfig
-                int floatingConfigIndex = FindConfigIndex(ref rootElement, ElementConfigType.Floating);
-                if (floatingConfigIndex >= 0)
-                {
-                    ref var floatingConfig = ref FloatingElementConfigs[floatingConfigIndex];
-                    rootPosition.X += floatingConfig.Offset.X;
-                    rootPosition.Y += floatingConfig.Offset.Y;
-                }
+                ref var floatingConfig = ref FloatingElementConfigs[floatingConfigIndex];
+                rootPosition.X += floatingConfig.Offset.X;
+                rootPosition.Y += floatingConfig.Offset.Y;
             }
 
             PositionElementRecursive(root.LayoutElementIndex, rootPosition);
@@ -1326,13 +1318,13 @@ public class ClayContext : IDisposable
             float contentSizeW, contentSizeH;
             if (layoutConfig.Direction == LayoutDirection.LeftToRight)
             {
-                contentSizeW = totalChildrenSize + layoutConfig.Padding.Left + layoutConfig.Padding.Right;
-                contentSizeH = maxChildCrossSize + layoutConfig.Padding.Top + layoutConfig.Padding.Bottom;
+                contentSizeW = totalChildrenSize + layoutConfig.Padding.HorizontalTotal;
+                contentSizeH = maxChildCrossSize + layoutConfig.Padding.VerticalTotal;
             }
             else
             {
-                contentSizeW = maxChildCrossSize + layoutConfig.Padding.Left + layoutConfig.Padding.Right;
-                contentSizeH = totalChildrenSize + layoutConfig.Padding.Top + layoutConfig.Padding.Bottom;
+                contentSizeW = maxChildCrossSize + layoutConfig.Padding.HorizontalTotal;
+                contentSizeH = totalChildrenSize + layoutConfig.Padding.VerticalTotal;
             }
             ScrollContainerDatas[scrollContainerIndex].ContentSize = new Dimensions(contentSizeW, contentSizeH);
 
@@ -1449,7 +1441,7 @@ public class ClayContext : IDisposable
         }
 
         // Rectangle render command
-        if (sharedIndex >= 0 && sharedConfig.BackgroundColor.A > 0)
+        if (sharedIndex >= 0 && sharedConfig.HasBackgroundColor)
         {
             RenderCommands.Add(new RenderCommand
             {

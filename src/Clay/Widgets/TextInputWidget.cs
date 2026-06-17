@@ -87,7 +87,7 @@ public sealed class TextInputWidget : ITextEditHandler
 
     /// <summary>Returns the text to display — masked if in password mode, otherwise the real text.</summary>
     public string DisplayText => CurrentStyle.Password
-        ? new string(CurrentStyle.PasswordChar == '\0' ? '*' : CurrentStyle.PasswordChar, _chars.Count)
+        ? new string(MaskChar, _chars.Count)
         : Text;
 
     /// <summary>Current vertical scroll offset in pixels (for multiline inputs).</summary>
@@ -177,15 +177,7 @@ public sealed class TextInputWidget : ITextEditHandler
         if (from >= to || from >= _chars.Count) return 0;
         to = Math.Min(to, _chars.Count);
         int len = to - from;
-        if (CurrentStyle.Password)
-        {
-            char mask = CurrentStyle.PasswordChar == '\0' ? '*' : CurrentStyle.PasswordChar;
-            Span<char> maskBuf = len <= 256 ? stackalloc char[len] : new char[len];
-            maskBuf.Fill(mask);
-            return _measurer.MeasureText(maskBuf, _fontId, _fontSize, _letterSpacing).Width;
-        }
-        var span = CollectionsMarshal.AsSpan(_chars).Slice(from, len);
-        return _measurer.MeasureText(span, _fontId, _fontSize, _letterSpacing).Width;
+        return MeasureRun(CollectionsMarshal.AsSpan(_chars).Slice(from, len));
     }
 
     /// <summary>Computed line height in pixels.</summary>
@@ -264,10 +256,7 @@ public sealed class TextInputWidget : ITextEditHandler
             float h = _cachedLineHeight + style.Padding.Top + style.Padding.Bottom;
             if (!_editState.SingleLine)
             {
-                int lineCount = 1;
-                var span = CollectionsMarshal.AsSpan(_chars);
-                for (int i = 0; i < span.Length; i++)
-                    if (span[i] == '\n') lineCount++;
+                int lineCount = CountLines();
                 h = lineCount * _cachedLineHeight + style.Padding.Top + style.Padding.Bottom;
             }
             sizing.Height = SizingAxis.Fixed(h);
@@ -294,10 +283,7 @@ public sealed class TextInputWidget : ITextEditHandler
             }
 
             // Clamp scroll
-            int lineCount = 1;
-            var charSpan = CollectionsMarshal.AsSpan(_chars);
-            for (int i = 0; i < charSpan.Length; i++)
-                if (charSpan[i] == '\n') lineCount++;
+            int lineCount = CountLines();
             float totalContentHeight = lineCount * _cachedLineHeight;
             float maxScroll = Math.Max(0, totalContentHeight - visibleHeight);
             _scrollY = Math.Clamp(_scrollY, 0, maxScroll);
@@ -335,13 +321,7 @@ public sealed class TextInputWidget : ITextEditHandler
         if (idx >= _chars.Count) return 0;
         var span = CollectionsMarshal.AsSpan(_chars);
         if (span[idx] == '\n') return 0;
-        if (CurrentStyle.Password)
-        {
-            char mask = CurrentStyle.PasswordChar == '\0' ? '*' : CurrentStyle.PasswordChar;
-            ReadOnlySpan<char> maskSpan = stackalloc char[] { mask };
-            return _measurer.MeasureText(maskSpan, _fontId, _fontSize, _letterSpacing).Width;
-        }
-        return _measurer.MeasureText(span.Slice(idx, 1), _fontId, _fontSize, _letterSpacing).Width;
+        return MeasureRun(span.Slice(idx, 1));
     }
 
     void ITextEditHandler.LayoutRow(out TextEditRow row, int lineStartIndex)
@@ -356,21 +336,7 @@ public sealed class TextInputWidget : ITextEditHandler
         int numChars = end - lineStartIndex;
         int textChars = hasNewline ? numChars - 1 : numChars;
 
-        float width = 0;
-        if (textChars > 0)
-        {
-            if (CurrentStyle.Password)
-            {
-                char mask = CurrentStyle.PasswordChar == '\0' ? '*' : CurrentStyle.PasswordChar;
-                Span<char> maskBuf = textChars <= 256 ? stackalloc char[textChars] : new char[textChars];
-                maskBuf.Fill(mask);
-                width = _measurer.MeasureText(maskBuf, _fontId, _fontSize, _letterSpacing).Width;
-            }
-            else
-            {
-                width = _measurer.MeasureText(span.Slice(lineStartIndex, textChars), _fontId, _fontSize, _letterSpacing).Width;
-            }
-        }
+        float width = MeasureRun(span.Slice(lineStartIndex, textChars));
 
         float lh = _cachedLineHeight;
         row = new TextEditRow
@@ -409,10 +375,35 @@ public sealed class TextInputWidget : ITextEditHandler
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void InvalidateTextCache() => _textCache = null;
 
+    private char MaskChar => CurrentStyle.PasswordChar == '\0' ? '*' : CurrentStyle.PasswordChar;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private float MeasureRun(ReadOnlySpan<char> realSpan)
+    {
+        if (realSpan.IsEmpty) return 0;
+        if (CurrentStyle.Password)
+        {
+            char mask = MaskChar;
+            Span<char> maskBuf = realSpan.Length <= 256 ? stackalloc char[realSpan.Length] : new char[realSpan.Length];
+            maskBuf.Fill(mask);
+            return _measurer.MeasureText(maskBuf, _fontId, _fontSize, _letterSpacing).Width;
+        }
+        return _measurer.MeasureText(realSpan, _fontId, _fontSize, _letterSpacing).Width;
+    }
+
     private float ComputeLineHeight(TextInputStyle style)
     {
         if (style.LineHeight > 0) return style.LineHeight;
         return _measurer.MeasureText("Ay", style.FontId, style.FontSize, style.LetterSpacing).Height;
+    }
+
+    private int CountLines()
+    {
+        int n = 1;
+        var s = CollectionsMarshal.AsSpan(_chars);
+        for (int i = 0; i < s.Length; i++)
+            if (s[i] == '\n') n++;
+        return n;
     }
 
     private void EnsureCursorVisible(float visibleHeight)

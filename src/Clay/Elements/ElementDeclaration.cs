@@ -97,6 +97,6 @@ public struct SharedElementConfig
     public CornerRadius CornerRadius;
     public nint UserData;
 
-    public readonly bool HasBackgroundColor => BackgroundColor.A > 0;
+    public readonly bool HasBackgroundColor => BackgroundColor.IsVisible;
     public readonly bool HasCornerRadius => CornerRadius.HasRadius;
 }
