@@ -524,4 +524,44 @@ public class ColorExtendedTests
         Assert.True(Color.Magenta.IsVisible);
         Assert.True(Color.Gray.IsVisible);
     }
+
+    [Fact]
+    public void ScaleAlpha_MultipliesAlpha_KeepsRgb()
+    {
+        var c = Color.Rgba(200, 100, 50, 200).ScaleAlpha(0.5f);
+        Assert.Equal(200f, c.R);
+        Assert.Equal(100f, c.G);
+        Assert.Equal(50f, c.B);
+        Assert.Equal(100f, c.A);
+    }
+
+    [Fact]
+    public void ScaleAlpha_DoesNotClamp()
+    {
+        // Matches the existing (un-clamped) behavior; factor > 1 overshoots.
+        Assert.Equal(510f, Color.Rgba(0, 0, 0, 255).ScaleAlpha(2f).A);
+        Assert.Equal(0f, Color.Rgba(0, 0, 0, 255).ScaleAlpha(0f).A);
+    }
+
+    [Fact]
+    public void Equality_SameComponents_AreEqual()
+    {
+        var a = Color.Rgba(10, 20, 30, 40);
+        var b = Color.Rgba(10, 20, 30, 40);
+        Assert.True(a == b);
+        Assert.False(a != b);
+        Assert.True(a.Equals(b));
+        Assert.True(a.Equals((object)b));
+        Assert.Equal(a.GetHashCode(), b.GetHashCode());
+    }
+
+    [Fact]
+    public void Equality_DifferentComponents_AreNotEqual()
+    {
+        var a = Color.Rgba(10, 20, 30, 40);
+        Assert.True(a != Color.Rgba(11, 20, 30, 40));
+        Assert.True(a != Color.Rgba(10, 20, 30, 41)); // alpha differs
+        Assert.False(a == Color.Rgba(11, 20, 30, 40));
+        Assert.False(a.Equals("not a color"));
+    }
 }
