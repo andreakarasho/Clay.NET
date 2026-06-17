@@ -72,6 +72,13 @@ internal class ClayUIContext
     internal bool RightMousePressed;
     internal Vector2 MousePosition;
 
+    // Press capture for click matching: the element the mouse went down on
+    // (ActivePressId) and the element currently hovered when a click is evaluated
+    // (HoverCandidateId). A click only fires when they match, so a press on one
+    // element + release over another does not click the release target.
+    internal uint ActivePressId;
+    internal uint HoverCandidateId;
+
     // Active slider tracking for drag behavior
     internal uint ActiveSliderTrackId;
     internal float ActiveSliderMin;
@@ -207,6 +214,11 @@ internal class ClayUIContext
         IdCounter = 0;
         MouseWasPressed = MousePressed;
         MousePressed = mouseDown;
+        // A new press starts a fresh press-capture; the hovered element (if any)
+        // re-claims it via IsHovered this frame. Released-only frames keep the
+        // value set on the press frame so the click check can match against it.
+        if (MousePressed && !MouseWasPressed)
+            ActivePressId = 0;
         RightMouseWasPressed = RightMousePressed;
         RightMousePressed = rightMouseDown;
         MousePosition = mousePosition;
@@ -874,6 +886,13 @@ public static class ClayUI
         get
         {
             if (!IsMouseJustReleased) return false;
+
+            // Press-capture: only click if the mouse went down on the same element it
+            // is now released over. HoverCandidateId is set by the IsHovered(id) call
+            // that gates every use of this property (isHovered && ShouldProcessClick),
+            // so it identifies the element being evaluated. Prevents press-on-A then
+            // release-over-B from clicking B.
+            if (_context.ActivePressId != _context.HoverCandidateId) return false;
 
             // Block all interaction in disabled regions
             if (IsDisabled) return false;
@@ -1676,7 +1695,18 @@ public static class ClayUI
         if (!IsInsidePopup && IsMouseOverAnyPopup) return false;
         if (IsInsideWindow && !IsCurrentWindowTopmost) return false;
         if (!IsInsideWindow && !IsInsidePopup && IsMouseOverAnyWindow) return false;
-        return Clay.PointerOver(id);
+
+        bool hovered = Clay.PointerOver(id);
+        if (hovered)
+        {
+            // Record this element as the click candidate; ShouldProcessClick (evaluated
+            // right after, gated by the same isHovered) matches it against ActivePressId.
+            _context.HoverCandidateId = id.Id;
+            // Capture which element the mouse went down on (press-capture).
+            if (IsMouseJustPressed)
+                _context.ActivePressId = id.Id;
+        }
+        return hovered;
     }
 
     /// <summary>
