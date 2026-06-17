@@ -15,7 +15,8 @@ public class RaylibTextMeasurer : ITextMeasurer
         _fonts = fonts;
     }
 
-    public unsafe Dimensions MeasureText(ReadOnlySpan<char> text, ushort fontId, ushort fontSize, ushort letterSpacing)
+    // maxWidth ignored: this measurer doesn't wrap; the layout reflow pass handles wrapping.
+    public unsafe Dimensions MeasureText(ReadOnlySpan<char> text, ushort fontId, ushort fontSize, ushort letterSpacing, float maxWidth = 0)
     {
         // Validate font ID
         if (fontId >= _fonts.Length)
