@@ -639,6 +639,16 @@ public class ClayContext : IDisposable
     /// Adds a text element.
     /// </summary>
     public void AddText(ReadOnlySpan<char> text, TextConfig config)
+        => AddTextCore(text.ToString(), config);
+
+    // Overload for callers that already hold the string (the common UI case).
+    // Clay is immediate-mode: AddText runs for EVERY text node EVERY frame, so
+    // the span overload's text.ToString() allocated a fresh string per node per
+    // frame. When the caller owns a string, store the reference directly.
+    public void AddText(string text, TextConfig config)
+        => AddTextCore(text ?? string.Empty, config);
+
+    private void AddTextCore(string textString, TextConfig config)
     {
         if (Warnings.MaxElementsExceeded || LayoutElements.Length >= MaxElementCount - 1)
         {
@@ -646,8 +656,8 @@ public class ClayContext : IDisposable
             return;
         }
 
+        ReadOnlySpan<char> text = textString.AsSpan();
         ref var parentElement = ref GetOpenLayoutElement();
-        string textString = text.ToString();
 
         // Create text element
         LayoutElements.Add(new LayoutElement());
