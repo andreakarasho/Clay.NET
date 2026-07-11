@@ -1347,6 +1347,25 @@ public class ClayContext : IDisposable
         }
     }
 
+    // Stamp clip bounds onto every hash item under a render-culled subtree so
+    // pointer hit-testing rejects scrolled-out elements (see cull sites below).
+    private void TagSubtreeClipBounds(int elementIndex, BoundingBox clip)
+    {
+        ref var element = ref LayoutElements[elementIndex];
+        for (int i = 0; i < element.Children.Length; i++)
+        {
+            int childIndex = LayoutElementChildren[element.Children.StartIndex + i];
+            int hashIndex = GetHashMapItemIndex(LayoutElements[childIndex].Id);
+            if (hashIndex >= 0)
+            {
+                ref var item = ref LayoutElementsHashMapInternal[hashIndex];
+                item.HasClipBounds = true;
+                item.ClipBounds = clip;
+            }
+            TagSubtreeClipBounds(childIndex, clip);
+        }
+    }
+
     private void GenerateRenderCommandsRecursive(int elementIndex, short zIndex, BoundingBox clipBounds, bool hasClip)
     {
         ref var element = ref LayoutElements[elementIndex];
@@ -1366,6 +1385,7 @@ public class ClayContext : IDisposable
             if (boundingBox.Right < 0 || boundingBox.Bottom < 0 ||
                 boundingBox.X > LayoutDimensions.Width || boundingBox.Y > LayoutDimensions.Height)
             {
+                if (hasClip) TagSubtreeClipBounds(elementIndex, clipBounds);
                 return;
             }
 
@@ -1375,6 +1395,13 @@ public class ClayContext : IDisposable
                 if (boundingBox.Right < clipBounds.X || boundingBox.Bottom < clipBounds.Y ||
                     boundingBox.X > clipBounds.Right || boundingBox.Y > clipBounds.Bottom)
                 {
+                    // The subtree is skipped for rendering, but its hash items were
+                    // built during layout with default (no-clip) flags. Pointer
+                    // hit-testing (RebuildPointerOverIds) gates membership on
+                    // ClipBounds — without tagging, a control scrolled out of its
+                    // scroll container stays clickable at its raw laid-out bounds
+                    // (e.g. an options-list row hit through the window header).
+                    TagSubtreeClipBounds(elementIndex, clipBounds);
                     return;
                 }
             }
