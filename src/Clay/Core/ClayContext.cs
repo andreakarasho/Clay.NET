@@ -1091,31 +1091,31 @@ public class ClayContext : IDisposable
                     }
                 }
 
-                // Second pass: distribute remaining space to grow elements (along main axis)
+                // Second pass: distribute remaining space to grow elements (along main axis).
+                // No space left (the fixed/fit siblings already overflow the parent) is NOT a
+                // skip: a grow child must still be written, at its min — otherwise it keeps
+                // the content-derived size from CloseElement, which for a scroll container is
+                // its whole scrolled content, and the container stops clipping.
                 if (sizingAlongAxis && growCount > 0)
                 {
-                    float remainingSpace = availableSpace - usedSpace;
-                    if (remainingSpace > 0)
+                    float spacePerGrow = Math.Max(0f, availableSpace - usedSpace) / totalGrowWeight;
+
+                    for (int i = 0; i < parent.Children.Length; i++)
                     {
-                        float spacePerGrow = remainingSpace / totalGrowWeight;
+                        int childIndex = LayoutElementChildren[parent.Children.StartIndex + i];
+                        ref var child = ref LayoutElements[childIndex];
+                        ref var childLayoutConfig = ref LayoutConfigs[child.LayoutConfigIndex];
+                        var childSizing = xAxis ? childLayoutConfig.Sizing.Width : childLayoutConfig.Sizing.Height;
 
-                        for (int i = 0; i < parent.Children.Length; i++)
+                        if (childSizing.Type == SizingType.Grow)
                         {
-                            int childIndex = LayoutElementChildren[parent.Children.StartIndex + i];
-                            ref var child = ref LayoutElements[childIndex];
-                            ref var childLayoutConfig = ref LayoutConfigs[child.LayoutConfigIndex];
-                            var childSizing = xAxis ? childLayoutConfig.Sizing.Width : childLayoutConfig.Sizing.Height;
-
-                            if (childSizing.Type == SizingType.Grow)
-                            {
-                                float maxSize = childSizing.MinMax.Max > 0 ? childSizing.MinMax.Max : float.MaxValue;
-                                float newSize = childSizing.MinMax.Min + spacePerGrow;
-                                newSize = Math.Clamp(newSize, childSizing.MinMax.Min, maxSize);
-                                if (xAxis)
-                                    child.Dimensions.Width = newSize;
-                                else
-                                    child.Dimensions.Height = newSize;
-                            }
+                            float maxSize = childSizing.MinMax.Max > 0 ? childSizing.MinMax.Max : float.MaxValue;
+                            float newSize = childSizing.MinMax.Min + spacePerGrow;
+                            newSize = Math.Clamp(newSize, childSizing.MinMax.Min, maxSize);
+                            if (xAxis)
+                                child.Dimensions.Width = newSize;
+                            else
+                                child.Dimensions.Height = newSize;
                         }
                     }
                 }
