@@ -62,6 +62,21 @@ public enum FloatingAttachTo : byte
 }
 
 /// <summary>
+/// Whether a floating element is clipped (upstream Clay's clipTo).
+/// </summary>
+public enum FloatingClipTo : byte
+{
+    /// <summary>Draws over everything, ignoring the clip of the element it is declared in (default).</summary>
+    None = 0,
+
+    /// <summary>
+    /// Clipped like an in-flow child: by the nearest clipping ancestor it is declared
+    /// inside, intersected with that ancestor's own clipping ancestors.
+    /// </summary>
+    AttachedParent = 1
+}
+
+/// <summary>
 /// Attachment point configuration for floating elements.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
@@ -136,6 +151,11 @@ public struct FloatingConfig
     /// What this floating element attaches to.
     /// </summary>
     public FloatingAttachTo AttachTo;
+
+    /// <summary>
+    /// Clipping of this floating element (AttachTo = Parent only).
+    /// </summary>
+    public FloatingClipTo ClipTo;
 
     /// <summary>
     /// Returns true if this config enables floating.

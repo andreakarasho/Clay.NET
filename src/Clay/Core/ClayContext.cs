@@ -386,7 +386,8 @@ public class ClayContext : IDisposable
                 if (floatingConfig.AttachTo == FloatingAttachTo.Parent)
                 {
                     floatingConfig.ParentId = hierarchicalParent.Id;
-                    clipElementId = (uint)CurrentClipId;
+                    if (floatingConfig.ClipTo == FloatingClipTo.AttachedParent)
+                        clipElementId = (uint)CurrentClipId;
                 }
                 else if (floatingConfig.AttachTo == FloatingAttachTo.Root)
                 {
@@ -1367,8 +1368,62 @@ public class ClayContext : IDisposable
         for (int rootIndex = 0; rootIndex < LayoutElementTreeRoots.Length; rootIndex++)
         {
             ref var root = ref LayoutElementTreeRoots[rootIndex];
-            GenerateRenderCommandsRecursive(root.LayoutElementIndex, root.ZIndex, default, false);
+            if (root.ClipElementId == 0 || !TryGetClipChainBounds(root.ClipElementId, out var clip))
+            {
+                GenerateRenderCommandsRecursive(root.LayoutElementIndex, root.ZIndex, default, false);
+                continue;
+            }
+
+            // A clipped float: one scissor around the whole subtree, and the same
+            // bounds for its culling + pointer hit-test.
+            var rootId = LayoutElements[root.LayoutElementIndex].Id;
+            RenderCommands.Add(new RenderCommand
+            {
+                BoundingBox = clip,
+                CommandType = RenderCommandType.ScissorStart,
+                Id = rootId,
+                ZIndex = root.ZIndex,
+            });
+            GenerateRenderCommandsRecursive(root.LayoutElementIndex, root.ZIndex, clip, true);
+            RenderCommands.Add(new RenderCommand
+            {
+                BoundingBox = clip,
+                CommandType = RenderCommandType.ScissorEnd,
+                Id = rootId,
+                ZIndex = root.ZIndex,
+            });
         }
+    }
+
+    // Bounds of clip element clipId intersected with every clipping ancestor it
+    // was declared inside (LayoutElementClipElementIds holds each element's
+    // enclosing clip, recorded before its own push). False when the clip element
+    // has no layout this frame.
+    private bool TryGetClipChainBounds(uint clipId, out BoundingBox bounds)
+    {
+        bounds = default;
+        bool found = false;
+        for (int depth = 0; clipId != 0 && depth < 64; depth++)
+        {
+            int hashIndex = GetHashMapItemIndex(clipId);
+            if (hashIndex < 0)
+                break;
+            ref var item = ref LayoutElementsHashMapInternal[hashIndex];
+            var box = item.BoundingBox;
+            if (!found)
+            {
+                bounds = box;
+                found = true;
+            }
+            else
+            {
+                float x = Math.Max(bounds.X, box.X), y = Math.Max(bounds.Y, box.Y);
+                float r = Math.Min(bounds.Right, box.Right), b = Math.Min(bounds.Bottom, box.Bottom);
+                bounds = new BoundingBox(x, y, Math.Max(0, r - x), Math.Max(0, b - y));
+            }
+            clipId = (uint)LayoutElementClipElementIds[item.LayoutElementIndex];
+        }
+        return found;
     }
 
     // Stamp clip bounds onto every hash item under a render-culled subtree so
